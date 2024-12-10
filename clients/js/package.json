@@ -12,13 +12,20 @@
   "scripts": {
     "clean": "rm -fr dist/*",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && ./ts-fixup.sh",
+    "test": "tsc -p tsconfig.json",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint . --fix"
   },
   "devDependencies": {
+    "@solana/prettier-config-solana": "^0.0.5",
     "@types/node": "^22.10.1",
     "@typescript-eslint/eslint-plugin": "^8.4.0",
     "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.4.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {

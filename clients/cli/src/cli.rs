@@ -31,7 +31,7 @@ pub struct Cli {
     #[clap(global(true), long, alias = "dryrun")]
     pub dry_run: bool,
 
-    /// URL for Solana's JSON RPC or moniker (or their first letter):
+    /// URL for Solana JSON RPC or moniker (or their first letter):
     /// [mainnet-beta, testnet, devnet, localhost].
     /// Default from the configuration file.
     #[clap(
