@@ -3,7 +3,7 @@ import 'zx/globals';
 import { cliArguments, workingDirectory } from '../utils.mjs';
 
 // Build the client.
-cd(path.join(workingDirectory, 'clients', 'js-legacy'));
+cd(path.join(workingDirectory, 'clients', 'js'));
 await $`pnpm install`;
 await $`pnpm build`;
 
