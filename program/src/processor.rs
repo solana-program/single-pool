@@ -75,7 +75,7 @@ fn calculate_withdraw_amount(
     }
 }
 
-/// Deserialize the stake state from AccountInfo
+/// Deserialize the stake state from `AccountInfo`
 fn get_stake_state(stake_account_info: &AccountInfo) -> Result<(Meta, Stake), ProgramError> {
     let stake_state = try_from_slice_unchecked::<StakeStateV2>(&stake_account_info.data.borrow())?;
 
@@ -85,7 +85,7 @@ fn get_stake_state(stake_account_info: &AccountInfo) -> Result<(Meta, Stake), Pr
     }
 }
 
-/// Deserialize the stake amount from AccountInfo
+/// Deserialize the stake amount from `AccountInfo`
 fn get_stake_amount(stake_account_info: &AccountInfo) -> Result<u64, ProgramError> {
     Ok(get_stake_state(stake_account_info)?.1.delegation.stake)
 }
@@ -319,7 +319,7 @@ fn check_account_owner(
 }
 
 /// Minimum delegation to create a pool
-/// We floor at 1sol to avoid over-minting tokens before the relevant feature is
+/// We floor at 1 sol to avoid over-minting tokens before the relevant feature is
 /// active
 fn minimum_delegation() -> Result<u64, ProgramError> {
     Ok(std::cmp::max(

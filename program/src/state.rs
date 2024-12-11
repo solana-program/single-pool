@@ -22,13 +22,13 @@ pub enum SinglePoolAccountType {
 /// Single-Validator Stake Pool account, used to derive all PDAs
 #[derive(Clone, Debug, Default, PartialEq, BorshDeserialize, BorshSerialize, BorshSchema)]
 pub struct SinglePool {
-    /// Pool account type, reserved for future compat
+    /// Pool account type, reserved for future compatibility
     pub account_type: SinglePoolAccountType,
     /// The vote account this pool is mapped to
     pub vote_account_address: Pubkey,
 }
 impl SinglePool {
-    /// Create a SinglePool struct from its account info
+    /// Create a `SinglePool` struct from its account info
     pub fn from_account_info(
         account_info: &AccountInfo,
         program_id: &Pubkey,

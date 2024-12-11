@@ -20,7 +20,7 @@ use {
     },
 };
 
-/// Instructions supported by the SinglePool program.
+/// Instructions supported by the `SinglePool` program.
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum SinglePoolInstruction {
@@ -123,7 +123,7 @@ pub enum SinglePoolInstruction {
     UpdateTokenMetadata {
         /// Token name
         name: String,
-        /// Token symbol e.g. stkSOL
+        /// Token symbol e.g. `stkSOL`
         symbol: String,
         /// URI of the uploaded metadata of the spl-token
         uri: String,

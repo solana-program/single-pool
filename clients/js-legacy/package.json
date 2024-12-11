@@ -1,22 +1,31 @@
 {
   "name": "@solana/spl-single-pool-classic",
   "version": "1.0.2",
-  "main": "dist/cjs/index.js",
-  "module": "dist/mjs/index.js",
+  "main": "dist/src/index.js",
+  "module": "dist/src/index.mjs",
+  "types": "./dist/types/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/mjs/index.js",
-      "require": "./dist/cjs/index.js"
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/src/index.mjs",
+      "require": "./dist/src/index.js"
     }
   },
   "scripts": {
     "clean": "rm -rf dist/*",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig-cjs.json && ./ts-fixup.sh",
-    "build:program": "cargo build-sbf --manifest-path=../../../program/Cargo.toml",
+    "build": "rm -rf dist/* && tsup && tsc -p ./tsconfig.declarations.json",
+    "build:program": "cargo build-sbf --manifest-path=../../program/Cargo.toml",
+    "format": "prettier --check .",
+    "format:fix": "prettier --write .",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint . --fix",
-    "test": "sed -i '1s/.*/{ \"type\": \"module\",/' package.json && NODE_OPTIONS='--loader=tsx' ava ; ret=$?; sed -i '1s/.*/{/' package.json && exit $ret"
+    "test": "ava",
+    "prepublishOnly": "pnpm build"
   },
+  "files": [
+    "./dist/src",
+    "./dist/types"
+  ],
   "devDependencies": {
     "@types/node": "^22.10.1",
     "@ava/typescript": "^5.0.0",
@@ -24,20 +33,27 @@
     "ava": "^6.2.0",
     "eslint": "^8.57.0",
     "solana-bankrun": "^0.2.0",
-    "tsx": "^4.19.2",
+    "tsup": "^8.1.2",
     "typescript": "^5.7.2"
   },
   "dependencies": {
     "@solana/web3.js": "^1.95.5",
     "@solana/addresses": "2.0.0",
-    "@solana/spl-single-pool": "1.0.0"
+    "@solana/prettier-config-solana": "^0.0.5",
+    "@solana/spl-single-pool": "workspace:*",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "prettier": "^3.4.2"
   },
   "ava": {
-    "extensions": {
-      "ts": "module"
-    },
     "nodeArguments": [
-      "--import=tsx"
-    ]
+      "--no-warnings"
+    ],
+    "typescript": {
+      "compile": false,
+      "rewritePaths": {
+        "tests/": "dist/test/"
+      }
+    }
   }
 }

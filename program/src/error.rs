@@ -9,7 +9,7 @@ use {
     thiserror::Error,
 };
 
-/// Errors that may be returned by the SinglePool program.
+/// Errors that may be returned by the `SinglePool` program.
 #[derive(Clone, Debug, Eq, Error, num_derive::FromPrimitive, PartialEq)]
 pub enum SinglePoolError {
     // 0.
@@ -75,7 +75,7 @@ pub enum SinglePoolError {
     UnexpectedMathError,
 
     // 15
-    /// The V0_23_5 vote account type is unsupported and should be upgraded via
+    /// The `V0_23_5` vote account type is unsupported and should be upgraded via
     /// `convert_to_current()`.
     #[error("LegacyVoteAccount")]
     LegacyVoteAccount,
