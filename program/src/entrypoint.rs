@@ -30,13 +30,11 @@ security_txt! {
     // Required fields
     name: "SPL Single-Validator Stake Pool",
     project_url: "https://spl.solana.com/single-pool",
-    contacts: "link:https://github.com/solana-labs/solana-program-library/security/advisories/new,mailto:security@solana.com,discord:https://discord.gg/solana",
+    contacts: "link:https://github.com/solana-labs/solana-program-library/security/advisories/new,mailto:security@anza.xyz,discord:https://discord.gg/solana",
     policy: "https://github.com/solana-labs/solana-program-library/blob/master/SECURITY.md",
 
     // Optional Fields
     preferred_languages: "en",
-    source_code: "https://github.com/solana-labs/solana-program-library/tree/master/single-pool/program",
-    source_revision: "ef44df985e76a697ee9a8aabb3a223610e4cf1dc",
-    source_release: "single-pool-v1.0.0",
-    auditors: "https://github.com/solana-labs/security-audits#single-stake-pool"
+    source_code: "https://github.com/solana-program/single-pool/tree/main/program",
+    auditors: "https://spl.solana.com/single-pool#security-audits"
 }
