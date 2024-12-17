@@ -1,6 +1,6 @@
 [package]
 name = "spl-single-pool"
-version = "1.0.1"
+version = "1.0.2"
 description = "Solana Program Library Single-Validator Stake Pool"
 authors = ["Anza Maintainers <maintainers@anza.xyz>"]
 repository = "https://github.com/solana-program/single-pool"
