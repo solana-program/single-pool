@@ -87,23 +87,21 @@ async function startWithContext(authorizedWithdrawer?: PublicKey) {
     voteAccountData.set(authorizedWithdrawer.toBytes(), 36);
   }
 
-  return await start(
-    [
-      { name: 'spl_single_pool', programId: SinglePoolProgram.programId },
-      { name: 'mpl_token_metadata', programId: MPL_METADATA_PROGRAM_ID },
-    ],
-    [
-      {
-        address: new PublicKey(voteAccount.pubkey),
-        info: {
-          lamports: voteAccount.account.lamports,
-          data: voteAccountData,
-          owner: VoteProgram.programId,
-          executable: false,
-        },
+  const programs = [
+    { name: 'spl_single_pool', programId: SinglePoolProgram.programId },
+    { name: 'mpl_token_metadata', programId: MPL_METADATA_PROGRAM_ID },
+  ];
+  return await start(programs, [
+    {
+      address: new PublicKey(voteAccount.pubkey),
+      info: {
+        lamports: voteAccount.account.lamports,
+        data: voteAccountData,
+        owner: VoteProgram.programId,
+        executable: false,
       },
-    ],
-  );
+    },
+  ]);
 }
 
 async function processTransaction(
