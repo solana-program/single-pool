@@ -89,8 +89,14 @@ async function startWithContext(authorizedWithdrawer?: PublicKey) {
 
   return await start(
     [
-      { name: 'spl_single_pool', programId: SinglePoolProgram.programId },
-      { name: 'mpl_token_metadata', programId: MPL_METADATA_PROGRAM_ID },
+      {
+        name: Buffer.from('spl_single_pool').toString('utf-8'),
+        programId: SinglePoolProgram.programId,
+      },
+      {
+        name: Buffer.from('mpl_token_metadata').toString('utf-8'),
+        programId: MPL_METADATA_PROGRAM_ID,
+      },
     ],
     [
       {
