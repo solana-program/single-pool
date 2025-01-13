@@ -19,7 +19,7 @@
     "format:fix": "prettier --write .",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint . --fix",
-    "test": "ava",
+    "test": "ava --serial",
     "prepublishOnly": "pnpm build"
   },
   "files": [
@@ -32,7 +32,7 @@
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "ava": "^6.2.0",
     "eslint": "^8.57.0",
-    "solana-bankrun": "^0.2.0",
+    "solana-bankrun": "^0.4.0",
     "tsup": "^8.1.2",
     "typescript": "^5.7.2"
   },
