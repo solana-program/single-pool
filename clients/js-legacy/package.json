@@ -31,7 +31,7 @@
     "@ava/typescript": "^5.0.0",
     "@typescript-eslint/eslint-plugin": "^8.19.1",
     "ava": "^6.2.0",
-    "eslint": "^8.57.0",
+    "eslint": "^9.18.0",
     "solana-bankrun": "^0.2.0",
     "tsup": "^8.1.2",
     "typescript": "^5.7.2"
