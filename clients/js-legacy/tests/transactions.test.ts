@@ -37,6 +37,7 @@ const voteAccount = {
 };
 
 const SLOTS_PER_EPOCH: bigint = 432000n;
+const LAMPORTS_PER_SOL: number = 1_000_000_000;
 
 class BanksConnection {
   constructor(client: BanksClient, payer: Keypair) {
@@ -109,6 +110,10 @@ async function startWithContext(authorizedWithdrawer?: PublicKey) {
         },
       },
     ],
+    undefined,
+    undefined,
+    // stake_raise_minimum_delegation_to_1_sol::id()
+    [new PublicKey('9onWzzvCzNC2jfhxxeqRgs5q7nFAAKpCUvkj6T6GJK9i')],
   );
 }
 
@@ -245,7 +250,11 @@ test('deposit', async (t) => {
   const stakeRent = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
   const minimumDelegation = (await connection.getStakeMinimumDelegation()).value;
   const poolStakeAccount = await client.getAccount(poolStakeAddress);
-  t.is(poolStakeAccount.lamports, minimumDelegation * 2 + stakeRent, 'stake has been deposited');
+  t.is(
+    poolStakeAccount.lamports,
+    LAMPORTS_PER_SOL + minimumDelegation + stakeRent,
+    'stake has been deposited',
+  );
 });
 
 test('deposit from default', async (t) => {
@@ -286,7 +295,11 @@ test('deposit from default', async (t) => {
 
   const stakeRent = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
   const poolStakeAccount = await client.getAccount(poolStakeAddress);
-  t.is(poolStakeAccount.lamports, minimumDelegation * 2 + stakeRent, 'stake has been deposited');
+  t.is(
+    poolStakeAccount.lamports,
+    LAMPORTS_PER_SOL + minimumDelegation + stakeRent,
+    'stake has been deposited',
+  );
 });
 
 test('withdraw', async (t) => {
