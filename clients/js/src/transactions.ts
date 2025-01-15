@@ -91,7 +91,9 @@ export async function initializeTransaction(
     rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
     rpc.getStakeMinimumDelegation().send(),
   ]);
-  const minimumDelegation = minimumDelegationObj.value;
+  const lamportsPerSol = 1_000_000_000n;
+  const minimumPoolBalance =
+    minimumDelegationObj.value > lamportsPerSol ? minimumDelegationObj.value : lamportsPerSol;
 
   transaction = appendTransactionMessageInstruction(
     SystemInstruction.transfer({
@@ -106,7 +108,7 @@ export async function initializeTransaction(
     SystemInstruction.transfer({
       from: payer,
       to: stake,
-      lamports: stakeRent + minimumDelegation,
+      lamports: stakeRent + minimumPoolBalance,
     }),
     transaction,
   );
