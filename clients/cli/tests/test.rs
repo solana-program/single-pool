@@ -8,6 +8,7 @@ use {
         bpf_loader_upgradeable,
         clock::Epoch,
         epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
+        feature_set::stake_raise_minimum_delegation_to_1_sol,
         native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         signature::{write_keypair_file, Keypair, Signer},
@@ -48,9 +49,9 @@ pub struct Env {
     config_file: NamedTempFile,
 }
 
-async fn setup(initialize: bool) -> Env {
+async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
     // start test validator
-    let (validator, payer) = start_validator().await;
+    let (validator, payer) = start_validator(raise_minimum_delegation).await;
 
     // make clients
     let rpc_client = Arc::new(validator.get_async_rpc_client());
@@ -76,7 +77,7 @@ async fn setup(initialize: bool) -> Env {
 
     // make vote and stake accounts
     let vote_account = create_vote_account(&program_client, &payer, &payer.pubkey()).await;
-    if initialize {
+    if initialize_pool {
         let status = Command::new(SVSP_CLI)
             .args([
                 "manage",
@@ -103,9 +104,13 @@ async fn setup(initialize: bool) -> Env {
     }
 }
 
-async fn start_validator() -> (TestValidator, Keypair) {
+async fn start_validator(raise_minimum_delegation: bool) -> (TestValidator, Keypair) {
     solana_logger::setup();
     let mut test_validator_genesis = TestValidatorGenesis::default();
+    if !raise_minimum_delegation {
+        test_validator_genesis
+            .deactivate_features(&[stake_raise_minimum_delegation_to_1_sol::id()]);
+    }
 
     test_validator_genesis.epoch_schedule(EpochSchedule::custom(
         MINIMUM_SLOTS_PER_EPOCH,
@@ -250,10 +255,12 @@ async fn create_and_delegate_stake_account(
     stake_account.pubkey()
 }
 
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn reactivate_pool_stake() {
-    let env = setup(true).await;
+async fn reactivate_pool_stake(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, true).await;
 
     // setting up a test validator for this to succeed is hell, and success is
     // tested in program tests so we just make sure the cli can send a
@@ -275,12 +282,14 @@ async fn reactivate_pool_stake() {
         .contains("custom program error: 0xc"));
 }
 
-#[test_case(true; "default_stake")]
-#[test_case(false; "normal_stake")]
+#[test_case(false, false; "one_lamp::normal_stake")]
+#[test_case(true, false; "one_sol::normal_stake")]
+#[test_case(false, true; "one_lamp::default_stake")]
+#[test_case(true, true; "one_sol::default_stake")]
 #[tokio::test]
 #[serial]
-async fn deposit(use_default: bool) {
-    let env = setup(true).await;
+async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
+    let env = setup(raise_minimum_delegation, true).await;
 
     let stake_account = if use_default {
         let status = Command::new(SVSP_CLI)
@@ -323,10 +332,12 @@ async fn deposit(use_default: bool) {
     assert!(status.success());
 }
 
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn withdraw() {
-    let env = setup(true).await;
+async fn withdraw(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, true).await;
     let stake_account =
         create_and_delegate_stake_account(&env.program_client, &env.payer, &env.vote_account).await;
 
@@ -357,10 +368,12 @@ async fn withdraw() {
     assert!(status.success());
 }
 
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn create_metadata() {
-    let env = setup(false).await;
+async fn create_metadata(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, false).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
@@ -389,10 +402,12 @@ async fn create_metadata() {
     assert!(status.success());
 }
 
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn update_metadata() {
-    let env = setup(true).await;
+async fn update_metadata(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, true).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
