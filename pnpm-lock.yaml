@@ -49,8 +49,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@8.57.1)
       eslint-plugin-prettier:
-        specifier: ^5.2.2
-        version: 5.2.2(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2)
+        specifier: ^5.2.3
+        version: 5.2.3(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2)
       prettier:
         specifier: ^3.4.2
         version: 3.4.2
@@ -76,8 +76,8 @@ importers:
         specifier: ^10.0.1
         version: 10.0.1(eslint@8.57.1)
       eslint-plugin-prettier:
-        specifier: ^5.2.2
-        version: 5.2.2(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2)
+        specifier: ^5.2.3
+        version: 5.2.3(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2)
       prettier:
         specifier: ^3.4.2
         version: 3.4.2
@@ -1170,8 +1170,8 @@ packages:
     peerDependencies:
       eslint: '>=7.0.0'
 
-  eslint-plugin-prettier@5.2.2:
-    resolution: {integrity: sha512-1yI3/hf35wmlq66C8yOyrujQnel+v5l1Vop5Cl2I6ylyNTT1JbuUUnV3/41PzwTzcyDp/oF0jWE3HXvcH5AQOQ==}
+  eslint-plugin-prettier@5.2.3:
+    resolution: {integrity: sha512-qJ+y0FfCp/mQYQ/vWQ3s7eUlFEL4PyKfAJxsnYTJ4YT73nsJBWqmEpFryxV9OeUiqmsTsYJ5Y+KDNaeP31wrRw==}
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
       '@types/eslint': '>=8.0.0'
@@ -1249,6 +1249,10 @@ packages:
 
   fast-glob@3.3.2:
     resolution: {integrity: sha512-oX2ruAFQwf/Orj8m737Y5adxDQO0LAB7/S5MnxCdTNDd4p6BsyIVsv9JQsATbTSq8KHRpLwIHbVlUNatxd+1Ow==}
+    engines: {node: '>=8.6.0'}
+
+  fast-glob@3.3.3:
+    resolution: {integrity: sha512-7MptL8U0cqcFdzIzwOTHoilX9x5BrNqye7Z/LuC7kCMRio1EMSyqRK3BEAUD7sXRq4iT4AzTVuZdhgQ2TCvYLg==}
     engines: {node: '>=8.6.0'}
 
   fast-json-stable-stringify@2.1.0:
@@ -1339,8 +1343,8 @@ packages:
     resolution: {integrity: sha512-VaUJspBffn/LMCJVoMvSAdmscJyS1auj5Zulnn5UoYcY531UWmdwhRWkcGKnGU93m5HSXP9LP2usOryrBtQowA==}
     engines: {node: '>=16'}
 
-  get-tsconfig@4.8.1:
-    resolution: {integrity: sha512-k9PN+cFBmaLWtVz29SkUoqU5O0slLuHJXt/2P+tMVFT+phsSGXGkp9t3rQIqdz0e+06EHNGs3oM6ZX1s2zHxRg==}
+  get-tsconfig@4.9.0:
+    resolution: {integrity: sha512-52n24W52sIueosRe0XZ8Ex5Yle+WbhfCKnV/gWXpbVR8FXNTfqdKEKUSypKso66VRHTvvcQxL44UTZbJRlCTnw==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -2751,7 +2755,7 @@ snapshots:
       '@typescript-eslint/types': 8.18.0
       '@typescript-eslint/visitor-keys': 8.18.0
       debug: 4.4.0
-      fast-glob: 3.3.2
+      fast-glob: 3.3.3
       is-glob: 4.0.3
       minimatch: 9.0.5
       semver: 7.6.3
@@ -3215,7 +3219,7 @@ snapshots:
     dependencies:
       eslint: 8.57.1
 
-  eslint-plugin-prettier@5.2.2(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2):
+  eslint-plugin-prettier@5.2.3(eslint-config-prettier@10.0.1(eslint@8.57.1))(eslint@8.57.1)(prettier@3.4.2):
     dependencies:
       eslint: 8.57.1
       prettier: 3.4.2
@@ -3326,6 +3330,14 @@ snapshots:
       merge2: 1.4.1
       micromatch: 4.0.8
 
+  fast-glob@3.3.3:
+    dependencies:
+      '@nodelib/fs.stat': 2.0.5
+      '@nodelib/fs.walk': 1.2.8
+      glob-parent: 5.1.2
+      merge2: 1.4.1
+      micromatch: 4.0.8
+
   fast-json-stable-stringify@2.1.0: {}
 
   fast-levenshtein@2.0.6: {}
@@ -3413,7 +3425,7 @@ snapshots:
 
   get-stream@8.0.1: {}
 
-  get-tsconfig@4.8.1:
+  get-tsconfig@4.9.0:
     dependencies:
       resolve-pkg-maps: 1.0.0
     optional: true
@@ -4077,7 +4089,7 @@ snapshots:
   tsx@4.19.2:
     dependencies:
       esbuild: 0.23.1
-      get-tsconfig: 4.8.1
+      get-tsconfig: 4.9.0
     optionalDependencies:
       fsevents: 2.3.3
     optional: true
