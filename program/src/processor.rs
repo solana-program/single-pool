@@ -1223,9 +1223,9 @@ mod tests {
         super::*,
         approx::assert_relative_eq,
         rand::{
-            distributions::{Distribution, Uniform},
+            distr::{Distribution, Uniform},
             rngs::StdRng,
-            seq::{IteratorRandom, SliceRandom},
+            seq::IteratorRandom,
             Rng, SeedableRng,
         },
         std::collections::BTreeMap,
@@ -1379,13 +1379,13 @@ mod tests {
         // minnow_range is under the minimum for cases where we test that
         // op_range is how we roll whether to deposit, withdraw, or reward
         // std_range is a standard probability
-        let deposit_range = Uniform::from(LAMPORTS_PER_SOL..LAMPORTS_PER_SOL * 1000);
-        let minnow_range = Uniform::from(1..LAMPORTS_PER_SOL);
-        let op_range = Uniform::from(if with_rewards { 0.0..1.0 } else { 0.0..0.65 });
-        let std_range = Uniform::from(0.0..1.0);
+        let deposit_range = Uniform::try_from(LAMPORTS_PER_SOL..LAMPORTS_PER_SOL * 1000).unwrap();
+        let minnow_range = Uniform::try_from(1..LAMPORTS_PER_SOL).unwrap();
+        let op_range = Uniform::try_from(if with_rewards { 0.0..1.0 } else { 0.0..0.65 }).unwrap();
+        let std_range = Uniform::try_from(0.0..1.0).unwrap();
 
         let deposit_amount = |prng: &mut StdRng| {
-            if no_minimum && prng.gen_bool(0.2) {
+            if no_minimum && prng.random_bool(0.2) {
                 minnow_range.sample(prng)
             } else {
                 deposit_range.sample(prng)
@@ -1405,11 +1405,11 @@ mod tests {
             // one of the thing we want to see is deposit size being many ooms larger than
             // reward size
             let mut users = vec![];
-            let user_count: usize = prng.gen_range(1..=100);
+            let user_count: usize = prng.random_range(1..=100);
             for _ in 0..user_count {
                 let user = Pubkey::new_unique();
 
-                if prng.gen_bool(0.5) {
+                if prng.random_bool(0.5) {
                     pool.deposit(&user, deposit_amount(&mut prng)).unwrap();
                 }
 
@@ -1424,7 +1424,7 @@ mod tests {
                     // deposit a random amount of stake for tokens with a random user
                     // check their stake, tokens, and share increase by the expected amount
                     n if n <= 0.35 => {
-                        let user = users.choose(&mut prng).unwrap();
+                        let user = users.iter().choose(&mut prng).unwrap();
                         let prev_share = pool.share(user);
                         let prev_stake = pool.stake(user);
                         let prev_token_supply = pool.token_supply;
@@ -1474,7 +1474,7 @@ mod tests {
                             let tokens_burned = if std_range.sample(&mut prng) <= 0.1 {
                                 prev_tokens
                             } else {
-                                prng.gen_range(0..prev_tokens)
+                                prng.random_range(0..prev_tokens)
                             };
                             let stake_received = pool.withdraw(user, tokens_burned).unwrap();
 
