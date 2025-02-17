@@ -1,19 +1,19 @@
 use {
-    crate::config::Error,
     clap::{
         builder::{PossibleValuesParser, TypedValueParser},
         ArgGroup, ArgMatches, Args, Parser, Subcommand,
     },
     solana_clap_v3_utils::{
-        input_parsers::{parse_url_or_moniker, Amount},
-        input_validators::{is_valid_pubkey, is_valid_signer},
-        keypair::{pubkey_from_path, signer_from_path},
+        input_parsers::{
+            parse_url_or_moniker,
+            signer::{SignerSource, SignerSourceParserBuilder},
+            Amount,
+        },
+        keypair::pubkey_from_path,
     },
     solana_cli_output::OutputFormat,
-    solana_remote_wallet::remote_wallet::RemoteWalletManager,
-    solana_sdk::{pubkey::Pubkey, signer::Signer},
+    solana_sdk::pubkey::Pubkey,
     spl_single_pool::{self, find_pool_address},
-    std::{rc::Rc, str::FromStr, sync::Arc},
 };
 
 #[derive(Clone, Debug, Parser)]
@@ -50,9 +50,9 @@ pub struct Cli {
         global(true),
         long,
         id = "PAYER_KEYPAIR",
-        validator = |s| is_valid_signer(s),
+        value_parser = SignerSourceParserBuilder::default().allow_all().build(),
     )]
-    pub fee_payer: Option<SignerArg>,
+    pub fee_payer: Option<SignerSource>,
 
     /// Return information in specified output format
     #[clap(
@@ -183,8 +183,8 @@ pub struct DepositCli {
 
     /// Signing authority on the stake account to be deposited. Defaults to the
     /// client keypair
-    #[clap(long = "withdraw-authority", id = "STAKE_WITHDRAW_AUTHORITY_KEYPAIR", validator = |s| is_valid_signer(s))]
-    pub stake_withdraw_authority: Option<SignerArg>,
+    #[clap(long = "withdraw-authority", id = "STAKE_WITHDRAW_AUTHORITY_KEYPAIR", value_parser = SignerSourceParserBuilder::default().allow_all().build(),)]
+    pub stake_withdraw_authority: Option<SignerSource>,
 
     /// The token account to mint to. Defaults to the client keypair's
     /// associated token account
@@ -218,8 +218,8 @@ pub struct WithdrawCli {
     pub vote_account_address: Option<Pubkey>,
 
     /// Signing authority on the token account. Defaults to the client keypair
-    #[clap(long = "token-authority", id = "TOKEN_AUTHORITY_KEYPAIR", validator = |s| is_valid_signer(s))]
-    pub token_authority: Option<SignerArg>,
+    #[clap(long = "token-authority", id = "TOKEN_AUTHORITY_KEYPAIR", value_parser = SignerSourceParserBuilder::default().allow_all().build())]
+    pub token_authority: Option<SignerSource>,
 
     /// Authority to assign to the new stake account. Defaults to the pubkey of
     /// the client keypair
@@ -269,8 +269,8 @@ pub struct UpdateMetadataCli {
 
     /// Authorized withdrawer for the vote account, to prove validator
     /// ownership. Defaults to the client keypair
-    #[clap(long, id = "AUTHORIZED_WITHDRAWER_KEYPAIR", validator = |s| is_valid_signer(s))]
-    pub authorized_withdrawer: Option<SignerArg>,
+    #[clap(long, id = "AUTHORIZED_WITHDRAWER_KEYPAIR", value_parser = SignerSourceParserBuilder::default().allow_all().build())]
+    pub authorized_withdrawer: Option<SignerSource>,
 }
 
 #[derive(Clone, Debug, Args)]
@@ -315,21 +315,10 @@ fn pool_source_group() -> ArgGroup<'static> {
         .args(&["pool-address", "vote-account-address"])
 }
 
-pub fn parse_address(path: &str, name: &str) -> Result<Pubkey, String> {
-    if is_valid_pubkey(path).is_ok() {
-        // this all is ugly but safe
-        // wallet_manager doesn't need to be shared, it just saves cycles to cache it
-        // and the only way argmatches default fails with an unchecked lookup is in the
-        // prompt branch which seems unlikely to ever be used for pubkeys
-        // the usb lookup in signer_from_path_with_config is safe
-        // and the pubkey lookups are unreachable because pubkey_from_path short
-        // circuits that case
-        let mut wallet_manager = None;
-        pubkey_from_path(&ArgMatches::default(), path, name, &mut wallet_manager)
-            .map_err(|_| format!("Failed to load pubkey {} at {}", name, path))
-    } else {
-        Err(format!("Failed to parse pubkey {} at {}", name, path))
-    }
+fn parse_address(path: &str, name: &str) -> Result<Pubkey, String> {
+    let mut wallet_manager = None;
+    pubkey_from_path(&ArgMatches::default(), path, name, &mut wallet_manager)
+        .map_err(|_| format!("Failed to load pubkey {} at {}", name, path))
 }
 
 pub fn parse_output_format(output_format: &str) -> OutputFormat {
@@ -372,102 +361,4 @@ pub fn pool_address_from_args(maybe_pool: Option<Pubkey>, maybe_vote: Option<Pub
     } else {
         unreachable!()
     }
-}
-
-// all this is because solana clap v3 utils signer handlers dont work with
-// derive syntax which means its impossible to parse keypairs or addresses in
-// value_parser instead, we take the input into a string wrapper from the cli
-// and then once the first pass is over, we do a second manual pass converting
-// to signer wrappers
-#[derive(Clone, Debug)]
-pub enum SignerArg {
-    Source(String),
-    Signer(Arc<dyn Signer>),
-}
-impl FromStr for SignerArg {
-    type Err = std::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Self::Source(s.to_string()))
-    }
-}
-impl PartialEq for SignerArg {
-    fn eq(&self, other: &SignerArg) -> bool {
-        match (self, other) {
-            (SignerArg::Source(ref a), SignerArg::Source(ref b)) => a == b,
-            (SignerArg::Signer(ref a), SignerArg::Signer(ref b)) => a == b,
-            (_, _) => false,
-        }
-    }
-}
-
-pub fn signer_from_arg(
-    signer_arg: Option<SignerArg>,
-    default_signer: &Arc<dyn Signer>,
-) -> Result<Arc<dyn Signer>, Error> {
-    match signer_arg {
-        Some(SignerArg::Signer(signer)) => Ok(signer),
-        Some(SignerArg::Source(_)) => Err("Signer arg string must be converted to signer".into()),
-        None => Ok(default_signer.clone()),
-    }
-}
-
-impl Command {
-    pub fn with_signers(
-        mut self,
-        matches: &ArgMatches,
-        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
-    ) -> Result<Self, Error> {
-        match self {
-            Command::Deposit(ref mut config) => {
-                config.stake_withdraw_authority = with_signer(
-                    matches,
-                    wallet_manager,
-                    config.stake_withdraw_authority.clone(),
-                    "stake_authority",
-                )?;
-            }
-            Command::Withdraw(ref mut config) => {
-                config.token_authority = with_signer(
-                    matches,
-                    wallet_manager,
-                    config.token_authority.clone(),
-                    "token_authority",
-                )?;
-            }
-            Command::Manage(ManageCli {
-                manage: ManageCommand::UpdateTokenMetadata(ref mut config),
-            }) => {
-                config.authorized_withdrawer = with_signer(
-                    matches,
-                    wallet_manager,
-                    config.authorized_withdrawer.clone(),
-                    "authorized_withdrawer",
-                )?;
-            }
-            _ => (),
-        }
-
-        Ok(self)
-    }
-}
-
-pub fn with_signer(
-    matches: &ArgMatches,
-    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
-    arg: Option<SignerArg>,
-    name: &str,
-) -> Result<Option<SignerArg>, Error> {
-    Ok(match arg {
-        Some(SignerArg::Source(path)) => {
-            let signer = if let Ok(signer) = signer_from_path(matches, &path, name, wallet_manager)
-            {
-                signer
-            } else {
-                return Err(format!("Cannot parse signer {} / {}", name, path).into());
-            };
-            Some(SignerArg::Signer(Arc::from(signer)))
-        }
-        a => a,
-    })
 }

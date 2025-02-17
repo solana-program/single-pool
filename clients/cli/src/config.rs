@@ -1,7 +1,7 @@
 use {
     crate::cli::*,
     clap::ArgMatches,
-    solana_clap_v3_utils::keypair::signer_from_path,
+    solana_clap_v3_utils::keypair::{signer_from_path, signer_from_source},
     solana_cli_output::OutputFormat,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
@@ -76,11 +76,14 @@ impl Config {
                 .map(Arc::from);
 
         // resolve fee-payer
-        let fee_payer_arg =
-            with_signer(&matches, wallet_manager, cli.fee_payer, "fee_payer").unwrap();
-        let fee_payer = default_signer
-            .clone()
-            .map(|default_signer| signer_from_arg(fee_payer_arg, &default_signer).unwrap());
+        let fee_payer = cli
+            .fee_payer
+            .map(|fee_payer| {
+                Arc::from(
+                    signer_from_source(&matches, &fee_payer, "fee_payer", wallet_manager).unwrap(),
+                )
+            })
+            .or(default_signer.clone());
 
         // determine output format
         let output_format = match (cli.output_format, cli.verbose) {
