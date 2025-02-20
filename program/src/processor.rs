@@ -764,6 +764,8 @@ impl Processor {
 
         // TODO move lamps from pool to the temp account....
 
+        // TODO some mev lamps are in `pool_info`, are there more lamps in `pool_stake_info` too?
+
         // The temporary stake account must hold lamports in excess of the minimum rent
         if temp_stake_info.lamports() <= minimum_rent {
             return Err(SinglePoolError::InsufficientExcessLamports.into());
@@ -892,12 +894,12 @@ impl Processor {
         // let post_pool_lamports = pool_stake_info.lamports();
         msg!("Available stake post merge {}", post_pool_stake);
 
-        // TODO we might need to return excess lamps here first...
-
-        // sanity check: the temp stake account is empty
-        if temp_stake_info.lamports() != 0 {
-            return Err(SinglePoolError::UnexpectedMathError.into());
-        }
+        // Any remaining lamps in the temp account (like rent) are given back to the pool
+        let mut pool_lamps = pool_stake_info.try_borrow_mut_lamports()?;
+        let mut temp_lamps = temp_stake_info.try_borrow_mut_lamports()?;
+        let lamps_after = pool_lamps.clone().checked_add(temp_lamps.clone()).unwrap();
+        **pool_lamps = lamps_after;
+        **temp_lamps = 0;
 
         // Reassign the now-drained temp stake account to the system program so it can be reclaimed.
         invoke_signed(
