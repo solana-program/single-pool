@@ -20,6 +20,7 @@ solana_program::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
 const POOL_PREFIX: &[u8] = b"pool";
 const POOL_STAKE_PREFIX: &[u8] = b"stake";
+const POOL_TEMP_STAKE_PREFIX: &[u8] = b"temp_stake";
 const POOL_MINT_PREFIX: &[u8] = b"mint";
 const POOL_MINT_AUTHORITY_PREFIX: &[u8] = b"mint_authority";
 const POOL_STAKE_AUTHORITY_PREFIX: &[u8] = b"stake_authority";
@@ -37,6 +38,10 @@ fn find_pool_address_and_bump(program_id: &Pubkey, vote_account_address: &Pubkey
 
 fn find_pool_stake_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[POOL_STAKE_PREFIX, pool_address.as_ref()], program_id)
+}
+
+fn find_pool_temp_stake_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[POOL_TEMP_STAKE_PREFIX, pool_address.as_ref()], program_id)
 }
 
 fn find_pool_mint_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {

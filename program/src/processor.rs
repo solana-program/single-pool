@@ -12,7 +12,7 @@ use {
         instruction::SinglePoolInstruction,
         state::{SinglePool, SinglePoolAccountType},
         MINT_DECIMALS, POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX,
-        POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX,
+        POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX, POOL_TEMP_STAKE_PREFIX,
         VOTE_STATE_AUTHORIZED_WITHDRAWER_END, VOTE_STATE_AUTHORIZED_WITHDRAWER_START,
         VOTE_STATE_DISCRIMINATOR_END,
     },
@@ -124,6 +124,22 @@ fn check_pool_stake_address(
         check_address,
         &crate::find_pool_stake_address_and_bump,
         "stake account",
+        SinglePoolError::InvalidPoolStakeAccount,
+    )
+}
+
+/// Check pool stake account address for the pool account
+fn check_pool_temp_stake_address(
+    program_id: &Pubkey,
+    pool_address: &Pubkey,
+    check_address: &Pubkey,
+) -> Result<u8, ProgramError> {
+    check_pool_pda(
+        program_id,
+        pool_address,
+        check_address,
+        &crate::find_pool_temp_stake_address_and_bump,
+        "temp stake account",
         SinglePoolError::InvalidPoolStakeAccount,
     )
 }
@@ -711,6 +727,190 @@ impl Processor {
         Ok(())
     }
 
+    /*
+       Starts the MEV rewards flywheel
+       * Creates a "temp" staking account
+       * Move all the excess lamps from the pool into the temp account
+       * Delegate the temp staking account to the validator
+    */
+    fn process_initialize_temp_stake(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        // The main pool account (to tie the temp stake to the pool)
+        let pool_info = next_account_info(account_info_iter)?;
+        // The temporary stake account that will stake the excess lamports while they activate
+        let temp_stake_info = next_account_info(account_info_iter)?;
+        // Temp pool uses the same authority as pool stake authority
+        let pool_stake_authority_info = next_account_info(account_info_iter)?;
+        let vote_account_info = next_account_info(account_info_iter)?;
+        let rent_info = next_account_info(account_info_iter)?;
+        let clock_info = next_account_info(account_info_iter)?;
+        let stake_history_info = next_account_info(account_info_iter)?;
+        let stake_config_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        check_system_program(system_program_info.key)?;
+        check_stake_program(stake_program_info.key)?;
+
+        let minimum_delegation = minimum_delegation()?;
+        let rent = &Rent::from_account_info(rent_info)?;
+        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+        let minimum_rent = rent
+            .minimum_balance(stake_space)
+            .saturating_add(minimum_delegation);
+
+        // TODO move lamps from pool to the temp account....
+
+        // The temporary stake account must hold lamports in excess of the minimum rent
+        if temp_stake_info.lamports() <= minimum_rent {
+            return Err(SinglePoolError::InsufficientExcessLamports.into());
+        }
+
+        // Derive the temporary stake account address using a new prefix (POOL_TEMP_STAKE_PREFIX)
+        let temp_stake_bump_seed =
+            check_pool_temp_stake_address(program_id, pool_info.key, temp_stake_info.key)?;
+        let temp_stake_seeds = &[
+            POOL_TEMP_STAKE_PREFIX,
+            pool_info.key.as_ref(),
+            &[temp_stake_bump_seed],
+        ];
+        let temp_stake_signers = &[&temp_stake_seeds[..]];
+
+        // Create the temp stake account (Note: this will fail if it already exists, by design, as
+        // the account is closed after merged back into the main pool. If it already exists, and the
+        // stake is active, do that instead. If the stake is activating, then there should be no
+        // lamps here, unless you sent them manually, and in that case, wait until the next epoch!)
+        let authorized = stake::state::Authorized::auto(pool_stake_authority_info.key);
+
+        invoke_signed(
+            &system_instruction::allocate(temp_stake_info.key, stake_space as u64),
+            &[temp_stake_info.clone()],
+            temp_stake_signers,
+        )?;
+
+        invoke_signed(
+            &system_instruction::assign(temp_stake_info.key, stake_program_info.key),
+            &[temp_stake_info.clone()],
+            temp_stake_signers,
+        )?;
+
+        invoke_signed(
+            &stake::instruction::initialize_checked(temp_stake_info.key, &authorized),
+            &[
+                temp_stake_info.clone(),
+                rent_info.clone(),
+                pool_stake_authority_info.clone(),
+                pool_stake_authority_info.clone(),
+            ],
+            temp_stake_signers,
+        )?;
+
+        // Delegate the temporary stake account so that its excess lamports become activated.
+        invoke_signed(
+            &stake::instruction::delegate_stake(
+                temp_stake_info.key,
+                pool_stake_authority_info.key,
+                vote_account_info.key,
+            ),
+            &[
+                temp_stake_info.clone(),
+                vote_account_info.clone(),
+                clock_info.clone(),
+                stake_history_info.clone(),
+                stake_config_info.clone(),
+                pool_stake_authority_info.clone(),
+            ],
+            temp_stake_signers,
+        )?;
+
+        Ok(())
+    }
+
+    fn process_merge_temp_stake(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let pool_info = next_account_info(account_info_iter)?;
+        let pool_stake_info = next_account_info(account_info_iter)?;
+        let temp_stake_info = next_account_info(account_info_iter)?;
+        let pool_stake_authority_info = next_account_info(account_info_iter)?;
+        let clock_info = next_account_info(account_info_iter)?;
+        let clock = &Clock::from_account_info(clock_info)?;
+        let stake_history_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        SinglePool::from_account_info(pool_info, program_id)?;
+
+        check_pool_temp_stake_address(program_id, pool_info.key, temp_stake_info.key)?;
+        let stake_authority_bump_seed = check_pool_stake_authority_address(
+            program_id,
+            pool_info.key,
+            pool_stake_authority_info.key,
+        )?;
+        check_system_program(system_program_info.key)?;
+        check_stake_program(stake_program_info.key)?;
+
+        let minimum_delegation = minimum_delegation()?;
+
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let pre_pool_stake = pool_stake_state
+            .delegation
+            .stake
+            .saturating_sub(minimum_delegation);
+        msg!("Available stake pre merge {}", pre_pool_stake);
+
+        // Fails if the temp stake isn't in the same activity state. Typically you must wait until
+        // the temp pool activates (i.e., one epoch) to call this ix
+        let (temp_stake_meta, temp_stake_state) = get_stake_state(temp_stake_info)?;
+        if temp_stake_meta.authorized
+            != stake::state::Authorized::auto(pool_stake_authority_info.key)
+            || is_stake_active_without_history(&pool_stake_state, clock.epoch)
+                != is_stake_active_without_history(&temp_stake_state, clock.epoch)
+        {
+            return Err(SinglePoolError::WrongStakeStake.into());
+        }
+
+        // Merge the temporary stake into the main pool stake.
+        Self::stake_merge(
+            pool_info.key,
+            temp_stake_info.clone(),
+            pool_stake_authority_info.clone(),
+            stake_authority_bump_seed,
+            pool_stake_info.clone(),
+            clock_info.clone(),
+            stake_history_info.clone(),
+        )?;
+
+        // We keep this here for the program log...
+        let (_pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let post_pool_stake = pool_stake_state
+            .delegation
+            .stake
+            .saturating_sub(minimum_delegation);
+        // let post_pool_lamports = pool_stake_info.lamports();
+        msg!("Available stake post merge {}", post_pool_stake);
+
+        // TODO we might need to return excess lamps here first...
+
+        // sanity check: the temp stake account is empty
+        if temp_stake_info.lamports() != 0 {
+            return Err(SinglePoolError::UnexpectedMathError.into());
+        }
+
+        // Reassign the now-drained temp stake account to the system program so it can be reclaimed.
+        invoke_signed(
+            &system_instruction::assign(temp_stake_info.key, &system_program::ID),
+            &[temp_stake_info.clone()],
+            &[],
+        )?;
+
+        Ok(())
+    }
+
+    // TODO we might need a reactivate for the temp pool...
+
     fn process_reactivate_pool_stake(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -772,6 +972,8 @@ impl Processor {
         Ok(())
     }
 
+    // TODO we should make sure `process_merge_temp_stake` executes before this (otherwise an
+    // attacker can deposit -> merge temp -> withdraw to get unearned MEV)
     fn process_deposit_stake(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let pool_info = next_account_info(account_info_iter)?;

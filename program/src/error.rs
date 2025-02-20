@@ -92,6 +92,9 @@ pub enum SinglePoolError {
     /// Attempted to initialize a pool that is already initialized.
     #[error("PoolAlreadyInitialized")]
     PoolAlreadyInitialized,
+    /// There aren't enough excess lamps (i.e. MEV rewards) to create a temp account
+    #[error("NotEnoughExcessLamps")]
+    InsufficientExcessLamports,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -152,6 +155,8 @@ impl PrintProgramError for SinglePoolError {
                 msg!("Error: Attempted to deposit from or withdraw to pool stake account."),
             SinglePoolError::PoolAlreadyInitialized =>
                 msg!("Error: Attempted to initialize a pool that is already initialized."),
+            SinglePoolError::InsufficientExcessLamports =>
+                msg!("Error: There are not enough excess lamps in the pool to init a temporary staking account."),
         }
     }
 }
