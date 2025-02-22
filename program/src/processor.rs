@@ -762,9 +762,20 @@ impl Processor {
             .minimum_balance(stake_space)
             .saturating_add(minimum_delegation);
 
-        // TODO move lamps from pool to the temp account....
+        // TODO mev lamps are in `pool_info`, or are they in `pool_stake_info` too?
 
-        // TODO some mev lamps are in `pool_info`, are there more lamps in `pool_stake_info` too?
+        // TODO Maybe we should just move the lamps out of both anyways just in case someone accidently sends funds to the wrong one?
+
+        let lamps_before = pool_info.lamports().clone();
+        let temp_lamps_before = temp_stake_info.lamports().clone();
+        let lamps_to_move = lamps_before.checked_sub(minimum_rent).unwrap();
+
+        {
+            let mut pool_lamps = pool_info.try_borrow_mut_lamports()?;
+            let mut temp_lamps = temp_stake_info.try_borrow_mut_lamports()?;
+            **pool_lamps = lamps_before - lamps_to_move;
+            **temp_lamps = temp_lamps_before.checked_add(lamps_to_move).unwrap();
+        }
 
         // The temporary stake account must hold lamports in excess of the minimum rent
         if temp_stake_info.lamports() <= minimum_rent {
