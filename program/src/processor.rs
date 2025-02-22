@@ -1388,14 +1388,6 @@ impl Processor {
                 msg!("Instruction: InitializePool");
                 Self::process_initialize_pool(program_id, accounts)
             }
-            SinglePoolInstruction::InitializeTempStake => {
-                msg!("Instruction: InitializeTempPool");
-                Self::process_initialize_temp_stake(program_id, accounts)
-            }
-            SinglePoolInstruction::ProcessMergeTempStake => {
-                msg!("Instruction: MergeTempStake");
-                Self::process_merge_temp_stake(program_id, accounts)
-            }
             SinglePoolInstruction::ReactivatePoolStake => {
                 msg!("Instruction: ReactivatePoolStake");
                 Self::process_reactivate_pool_stake(program_id, accounts)
@@ -1423,6 +1415,14 @@ impl Processor {
             SinglePoolInstruction::UpdateTokenMetadata { name, symbol, uri } => {
                 msg!("Instruction: UpdateTokenMetadata");
                 Self::process_update_pool_token_metadata(program_id, accounts, name, symbol, uri)
+            }
+            SinglePoolInstruction::InitializeTempStake => {
+                msg!("Instruction: InitializeTempPool");
+                Self::process_initialize_temp_stake(program_id, accounts)
+            }
+            SinglePoolInstruction::ProcessMergeTempStake => {
+                msg!("Instruction: MergeTempStake");
+                Self::process_merge_temp_stake(program_id, accounts)
             }
         }
     }
