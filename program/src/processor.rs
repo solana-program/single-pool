@@ -774,6 +774,13 @@ impl Processor {
         ];
         let temp_stake_signers = &[&temp_stake_seeds[..]];
 
+        let stake_authority_seeds = &[
+            POOL_STAKE_AUTHORITY_PREFIX,
+            pool_info.key.as_ref(),
+            &[stake_authority_bump_seed],
+        ];
+        let stake_authority_signers = &[&stake_authority_seeds[..]];
+
         let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
 
         // Create the temp stake account (Note: this will fail if it already exists, by design, as
@@ -787,13 +794,12 @@ impl Processor {
             &[temp_stake_info.clone()],
             temp_stake_signers,
         )?;
-
         invoke_signed(
             &system_instruction::assign(temp_stake_info.key, stake_program_info.key),
             &[temp_stake_info.clone()],
             temp_stake_signers,
         )?;
-
+        // Note: Expects rent for temp_stake_info to already be paid!
         invoke_signed(
             &stake::instruction::initialize_checked(temp_stake_info.key, &authorized),
             &[
@@ -802,17 +808,13 @@ impl Processor {
                 pool_stake_authority_info.clone(),
                 pool_stake_authority_info.clone(),
             ],
-            temp_stake_signers,
+            stake_authority_signers,
         )?;
 
-        let minimum_delegation = minimum_delegation()?;
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
-        let pre_pool_stake = pool_stake_state
-            .delegation
-            .stake
-            .saturating_sub(minimum_delegation);
+        let pre_pool_stake = pool_stake_state.delegation.stake;
         let pre_pool_lamps = pool_stake_info.lamports();
-        let to_withdraw = pre_pool_lamps - pre_pool_stake;
+        let to_withdraw = pre_pool_lamps - pre_pool_stake - rent.minimum_balance(stake_space);
 
         Self::stake_withdraw(
             pool_info.key,
@@ -827,12 +829,15 @@ impl Processor {
 
         // The temporary stake account must hold lamports in excess of the min delegation + rent If
         // this is not true, wait until a future epoch after more MEV has accumulated.
+        let minimum_delegation = minimum_delegation()?;
         let stake_rent_plus_initial = rent
             .minimum_balance(stake_space)
             .saturating_add(minimum_delegation);
         if temp_stake_info.lamports() <= stake_rent_plus_initial {
             return Err(SinglePoolError::InsufficientExcessLamports.into());
         }
+
+        // TODO send the cranker a little SOL for bothering to crank this?
 
         // Delegate the temporary stake account so that its excess lamports become activated.
         invoke_signed(
@@ -849,7 +854,7 @@ impl Processor {
                 stake_config_info.clone(),
                 pool_stake_authority_info.clone(),
             ],
-            temp_stake_signers,
+            stake_authority_signers,
         )?;
 
         Ok(())
