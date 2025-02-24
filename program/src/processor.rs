@@ -738,49 +738,31 @@ impl Processor {
         accounts: &[AccountInfo],
     ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
-        // The main pool account (to tie the temp stake to the pool)
+        // The main svsp pool account (to tie the temp stake to the pool)
         let pool_info = next_account_info(account_info_iter)?;
+        // The svsp pool's stake account (where MEV lamps are sent). Owned by the stake program (not svsp)
+        let pool_stake_info = next_account_info(account_info_iter)?;
         // The temporary stake account that will stake the excess lamports while they activate
         let temp_stake_info = next_account_info(account_info_iter)?;
         // Temp pool uses the same authority as pool stake authority
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let vote_account_info = next_account_info(account_info_iter)?;
         let rent_info = next_account_info(account_info_iter)?;
+        let rent = &Rent::from_account_info(rent_info)?;
         let clock_info = next_account_info(account_info_iter)?;
         let stake_history_info = next_account_info(account_info_iter)?;
         let stake_config_info = next_account_info(account_info_iter)?;
         let system_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
+        let stake_authority_bump_seed = check_pool_stake_authority_address(
+            program_id,
+            pool_info.key,
+            pool_stake_authority_info.key,
+        )?;
+        check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
         check_system_program(system_program_info.key)?;
         check_stake_program(stake_program_info.key)?;
-
-        let minimum_delegation = minimum_delegation()?;
-        let rent = &Rent::from_account_info(rent_info)?;
-        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
-        let minimum_rent = rent
-            .minimum_balance(stake_space)
-            .saturating_add(minimum_delegation);
-
-        // TODO mev lamps are in `pool_info`, or are they in `pool_stake_info` too?
-
-        // TODO Maybe we should just move the lamps out of both anyways just in case someone accidently sends funds to the wrong one?
-
-        let lamps_before = pool_info.lamports().clone();
-        let temp_lamps_before = temp_stake_info.lamports().clone();
-        let lamps_to_move = lamps_before.checked_sub(minimum_rent).unwrap();
-
-        {
-            let mut pool_lamps = pool_info.try_borrow_mut_lamports()?;
-            let mut temp_lamps = temp_stake_info.try_borrow_mut_lamports()?;
-            **pool_lamps = lamps_before - lamps_to_move;
-            **temp_lamps = temp_lamps_before.checked_add(lamps_to_move).unwrap();
-        }
-
-        // The temporary stake account must hold lamports in excess of the minimum rent
-        if temp_stake_info.lamports() <= minimum_rent {
-            return Err(SinglePoolError::InsufficientExcessLamports.into());
-        }
 
         // Derive the temporary stake account address using a new prefix (POOL_TEMP_STAKE_PREFIX)
         let temp_stake_bump_seed =
@@ -791,6 +773,8 @@ impl Processor {
             &[temp_stake_bump_seed],
         ];
         let temp_stake_signers = &[&temp_stake_seeds[..]];
+
+        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
 
         // Create the temp stake account (Note: this will fail if it already exists, by design, as
         // the account is closed after merged back into the main pool. If it already exists, and the
@@ -820,6 +804,35 @@ impl Processor {
             ],
             temp_stake_signers,
         )?;
+
+        let minimum_delegation = minimum_delegation()?;
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let pre_pool_stake = pool_stake_state
+            .delegation
+            .stake
+            .saturating_sub(minimum_delegation);
+        let pre_pool_lamps = pool_stake_info.lamports();
+        let to_withdraw = pre_pool_lamps - pre_pool_stake;
+
+        Self::stake_withdraw(
+            pool_info.key,
+            pool_stake_info.clone(),
+            pool_stake_authority_info.clone(),
+            stake_authority_bump_seed,
+            temp_stake_info.clone(),
+            clock_info.clone(),
+            stake_history_info.clone(),
+            to_withdraw,
+        )?;
+
+        // The temporary stake account must hold lamports in excess of the min delegation + rent If
+        // this is not true, wait until a future epoch after more MEV has accumulated.
+        let stake_rent_plus_initial = rent
+            .minimum_balance(stake_space)
+            .saturating_add(minimum_delegation);
+        if temp_stake_info.lamports() <= stake_rent_plus_initial {
+            return Err(SinglePoolError::InsufficientExcessLamports.into());
+        }
 
         // Delegate the temporary stake account so that its excess lamports become activated.
         invoke_signed(
