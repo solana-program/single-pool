@@ -59,7 +59,7 @@ async fn build_instructions(
         .await;
 
         let rent = context.banks_client.get_rent().await.unwrap();
-        let minimum_delegation = get_pool_minimum_delegation(
+        let minimum_pool_balance = get_minimum_pool_balance(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
@@ -71,7 +71,7 @@ async fn build_instructions(
             &accounts.vote_account.pubkey(),
             &accounts.alice.pubkey(),
             &rent,
-            minimum_delegation,
+            minimum_pool_balance,
         )
     } else {
         accounts
