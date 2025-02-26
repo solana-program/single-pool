@@ -27,7 +27,7 @@ pub async fn get_rent(config: &Config) -> Result<Rent, Error> {
     Ok(rent)
 }
 
-pub async fn get_minimum_delegation(config: &Config) -> Result<u64, Error> {
+pub async fn get_minimum_pool_balance(config: &Config) -> Result<u64, Error> {
     Ok(std::cmp::max(
         config.rpc_client.get_stake_minimum_delegation().await?,
         LAMPORTS_PER_SOL,

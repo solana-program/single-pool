@@ -56,7 +56,7 @@ pub enum SinglePoolError {
     // 10
     /// Not enough stake to cover the provided quantity of pool tokens.
     /// (Generally this should not happen absent user error, but may if the
-    /// minimum delegation increases.)
+    /// minimum delegation increases beyond 1 sol.)
     #[error("WithdrawalTooLarge")]
     WithdrawalTooLarge,
     /// Required signature is missing.
@@ -136,7 +136,8 @@ impl PrintProgramError for SinglePoolError {
                 msg!("Error: Not enough pool tokens provided to withdraw stake worth one lamport."),
             SinglePoolError::WithdrawalTooLarge =>
                 msg!("Error: Not enough stake to cover the provided quantity of pool tokens. \
-                     (Generally this should not happen absent user error, but may if the minimum delegation increases.)"),
+                     (Generally this should not happen absent user error, but may if the minimum delegation increases \
+                     beyond 1 sol.)"),
             SinglePoolError::SignatureMissing => msg!("Error: Required signature is missing."),
             SinglePoolError::WrongStakeStake => msg!("Error: Stake account is not in the state expected by the program."),
             SinglePoolError::ArithmeticOverflow => msg!("Error: Unsigned subtraction crossed the zero."),
