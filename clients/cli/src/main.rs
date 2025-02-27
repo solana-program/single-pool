@@ -126,7 +126,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
         &vote_account_address,
         &payer.pubkey(),
         &quarantine::get_rent(config).await?,
-        quarantine::get_minimum_delegation(config).await?,
+        quarantine::get_minimum_pool_balance(config).await?,
     );
 
     // get rid of the CreateMetadata instruction if desired, eg if mpl breaks compat
@@ -820,7 +820,7 @@ async fn get_pool_display(
     let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
     let available_stake =
         if let Some((_, stake)) = quarantine::get_stake_info(config, &pool_stake_address).await? {
-            stake.delegation.stake - quarantine::get_minimum_delegation(config).await?
+            stake.delegation.stake - quarantine::get_minimum_pool_balance(config).await?
         } else {
             unreachable!()
         };

@@ -80,7 +80,7 @@ impl SinglePoolAccounts {
         maybe_bob_amount: Option<u64>,
         activate: bool,
     ) -> u64 {
-        let minimum_delegation = self
+        let minimum_pool_balance = self
             .initialize_for_deposit(context, alice_amount, maybe_bob_amount)
             .await;
 
@@ -150,7 +150,7 @@ impl SinglePoolAccounts {
             .await;
         }
 
-        minimum_delegation
+        minimum_pool_balance
     }
 
     // does everything in initialize plus creates/delegates one or both stake
@@ -162,7 +162,7 @@ impl SinglePoolAccounts {
         alice_amount: u64,
         maybe_bob_amount: Option<u64>,
     ) -> u64 {
-        let minimum_delegation = self.initialize(context).await;
+        let minimum_pool_balance = self.initialize(context).await;
 
         create_independent_stake_account(
             &mut context.banks_client,
@@ -210,7 +210,7 @@ impl SinglePoolAccounts {
             .await;
         };
 
-        minimum_delegation
+        minimum_pool_balance
     }
 
     // creates a vote account and stake pool for it. also sets up two users with sol
@@ -232,7 +232,7 @@ impl SinglePoolAccounts {
         .await;
 
         let rent = context.banks_client.get_rent().await.unwrap();
-        let minimum_delegation = get_pool_minimum_delegation(
+        let minimum_pool_balance = get_minimum_pool_balance(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
@@ -244,7 +244,7 @@ impl SinglePoolAccounts {
             &self.vote_account.pubkey(),
             &context.payer.pubkey(),
             &rent,
-            minimum_delegation,
+            minimum_pool_balance,
         );
         let transaction = Transaction::new_signed_with_payer(
             &instructions,
@@ -295,7 +295,7 @@ impl SinglePoolAccounts {
         )
         .await;
 
-        minimum_delegation
+        minimum_pool_balance
     }
 }
 impl Default for SinglePoolAccounts {

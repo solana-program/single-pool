@@ -39,7 +39,7 @@ pub async fn get_stake_account_rent(banks_client: &mut BanksClient) -> u64 {
     rent.minimum_balance(std::mem::size_of::<stake::state::StakeStateV2>())
 }
 
-pub async fn get_pool_minimum_delegation(
+pub async fn get_minimum_pool_balance(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     recent_blockhash: &Hash,

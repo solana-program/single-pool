@@ -403,7 +403,7 @@ async fn fail_activation_mismatch(pool_first: bool) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
 
-    let minimum_delegation = get_pool_minimum_delegation(
+    let minimum_pool_balance = get_minimum_pool_balance(
         &mut context.banks_client,
         &context.payer,
         &context.last_blockhash,
@@ -434,7 +434,7 @@ async fn fail_activation_mismatch(pool_first: bool) {
         &accounts.alice_stake,
         &Authorized::auto(&accounts.alice.pubkey()),
         &Lockup::default(),
-        minimum_delegation,
+        minimum_pool_balance,
     )
     .await;
 
