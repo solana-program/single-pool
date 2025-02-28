@@ -208,8 +208,8 @@ fn make_basic_instruction(
         SinglePoolInstruction::InitializePool => {
             instruction::initialize_pool(&id(), &accounts.vote_account.pubkey())
         }
-        SinglePoolInstruction::ReactivatePoolStake => {
-            instruction::reactivate_pool_stake(&id(), &accounts.vote_account.pubkey())
+        SinglePoolInstruction::ReplenishPool => {
+            instruction::replenish_pool(&id(), &accounts.vote_account.pubkey())
         }
         SinglePoolInstruction::DepositStake => instruction::deposit_stake(
             &id(),
@@ -254,6 +254,7 @@ where
 fn consistent_account_order() {
     let accounts = SinglePoolAccounts::default();
 
+    // XXX TODO add onramp account
     let ordering = vec![
         accounts.vote_account.pubkey(),
         accounts.pool,
@@ -266,7 +267,7 @@ fn consistent_account_order() {
 
     let instructions = vec![
         make_basic_instruction(&accounts, SinglePoolInstruction::InitializePool),
-        make_basic_instruction(&accounts, SinglePoolInstruction::ReactivatePoolStake),
+        make_basic_instruction(&accounts, SinglePoolInstruction::ReplenishPool),
         make_basic_instruction(&accounts, SinglePoolInstruction::DepositStake),
         make_basic_instruction(
             &accounts,
