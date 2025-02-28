@@ -44,6 +44,33 @@ pub enum SinglePoolInstruction {
     ///  12. `[]` Stake program
     InitializePool,
 
+    // XXX design notes... idempotent, permissionless, skips one or the other leg gracefully
+    // moves active stake from onramp to base then moves loose lamports from base to onramp
+    // if theres no active stake, or if theres no loose lamports, just skip that step, dont error
+    // then if the onramp is initialized, delegate it
+    // the numbers math is tricky because of the various ways we treat delegations
+    // withdraw respects cooldown but ignores warmup, to prevent overwithdrawal
+    // movestake requires a fully active source and movelamports a fully active or fully inactive source
+    // ok that means... ok actually thats fine. we have to movestake first to reset onramp status
+    // if reserve isnt fully active, return an error to wait until it is
+    // if onramp isnt fully active, its fine, skip the movestake step. we cant move a partial activation
+    // but this only applies during warmup, if its activating with zero effective do both legs
+    // so movestake onramp->vault if onramp fully active
+    // we already asserted vault is fully active so we movelamports vault->onramp:
+    // total lamps minus rent minus effective. this should never fail
+    // we have to skip if the sum is 0 bc movelamports has an error for that case
+    // at this point onramp is guaranteed to be inactive or activating
+    // we delegate to refresh the delegation, unless:
+    // * delegation matches lamps minus rent, since theres nothing to do
+    // * lamps minus stake is less than the minimum delegation because it would fail
+    //
+    // XXX yknow as a ux thing maybe i should just change Reactivate to Replenish instead of adding a new ixn
+    // itd be the same logic except instead of asserting vault is fully active and aborting if not...
+    // we would be like. is vault activating? do nothing. is vault inactive? delegate it
+    // then if vault was noft fully active... skip both move legs and delegate the onramp if needed
+    // still need a special ixn for onramp creation because we dont want to require a lamports source here
+    ///   XXX TODO update desc
+    ///
     ///   Restake the pool stake account if it was deactivated. This can
     ///   happen through the stake program's `DeactivateDelinquent`
     ///   instruction, or during a cluster restart.
@@ -51,12 +78,13 @@ pub enum SinglePoolInstruction {
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
     ///   2. `[w]` Pool stake account
-    ///   3. `[]` Pool stake authority
-    ///   4. `[]` Clock sysvar
-    ///   5. `[]` Stake history sysvar
-    ///   6. `[]` Stake config sysvar
-    ///   7. `[]` Stake program
-    ReactivatePoolStake,
+    ///   3. `[w]` Pool onramp account
+    ///   4. `[]` Pool stake authority
+    ///   5. `[]` Clock sysvar
+    ///   6. `[]` Stake history sysvar
+    ///   7. `[]` Stake config sysvar
+    ///   8. `[]` Stake program
+    ReplenishPool,
 
     ///   Deposit stake into the pool. The output is a "pool" token
     ///   representing fractional ownership of the pool stake. Inputs are
@@ -195,11 +223,11 @@ pub fn initialize_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> In
     }
 }
 
-/// Creates a `ReactivatePoolStake` instruction.
-pub fn reactivate_pool_stake(program_id: &Pubkey, vote_account_address: &Pubkey) -> Instruction {
+/// Creates a `ReplenishPool` instruction.
+pub fn replenish_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> Instruction {
     let pool_address = find_pool_address(program_id, vote_account_address);
 
-    let data = borsh::to_vec(&SinglePoolInstruction::ReactivatePoolStake).unwrap();
+    let data = borsh::to_vec(&SinglePoolInstruction::ReplenishPool).unwrap();
     let accounts = vec![
         AccountMeta::new_readonly(*vote_account_address, false),
         AccountMeta::new_readonly(pool_address, false),
