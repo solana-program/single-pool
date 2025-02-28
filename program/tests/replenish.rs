@@ -80,8 +80,8 @@ async fn success() {
         .unwrap_err();
     check_error(e, SinglePoolError::WrongStakeStake);
 
-    // reactivate
-    let instruction = instruction::reactivate_pool_stake(&id(), &accounts.vote_account.pubkey());
+    // replenish
+    let instruction = instruction::replenish_pool(&id(), &accounts.vote_account.pubkey());
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&context.payer.pubkey()),
@@ -139,7 +139,7 @@ async fn fail_not_deactivated(activate: bool) {
         advance_epoch(&mut context).await;
     }
 
-    let instruction = instruction::reactivate_pool_stake(&id(), &accounts.vote_account.pubkey());
+    let instruction = instruction::replenish_pool(&id(), &accounts.vote_account.pubkey());
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&context.payer.pubkey()),
