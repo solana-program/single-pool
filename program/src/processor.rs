@@ -12,8 +12,8 @@ use {
         instruction::SinglePoolInstruction,
         state::{SinglePool, SinglePoolAccountType},
         MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, POOL_MINT_AUTHORITY_PREFIX,
-        POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX, POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX,
-        POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
+        POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX, POOL_ONRAMP_PREFIX, POOL_PREFIX,
+        POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
         VOTE_STATE_AUTHORIZED_WITHDRAWER_START, VOTE_STATE_DISCRIMINATOR_END,
     },
     borsh::BorshDeserialize,
@@ -1338,6 +1338,78 @@ impl Processor {
         Ok(())
     }
 
+    fn process_create_pool_onramp(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let pool_info = next_account_info(account_info_iter)?;
+        let pool_onramp_info = next_account_info(account_info_iter)?;
+        let pool_stake_authority_info = next_account_info(account_info_iter)?;
+        let rent_info = next_account_info(account_info_iter)?;
+        let rent = &Rent::from_account_info(rent_info)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        SinglePool::from_account_info(pool_info, program_id)?;
+
+        let onramp_bump_seed =
+            check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
+        let stake_authority_bump_seed = check_pool_stake_authority_address(
+            program_id,
+            pool_info.key,
+            pool_stake_authority_info.key,
+        )?;
+        check_system_program(system_program_info.key)?;
+        check_stake_program(stake_program_info.key)?;
+
+        let onramp_seeds = &[
+            POOL_ONRAMP_PREFIX,
+            pool_info.key.as_ref(),
+            &[onramp_bump_seed],
+        ];
+        let onramp_signers = &[&onramp_seeds[..]];
+
+        let stake_authority_seeds = &[
+            POOL_STAKE_AUTHORITY_PREFIX,
+            pool_info.key.as_ref(),
+            &[stake_authority_bump_seed],
+        ];
+        let stake_authority_signers = &[&stake_authority_seeds[..]];
+
+        // create the pool onramp account. user has already transferred in rent
+        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+        let stake_rent = rent.minimum_balance(stake_space);
+
+        if pool_onramp_info.lamports() < stake_rent {
+            return Err(SinglePoolError::WrongRentAmount.into());
+        }
+
+        let authorized = stake::state::Authorized::auto(pool_stake_authority_info.key);
+
+        invoke_signed(
+            &system_instruction::allocate(pool_onramp_info.key, stake_space as u64),
+            &[pool_onramp_info.clone()],
+            onramp_signers,
+        )?;
+
+        invoke_signed(
+            &system_instruction::assign(pool_onramp_info.key, stake_program_info.key),
+            &[pool_onramp_info.clone()],
+            onramp_signers,
+        )?;
+
+        invoke_signed(
+            &stake::instruction::initialize_checked(pool_onramp_info.key, &authorized),
+            &[
+                pool_onramp_info.clone(),
+                rent_info.clone(),
+                pool_stake_authority_info.clone(),
+                pool_stake_authority_info.clone(),
+            ],
+            stake_authority_signers,
+        )?;
+
+        Ok(())
+    }
+
     /// Processes [Instruction](enum.Instruction.html).
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = SinglePoolInstruction::try_from_slice(input)?;
@@ -1373,6 +1445,10 @@ impl Processor {
             SinglePoolInstruction::UpdateTokenMetadata { name, symbol, uri } => {
                 msg!("Instruction: UpdateTokenMetadata");
                 Self::process_update_pool_token_metadata(program_id, accounts, name, symbol, uri)
+            }
+            SinglePoolInstruction::CreatePoolOnramp => {
+                msg!("Instruction: CreatePoolOnramp");
+                Self::process_create_pool_onramp(program_id, accounts)
             }
         }
     }
