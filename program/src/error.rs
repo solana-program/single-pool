@@ -92,6 +92,12 @@ pub enum SinglePoolError {
     /// Attempted to initialize a pool that is already initialized.
     #[error("PoolAlreadyInitialized")]
     PoolAlreadyInitialized,
+
+    // 20
+    /// The onramp account for this pool does not exist; you must call `CreatePoolOnramp`
+    /// before you can perform this operation.
+    #[error("OnrampDoesntExist")]
+    OnrampDoesntExist,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -153,6 +159,9 @@ impl PrintProgramError for SinglePoolError {
                 msg!("Error: Attempted to deposit from or withdraw to pool stake account."),
             SinglePoolError::PoolAlreadyInitialized =>
                 msg!("Error: Attempted to initialize a pool that is already initialized."),
+            SinglePoolError::OnrampDoesntExist =>
+                msg!("The onramp account for this pool does not exist; you must call `CreatePoolOnramp` \
+                     before you can perform this operation."),
         }
     }
 }
