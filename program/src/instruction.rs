@@ -5,8 +5,8 @@
 use {
     crate::{
         find_default_deposit_account_address_and_seed, find_pool_address, find_pool_mint_address,
-        find_pool_mint_authority_address, find_pool_mpl_authority_address, find_pool_stake_address,
-        find_pool_stake_authority_address,
+        find_pool_mint_authority_address, find_pool_mpl_authority_address,
+        find_pool_onramp_address, find_pool_stake_address, find_pool_stake_authority_address,
         inline_mpl_token_metadata::{self, pda::find_metadata_account},
         state::SinglePool,
     },
@@ -156,6 +156,17 @@ pub enum SinglePoolInstruction {
         /// URI of the uploaded metadata of the spl-token
         uri: String,
     },
+
+    ///   XXX TODO desc NOTE THIS IS TEMP
+    ///   TODO ixn builder for just the thing (two ixn variant incl xfer)
+    ///
+    ///   0. `[]` Pool account
+    ///   1. `[w]` Pool onramp account
+    ///   2. `[]` Pool stake authority
+    ///   3. `[]` Rent sysvar
+    ///   4. `[]` System program
+    ///   5. `[]` Stake program
+    CreatePoolOnramp,
 }
 
 /// Creates all necessary instructions to initialize the stake pool.
@@ -170,10 +181,10 @@ pub fn initialize(
     let pool_rent = rent.minimum_balance(std::mem::size_of::<SinglePool>());
 
     let stake_address = find_pool_stake_address(program_id, &pool_address);
+    let onramp_address = find_pool_onramp_address(program_id, &pool_address);
     let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
-    let stake_rent_plus_minimum = rent
-        .minimum_balance(stake_space)
-        .saturating_add(minimum_pool_balance);
+    let stake_rent = rent.minimum_balance(stake_space);
+    let stake_rent_plus_minimum = stake_rent.saturating_add(minimum_pool_balance);
 
     let mint_address = find_pool_mint_address(program_id, &pool_address);
     let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
@@ -181,8 +192,10 @@ pub fn initialize(
     vec![
         system_instruction::transfer(payer, &pool_address, pool_rent),
         system_instruction::transfer(payer, &stake_address, stake_rent_plus_minimum),
+        system_instruction::transfer(payer, &onramp_address, stake_rent),
         system_instruction::transfer(payer, &mint_address, mint_rent),
         initialize_pool(program_id, vote_account_address),
+        create_pool_onramp(program_id, &pool_address),
         create_token_metadata(program_id, &pool_address, payer),
     ]
 }
@@ -491,6 +504,28 @@ pub fn update_token_metadata(
         AccountMeta::new_readonly(*authorized_withdrawer, true),
         AccountMeta::new(token_metadata, false),
         AccountMeta::new_readonly(inline_mpl_token_metadata::id(), false),
+    ];
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    }
+}
+
+/// Creates a `CreatePoolOnramp` instruction.
+pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruction {
+    let data = borsh::to_vec(&SinglePoolInstruction::CreatePoolOnramp).unwrap();
+    let accounts = vec![
+        AccountMeta::new_readonly(*pool_address, false),
+        AccountMeta::new(find_pool_onramp_address(program_id, pool_address), false),
+        AccountMeta::new_readonly(
+            find_pool_stake_authority_address(program_id, pool_address),
+            false,
+        ),
+        AccountMeta::new_readonly(sysvar::rent::id(), false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(stake::program::id(), false),
     ];
 
     Instruction {
