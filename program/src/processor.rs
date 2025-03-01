@@ -803,7 +803,7 @@ impl Processor {
                     ),
                     meta.rent_exempt_reserve,
                 ),
-                _ => return Err(SinglePoolError::WrongStakeStake.into()),
+                _ => return Err(SinglePoolError::OnrampDoesntExist.into()),
             };
 
         let stake_authority_seeds = &[

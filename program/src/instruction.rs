@@ -245,6 +245,7 @@ pub fn replenish_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> Ins
         AccountMeta::new_readonly(*vote_account_address, false),
         AccountMeta::new_readonly(pool_address, false),
         AccountMeta::new(find_pool_stake_address(program_id, &pool_address), false),
+        AccountMeta::new(find_pool_onramp_address(program_id, &pool_address), false),
         AccountMeta::new_readonly(
             find_pool_stake_authority_address(program_id, &pool_address),
             false,
