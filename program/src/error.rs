@@ -94,6 +94,10 @@ pub enum SinglePoolError {
     PoolAlreadyInitialized,
 
     // 20
+    /// Provided pool onramp account does not match address derived from the pool
+    /// account.
+    #[error("InvalidPoolOnrampAccount")]
+    InvalidPoolOnrampAccount,
     /// The onramp account for this pool does not exist; you must call `CreatePoolOnramp`
     /// before you can perform this operation.
     #[error("OnrampDoesntExist")]
@@ -159,6 +163,8 @@ impl PrintProgramError for SinglePoolError {
                 msg!("Error: Attempted to deposit from or withdraw to pool stake account."),
             SinglePoolError::PoolAlreadyInitialized =>
                 msg!("Error: Attempted to initialize a pool that is already initialized."),
+            SinglePoolError::InvalidPoolOnrampAccount =>
+                msg!("Error: Provided pool onramp account does not match address derived from the pool account."),
             SinglePoolError::OnrampDoesntExist =>
                 msg!("The onramp account for this pool does not exist; you must call `CreatePoolOnramp` \
                      before you can perform this operation."),

@@ -69,7 +69,8 @@ pub enum SinglePoolInstruction {
     // we would be like. is vault activating? do nothing. is vault inactive? delegate it
     // then if vault was noft fully active... skip both move legs and delegate the onramp if needed
     // still need a special ixn for onramp creation because we dont want to require a lamports source here
-    ///   XXX TODO update desc
+
+    ///   XXX TODO update desc. NOTE i break the iface so make this svsp 2.0
     ///
     ///   Restake the pool stake account if it was deactivated. This can
     ///   happen through the stake program's `DeactivateDelinquent`
@@ -157,8 +158,12 @@ pub enum SinglePoolInstruction {
         uri: String,
     },
 
-    ///   XXX TODO desc NOTE THIS IS TEMP
-    ///   TODO ixn builder for just the thing (two ixn variant incl xfer)
+    ///   XXX TODO desc
+    ///   TODO NOTE we intend to remove this ixn once all existing pools are upgraded
+    ///   we will create this account inside `InitializePool`. breaking its interface is fine
+    ///   but we dont want to hold up adding this feature for it, bc we want to upgrade all clients
+    ///   to seamlessly do the right thing before a breaking program upgrade. mb when we remove sysvars
+    ///   TODO ixn builder for rent+ixn. r
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool onramp account

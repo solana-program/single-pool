@@ -149,7 +149,7 @@ fn check_pool_onramp_address(
         check_address,
         &crate::find_pool_onramp_address_and_bump,
         "onramp account",
-        SinglePoolError::InvalidPoolStakeAccount, // XXX m new error but mb not
+        SinglePoolError::InvalidPoolOnrampAccount,
     )
 }
 
@@ -752,17 +752,6 @@ impl Processor {
         let stake_history = &StakeHistorySysvar(clock.epoch);
         let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
-        // XXX ok the steps are:
-        // * normal account validation
-        // * assert onramp exists, else abort (must be created by special ixn)
-        // * if vault is inactive, delegate it
-        // * if vault is fully active:
-        //   - if onramp fully active, movestake delegation, onramp->vault. onramp now inactive or activating
-        //   - if vault excess lamps gt 0, movelamports delegation less rent less minimum, vault->onramp
-        // * if onramp lamps less rent gte minimum delegation
-        //   AND (if activating) onramp delegation lt lamps less rent
-        //   delegate to refresh next epoch delegation
-
         check_vote_account(vote_account_info)?;
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
 
@@ -789,7 +778,7 @@ impl Processor {
         let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
 
         // get onramp and its status. we have to match because unlike the main account it could be Initialized
-        // if it doesnt exist, it must first be created with [XXX WhateverICallIt]
+        // if it doesnt exist, it must first be created with CreatePoolOnramp
         let (onramp_status, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
                 Ok(StakeStateV2::Initialized(meta)) => {
@@ -881,7 +870,7 @@ impl Processor {
 
             // finally, delegate the onramp account if it has sufficient undelegated lamports
             // if activating, this means more lamports than the current activating delegation
-            // if inactive or activating, this means having enough to cover the minimum delegation
+            // in all cases, this means having enough to cover the minimum delegation
             // we do nothing if partially active. by doing it here, we know it cannot be fully active
             let onramp_non_rent_lamports = pool_onramp_info
                 .lamports()
