@@ -8,25 +8,43 @@ use {
     solana_program_test::*,
     solana_sdk::{
         account::AccountSharedData,
+        pubkey::Pubkey,
         signature::Signer,
         stake::{
             stake_flags::StakeFlags,
             state::{Delegation, Stake, StakeStateV2},
         },
-        sysvar::clock::Clock,
+        sysvar::{clock::Clock, stake_history::StakeHistory},
         transaction::Transaction,
     },
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_case,
 };
 
-// NOTE we have no true/true case because the onramp can only be reactivated given an active pool
-// this is by design to reduce complexity. DeactivateDelinquent should be rare so waiting an epoch is no burden
+async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
+    let instruction = instruction::replenish_pool(&id(), vote_account);
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    refresh_blockhash(context).await;
+}
+
 #[test_case(false, false; "noop")]
 #[test_case(true, false; "pool")]
 #[test_case(false, true; "onramp")]
+#[test_case(true, true; "pool_precedence")]
 #[tokio::test]
-async fn reactivate_success(reactivate_pool: bool, activate_onramp: bool) {
+async fn reactivate_success(reactivate_pool: bool, fund_onramp: bool) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts
@@ -90,7 +108,7 @@ async fn reactivate_success(reactivate_pool: bool, activate_onramp: bool) {
     }
 
     // onramp is already inactive but it doesnt have lamports for delegation
-    if activate_onramp {
+    if fund_onramp {
         let lamports = get_minimum_pool_balance(
             &mut context.banks_client,
             &context.payer,
@@ -108,21 +126,8 @@ async fn reactivate_success(reactivate_pool: bool, activate_onramp: bool) {
         .await;
     }
 
-    // replenish
-    let instruction = instruction::replenish_pool(&id(), &accounts.vote_account.pubkey());
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&context.payer.pubkey()),
-        &[&context.payer],
-        context.last_blockhash,
-    );
-
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
-
+    // replenish and advance
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
     advance_epoch(&mut context).await;
 
     // deposit works in all cases
@@ -159,7 +164,10 @@ async fn reactivate_success(reactivate_pool: bool, activate_onramp: bool) {
     let (_, onramp_stake, _) =
         get_stake_account(&mut context.banks_client, &accounts.onramp_account).await;
 
-    if activate_onramp {
+    // we require a fully active pool for any onramp state change to reduce complexity
+    // the pool for a healthy validator is never unstaked, and a fresh pool you can wait an epoch
+    // NOTE we might relax this for DepositSol, in which case this test would change
+    if fund_onramp && !reactivate_pool {
         let stake = onramp_stake.unwrap();
         assert_eq!(stake.delegation.activation_epoch, clock.epoch - 1);
         assert_eq!(stake.delegation.deactivation_epoch, u64::MAX);
@@ -168,16 +176,155 @@ async fn reactivate_success(reactivate_pool: bool, activate_onramp: bool) {
     }
 }
 
-// XXX ok im awake again
-// i did the activate test for both accounts
-// fail test below gets deleted. we no longer hard error for that case
-// * fail if onramp doesnt exist. need our own initialize for that
-// * move stake for active onramp, move lamports for excess lamports
-//   plus both at once. reactivate test captures the neither case
-//   also ensure onramp goes back into activating status if new lamps
-//   *or* if there *are* extra lamps and we *dont* move new ones
-//   in other words we never mess up and leave stake behind
-//   also cover the case of an already activating onramp that must be topped up
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum OnrampState {
+    Initialized,
+    Activating,
+    Active,
+    Deactive,
+}
+
+#[test_case(OnrampState::Initialized, true; "move_lamports_fresh")]
+#[test_case(OnrampState::Activating, false; "topup_warm")]
+#[test_case(OnrampState::Activating, true; "move_lamports_warm")]
+#[test_case(OnrampState::Active, false; "reset_hot")]
+#[test_case(OnrampState::Active, true; "move_lamports_hot")]
+#[test_case(OnrampState::Deactive, true; "move_lamports_cold")]
+#[tokio::test]
+async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
+    let mut context = program_test(false).start_with_context().await;
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
+        .await;
+    advance_epoch(&mut context).await;
+
+    // active onramp can be as low as minimum_delegation but this is more convenient
+    let lamports = get_minimum_pool_balance(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+    )
+    .await;
+
+    // set up an activating onramp
+    if onramp_state >= OnrampState::Activating {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.onramp_account,
+            lamports,
+        )
+        .await;
+
+        replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    }
+
+    // allow the delegation to activate
+    if onramp_state >= OnrampState::Active {
+        advance_epoch(&mut context).await;
+    }
+
+    // move it over; this case is inactive and behaves identical to Initialized
+    if onramp_state == OnrampState::Deactive {
+        replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    }
+
+    // if we are testing the pool -> onramp leg, add lamports for it
+    if move_lamports {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.stake_account,
+            lamports,
+        )
+        .await;
+    }
+
+    // this one case is to test reupping an activating delegation
+    if onramp_state == OnrampState::Activating && !move_lamports {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.onramp_account,
+            lamports,
+        )
+        .await;
+    }
+
+    // this is the replenish we test
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+
+    let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+    let stake_history = context
+        .banks_client
+        .get_sysvar::<StakeHistory>()
+        .await
+        .unwrap();
+
+    let (pool_meta, pool_stake, pool_lamports) =
+        get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
+    let pool_status = pool_stake
+        .unwrap()
+        .delegation
+        .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0));
+    let pool_rent = pool_meta.rent_exempt_reserve;
+
+    let (onramp_meta, onramp_stake, onramp_lamports) =
+        get_stake_account(&mut context.banks_client, &accounts.onramp_account).await;
+    let onramp_status = onramp_stake
+        .map(|stake| {
+            stake
+                .delegation
+                .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0))
+        })
+        .unwrap_or_default();
+    let onramp_rent = onramp_meta.rent_exempt_reserve;
+
+    match (onramp_state, move_lamports) {
+        // stake moved already before test or because of test, new lamports were added to onramp
+        (OnrampState::Deactive, true) | (OnrampState::Active, true) => {
+            assert_eq!(pool_status.effective, lamports * 2);
+            assert_eq!(pool_lamports, lamports * 2 + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, lamports);
+            assert_eq!(onramp_lamports, lamports + onramp_rent);
+        }
+        // no stake moved, but lamports did
+        (OnrampState::Initialized, true) => {
+            assert_eq!(pool_status.effective, lamports);
+            assert_eq!(pool_lamports, lamports + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, lamports);
+            assert_eq!(onramp_lamports, lamports + onramp_rent);
+        }
+        // no excess lamports moved, just stake
+        (OnrampState::Active, false) => {
+            assert_eq!(pool_status.effective, lamports * 2);
+            assert_eq!(pool_lamports, lamports * 2 + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, 0);
+            assert_eq!(onramp_lamports, onramp_rent);
+        }
+        // topped up an existing activation, either with pool or onramp lamports
+        (OnrampState::Activating, _) => {
+            assert_eq!(pool_status.effective, lamports);
+            assert_eq!(pool_lamports, lamports + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, lamports * 2);
+            assert_eq!(onramp_lamports, lamports * 2 + onramp_rent);
+        }
+        // we have no further test cases
+        _ => unreachable!(),
+    }
+}
 
 #[test_case(true; "activated")]
 #[test_case(false; "activating")]
