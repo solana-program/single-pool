@@ -127,6 +127,9 @@ async fn success() {
         .is_none());
 }
 
+// XXX TODO these succeed ubt the test expects them to fail
+// we should check for no effect in fact
+// also test: no onramp acct fails, both legs of replenish work
 #[test_case(true; "activated")]
 #[test_case(false; "activating")]
 #[tokio::test]

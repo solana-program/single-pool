@@ -128,7 +128,7 @@ async fn build_instructions(
     };
 
     let (instructions, i) = match test_mode {
-        TestMode::Initialize => (initialize_instructions, 3),
+        TestMode::Initialize => (initialize_instructions, 5),
         TestMode::Deposit => (deposit_instructions, 2),
         TestMode::Withdraw => (withdraw_instructions, 1),
     };
@@ -237,6 +237,9 @@ fn make_basic_instruction(
             "".to_string(),
             "".to_string(),
         ),
+        SinglePoolInstruction::CreatePoolOnramp => {
+            instruction::create_pool_onramp(&id(), &accounts.pool)
+        }
     }
 }
 
@@ -254,11 +257,11 @@ where
 fn consistent_account_order() {
     let accounts = SinglePoolAccounts::default();
 
-    // XXX TODO add onramp account
     let ordering = vec![
         accounts.vote_account.pubkey(),
         accounts.pool,
         accounts.stake_account,
+        accounts.onramp_account,
         accounts.mint,
         accounts.stake_authority,
         accounts.mint_authority,
@@ -285,6 +288,7 @@ fn consistent_account_order() {
                 uri: "".to_string(),
             },
         ),
+        make_basic_instruction(&accounts, SinglePoolInstruction::CreatePoolOnramp),
     ];
 
     for instruction in instructions {
