@@ -127,8 +127,9 @@ async fn build_instructions(
         vec![]
     };
 
+    // TODO FIXME assert the actual union tags and note at least init has several
     let (instructions, i) = match test_mode {
-        TestMode::Initialize => (initialize_instructions, 5),
+        TestMode::Initialize => (initialize_instructions, 4),
         TestMode::Deposit => (deposit_instructions, 2),
         TestMode::Withdraw => (withdraw_instructions, 1),
     };
