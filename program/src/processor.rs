@@ -318,10 +318,10 @@ fn check_account_owner(
     }
 }
 
-/// Minimum delegation to create a pool
-/// We floor at 1 sol to avoid over-minting tokens before the relevant feature is
-/// active
-fn minimum_delegation() -> Result<u64, ProgramError> {
+/// Minimum balance of delegated stake required to create a pool. We require at least
+/// 1 sol to avoid minting tokens for these lamports (locking them in the pool) since
+/// they would *become* locked after `stake_raise_minimum_delegation_to_1_sol` is active.
+fn minimum_pool_balance() -> Result<u64, ProgramError> {
     Ok(std::cmp::max(
         stake::tools::get_minimum_delegation()?,
         LAMPORTS_PER_SOL,
@@ -655,11 +655,11 @@ impl Processor {
 
         // create the pool stake account. user has already transferred in rent plus at
         // least the minimum
-        let minimum_delegation = minimum_delegation()?;
+        let minimum_pool_balance = minimum_pool_balance()?;
         let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
         let stake_rent_plus_initial = rent
             .minimum_balance(stake_space)
-            .saturating_add(minimum_delegation);
+            .saturating_add(minimum_pool_balance);
 
         if pool_stake_info.lamports() < stake_rent_plus_initial {
             return Err(SinglePoolError::WrongRentAmount.into());
@@ -809,13 +809,13 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
-        let minimum_delegation = minimum_delegation()?;
+        let minimum_pool_balance = minimum_pool_balance()?;
 
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let pre_pool_stake = pool_stake_state
             .delegation
             .stake
-            .saturating_sub(minimum_delegation);
+            .saturating_sub(minimum_pool_balance);
         msg!("Available stake pre merge {}", pre_pool_stake);
 
         // user can deposit active stake into an active pool or inactive stake into an
@@ -846,7 +846,7 @@ impl Processor {
         let post_pool_stake = pool_stake_state
             .delegation
             .stake
-            .saturating_sub(minimum_delegation);
+            .saturating_sub(minimum_pool_balance);
         let post_pool_lamports = pool_stake_info.lamports();
         msg!("Available stake post merge {}", post_pool_stake);
 
@@ -948,9 +948,10 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
-        let minimum_delegation = minimum_delegation()?;
+        let minimum_pool_balance = minimum_pool_balance()?;
 
-        let pre_pool_stake = get_stake_amount(pool_stake_info)?.saturating_sub(minimum_delegation);
+        let pre_pool_stake =
+            get_stake_amount(pool_stake_info)?.saturating_sub(minimum_pool_balance);
         msg!("Available stake pre split {}", pre_pool_stake);
 
         let token_supply = {
@@ -1003,7 +1004,8 @@ impl Processor {
             clock_info.clone(),
         )?;
 
-        let post_pool_stake = get_stake_amount(pool_stake_info)?.saturating_sub(minimum_delegation);
+        let post_pool_stake =
+            get_stake_amount(pool_stake_info)?.saturating_sub(minimum_pool_balance);
         msg!("Available stake post split {}", post_pool_stake);
 
         Ok(())

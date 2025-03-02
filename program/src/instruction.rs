@@ -26,8 +26,8 @@ use {
 pub enum SinglePoolInstruction {
     ///   Initialize the mint and stake account for a new single-validator
     ///   stake pool. The pool stake account must contain the rent-exempt
-    ///   minimum plus the minimum delegation. No tokens will be minted: to
-    ///   deposit more, use `Deposit` after `InitializeStake`.
+    ///   minimum plus the minimum balance of 1 sol. No tokens will be minted;
+    ///   to deposit more, use `Deposit` after `InitializeStake`.
     ///
     ///   0. `[]` Validator vote account
     ///   1. `[w]` Pool account
@@ -136,7 +136,7 @@ pub fn initialize(
     vote_account_address: &Pubkey,
     payer: &Pubkey,
     rent: &Rent,
-    minimum_delegation: u64,
+    minimum_pool_balance: u64,
 ) -> Vec<Instruction> {
     let pool_address = find_pool_address(program_id, vote_account_address);
     let pool_rent = rent.minimum_balance(std::mem::size_of::<SinglePool>());
@@ -145,7 +145,7 @@ pub fn initialize(
     let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
     let stake_rent_plus_minimum = rent
         .minimum_balance(stake_space)
-        .saturating_add(minimum_delegation);
+        .saturating_add(minimum_pool_balance);
 
     let mint_address = find_pool_mint_address(program_id, &pool_address);
     let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);

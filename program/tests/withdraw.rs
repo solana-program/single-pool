@@ -36,7 +36,7 @@ async fn success(
 
     let amount_deposited = if small_deposit { 1 } else { TEST_STAKE_AMOUNT };
 
-    let minimum_delegation = accounts
+    let minimum_pool_balance = accounts
         .initialize_for_withdraw(
             &mut context,
             amount_deposited,
@@ -127,7 +127,7 @@ async fn success(
     assert_eq!(wallet_lamports_after, wallet_lamports_before);
 
     // pool retains minstake
-    assert_eq!(pool_stake_after, prior_deposits + minimum_delegation);
+    assert_eq!(pool_stake_after, prior_deposits + minimum_pool_balance);
 
     // pool lamports otherwise unchanged. unexpected transfers affect nothing
     assert_eq!(
@@ -155,7 +155,7 @@ async fn success_with_rewards() {
 
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
-    let minimum_delegation = accounts
+    let minimum_pool_balance = accounts
         .initialize_for_withdraw(&mut context, alice_deposit, Some(bob_deposit), true)
         .await;
 
@@ -172,7 +172,7 @@ async fn success_with_rewards() {
     let (_, pool_stake, _) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_stake = pool_stake.unwrap().delegation.stake;
-    let total_rewards = pool_stake - alice_deposit - bob_deposit - minimum_delegation;
+    let total_rewards = pool_stake - alice_deposit - bob_deposit - minimum_pool_balance;
 
     let instructions = instruction::withdraw(
         &id(),
@@ -205,7 +205,7 @@ async fn success_with_rewards() {
 
     let (_, bob_stake, _) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
-    let bob_rewards = bob_stake.unwrap().delegation.stake - minimum_delegation - bob_deposit;
+    let bob_rewards = bob_stake.unwrap().delegation.stake - minimum_pool_balance - bob_deposit;
 
     // alice tokens are fully burned, bob remains unchanged
     assert_eq!(alice_tokens, 0);

@@ -35,7 +35,7 @@ async fn success(enable_minimum_delegation: bool) {
 async fn fail_double_init() {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
-    let minimum_delegation = accounts.initialize(&mut context).await;
+    let minimum_pool_balance = accounts.initialize(&mut context).await;
     refresh_blockhash(&mut context).await;
 
     let rent = context.banks_client.get_rent().await.unwrap();
@@ -44,7 +44,7 @@ async fn fail_double_init() {
         &accounts.vote_account.pubkey(),
         &context.payer.pubkey(),
         &rent,
-        minimum_delegation,
+        minimum_pool_balance,
     );
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
@@ -84,7 +84,7 @@ async fn fail_below_pool_minimum(enable_minimum_delegation: bool) {
     .await;
 
     let rent = context.banks_client.get_rent().await.unwrap();
-    let minimum_delegation = get_pool_minimum_delegation(
+    let minimum_pool_balance = get_minimum_pool_balance(
         &mut context.banks_client,
         &context.payer,
         &context.last_blockhash,
@@ -96,7 +96,7 @@ async fn fail_below_pool_minimum(enable_minimum_delegation: bool) {
         &accounts.vote_account.pubkey(),
         &context.payer.pubkey(),
         &rent,
-        minimum_delegation - 1,
+        minimum_pool_balance - 1,
     );
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
