@@ -5,8 +5,8 @@
 use {
     crate::{
         find_default_deposit_account_address_and_seed, find_pool_address, find_pool_mint_address,
-        find_pool_mint_authority_address, find_pool_mpl_authority_address, find_pool_stake_address,
-        find_pool_stake_authority_address,
+        find_pool_mint_authority_address, find_pool_mpl_authority_address,
+        find_pool_onramp_address, find_pool_stake_address, find_pool_stake_authority_address,
         inline_mpl_token_metadata::{self, pda::find_metadata_account},
         state::SinglePool,
     },
@@ -44,6 +44,34 @@ pub enum SinglePoolInstruction {
     ///  12. `[]` Stake program
     InitializePool,
 
+    // XXX design notes... idempotent, permissionless, skips one or the other leg gracefully
+    // moves active stake from onramp to base then moves loose lamports from base to onramp
+    // if theres no active stake, or if theres no loose lamports, just skip that step, dont error
+    // then if the onramp is initialized, delegate it
+    // the numbers math is tricky because of the various ways we treat delegations
+    // withdraw respects cooldown but ignores warmup, to prevent overwithdrawal
+    // movestake requires a fully active source and movelamports a fully active or fully inactive source
+    // ok that means... ok actually thats fine. we have to movestake first to reset onramp status
+    // if reserve isnt fully active, return an error to wait until it is
+    // if onramp isnt fully active, its fine, skip the movestake step. we cant move a partial activation
+    // but this only applies during warmup, if its activating with zero effective do both legs
+    // so movestake onramp->vault if onramp fully active
+    // we already asserted vault is fully active so we movelamports vault->onramp:
+    // total lamps minus rent minus effective. this should never fail
+    // we have to skip if the sum is 0 bc movelamports has an error for that case
+    // at this point onramp is guaranteed to be inactive or activating
+    // we delegate to refresh the delegation, unless:
+    // * delegation matches lamps minus rent, since theres nothing to do
+    // * lamps minus stake is less than the minimum delegation because it would fail
+    //
+    // XXX yknow as a ux thing maybe i should just change Reactivate to Replenish instead of adding a new ixn
+    // itd be the same logic except instead of asserting vault is fully active and aborting if not...
+    // we would be like. is vault activating? do nothing. is vault inactive? delegate it
+    // then if vault was noft fully active... skip both move legs and delegate the onramp if needed
+    // still need a special ixn for onramp creation because we dont want to require a lamports source here
+
+    ///   XXX TODO update desc. NOTE i break the iface so make this svsp 2.0
+    ///
     ///   Restake the pool stake account if it was deactivated. This can
     ///   happen through the stake program's `DeactivateDelinquent`
     ///   instruction, or during a cluster restart.
@@ -51,12 +79,13 @@ pub enum SinglePoolInstruction {
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
     ///   2. `[w]` Pool stake account
-    ///   3. `[]` Pool stake authority
-    ///   4. `[]` Clock sysvar
-    ///   5. `[]` Stake history sysvar
-    ///   6. `[]` Stake config sysvar
-    ///   7. `[]` Stake program
-    ReactivatePoolStake,
+    ///   3. `[w]` Pool onramp account
+    ///   4. `[]` Pool stake authority
+    ///   5. `[]` Clock sysvar
+    ///   6. `[]` Stake history sysvar
+    ///   7. `[]` Stake config sysvar
+    ///   8. `[]` Stake program
+    ReplenishPool,
 
     ///   Deposit stake into the pool. The output is a "pool" token
     ///   representing fractional ownership of the pool stake. Inputs are
@@ -128,6 +157,21 @@ pub enum SinglePoolInstruction {
         /// URI of the uploaded metadata of the spl-token
         uri: String,
     },
+
+    ///   XXX TODO desc
+    ///   TODO NOTE we intend to remove this ixn once all existing pools are upgraded
+    ///   we will create this account inside `InitializePool`. breaking its interface is fine
+    ///   but we dont want to hold up adding this feature for it, bc we want to upgrade all clients
+    ///   to seamlessly do the right thing before a breaking program upgrade. mb when we remove sysvars
+    ///   TODO ixn builder for rent+ixn. r
+    ///
+    ///   0. `[]` Pool account
+    ///   1. `[w]` Pool onramp account
+    ///   2. `[]` Pool stake authority
+    ///   3. `[]` Rent sysvar
+    ///   4. `[]` System program
+    ///   5. `[]` Stake program
+    CreatePoolOnramp,
 }
 
 /// Creates all necessary instructions to initialize the stake pool.
@@ -142,10 +186,10 @@ pub fn initialize(
     let pool_rent = rent.minimum_balance(std::mem::size_of::<SinglePool>());
 
     let stake_address = find_pool_stake_address(program_id, &pool_address);
+    let onramp_address = find_pool_onramp_address(program_id, &pool_address);
     let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
-    let stake_rent_plus_minimum = rent
-        .minimum_balance(stake_space)
-        .saturating_add(minimum_pool_balance);
+    let stake_rent = rent.minimum_balance(stake_space);
+    let stake_rent_plus_minimum = stake_rent.saturating_add(minimum_pool_balance);
 
     let mint_address = find_pool_mint_address(program_id, &pool_address);
     let mint_rent = rent.minimum_balance(spl_token::state::Mint::LEN);
@@ -153,8 +197,10 @@ pub fn initialize(
     vec![
         system_instruction::transfer(payer, &pool_address, pool_rent),
         system_instruction::transfer(payer, &stake_address, stake_rent_plus_minimum),
+        system_instruction::transfer(payer, &onramp_address, stake_rent),
         system_instruction::transfer(payer, &mint_address, mint_rent),
         initialize_pool(program_id, vote_account_address),
+        create_pool_onramp(program_id, &pool_address),
         create_token_metadata(program_id, &pool_address, payer),
     ]
 }
@@ -195,15 +241,16 @@ pub fn initialize_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> In
     }
 }
 
-/// Creates a `ReactivatePoolStake` instruction.
-pub fn reactivate_pool_stake(program_id: &Pubkey, vote_account_address: &Pubkey) -> Instruction {
+/// Creates a `ReplenishPool` instruction.
+pub fn replenish_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> Instruction {
     let pool_address = find_pool_address(program_id, vote_account_address);
 
-    let data = borsh::to_vec(&SinglePoolInstruction::ReactivatePoolStake).unwrap();
+    let data = borsh::to_vec(&SinglePoolInstruction::ReplenishPool).unwrap();
     let accounts = vec![
         AccountMeta::new_readonly(*vote_account_address, false),
         AccountMeta::new_readonly(pool_address, false),
         AccountMeta::new(find_pool_stake_address(program_id, &pool_address), false),
+        AccountMeta::new(find_pool_onramp_address(program_id, &pool_address), false),
         AccountMeta::new_readonly(
             find_pool_stake_authority_address(program_id, &pool_address),
             false,
@@ -463,6 +510,28 @@ pub fn update_token_metadata(
         AccountMeta::new_readonly(*authorized_withdrawer, true),
         AccountMeta::new(token_metadata, false),
         AccountMeta::new_readonly(inline_mpl_token_metadata::id(), false),
+    ];
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    }
+}
+
+/// Creates a `CreatePoolOnramp` instruction.
+pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruction {
+    let data = borsh::to_vec(&SinglePoolInstruction::CreatePoolOnramp).unwrap();
+    let accounts = vec![
+        AccountMeta::new_readonly(*pool_address, false),
+        AccountMeta::new(find_pool_onramp_address(program_id, pool_address), false),
+        AccountMeta::new_readonly(
+            find_pool_stake_authority_address(program_id, pool_address),
+            false,
+        ),
+        AccountMeta::new_readonly(sysvar::rent::id(), false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(stake::program::id(), false),
     ];
 
     Instruction {
