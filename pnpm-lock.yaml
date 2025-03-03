@@ -27,8 +27,8 @@ importers:
         specifier: 2.1.0
         version: 2.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.2)
       '@solana/instructions':
-        specifier: 2.0.0
-        version: 2.0.0(typescript@5.8.2)
+        specifier: 2.1.0
+        version: 2.1.0(typescript@5.8.2)
       '@solana/transaction-messages':
         specifier: 2.1.0
         version: 2.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.2)
@@ -773,12 +773,6 @@ packages:
 
   '@solana/functional@2.1.0':
     resolution: {integrity: sha512-RVij8Av4F2uUOFcEC8n9lgD72e9gQMritmGHhMh+G91Xops4I6Few+oQ++XgSTiL2t3g3Cs0QZ13onZ0FL45FQ==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: '>=5'
-
-  '@solana/instructions@2.0.0':
-    resolution: {integrity: sha512-MiTEiNF7Pzp+Y+x4yadl2VUcNHboaW5WP52psBuhHns3GpbbruRv5efMpM9OEQNe1OsN+Eg39vjEidX55+P+DQ==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: '>=5'
@@ -2879,7 +2873,7 @@ snapshots:
 
   '@solana/errors@2.0.0(typescript@5.8.2)':
     dependencies:
-      chalk: 5.3.0
+      chalk: 5.4.1
       commander: 12.1.0
       typescript: 5.8.2
 
@@ -2897,11 +2891,6 @@ snapshots:
 
   '@solana/functional@2.1.0(typescript@5.8.2)':
     dependencies:
-      typescript: 5.8.2
-
-  '@solana/instructions@2.0.0(typescript@5.8.2)':
-    dependencies:
-      '@solana/errors': 2.0.0(typescript@5.8.2)
       typescript: 5.8.2
 
   '@solana/instructions@2.1.0(typescript@5.8.2)':
