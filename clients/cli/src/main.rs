@@ -68,8 +68,8 @@ impl Command {
                 ManageCommand::Initialize(command_config) => {
                     command_initialize(config, command_config).await
                 }
-                ManageCommand::ReactivatePoolStake(command_config) => {
-                    command_reactivate_pool_stake(config, command_config).await
+                ManageCommand::ReplenishPool(command_config) => {
+                    command_replenish_pool(config, command_config).await
                 }
                 ManageCommand::CreateTokenMetadata(command_config) => {
                     command_create_metadata(config, command_config).await
@@ -170,11 +170,8 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     ))
 }
 
-// reactivate pool stake account
-async fn command_reactivate_pool_stake(
-    config: &Config,
-    command_config: ReactivateCli,
-) -> CommandResult {
+// replenish pool
+async fn command_replenish_pool(config: &Config, command_config: ReplenishCli) -> CommandResult {
     let payer = config.fee_payer()?;
     let pool_address = pool_address_from_args(
         command_config.pool_address,
@@ -183,7 +180,7 @@ async fn command_reactivate_pool_stake(
 
     println_display(
         config,
-        format!("Reactivating stake account for pool {}\n", pool_address),
+        format!("Replenishing stake accounts for pool {}\n", pool_address),
     );
 
     let vote_account_address =
@@ -193,28 +190,8 @@ async fn command_reactivate_pool_stake(
             return Err(format!("Pool {} has not been initialized", pool_address).into());
         };
 
-    // the only reason this check is skippable is for testing, otherwise theres no
-    // reason
-    if !command_config.skip_deactivation_check {
-        let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
-        let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
-        let pool_stake_deactivated = quarantine::get_stake_info(config, &pool_stake_address)
-            .await?
-            .unwrap()
-            .1
-            .delegation
-            .deactivation_epoch
-            <= current_epoch;
-
-        if !pool_stake_deactivated {
-            return Err("Pool stake account is neither deactivating nor deactivated".into());
-        }
-    }
-
-    let instruction = spl_single_pool::instruction::reactivate_pool_stake(
-        &spl_single_pool::id(),
-        &vote_account_address,
-    );
+    let instruction =
+        spl_single_pool::instruction::replenish_pool(&spl_single_pool::id(), &vote_account_address);
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&payer.pubkey()),
@@ -226,7 +203,7 @@ async fn command_reactivate_pool_stake(
 
     Ok(format_output(
         config,
-        "ReactivatePoolStake".to_string(),
+        "ReplenishPool".to_string(),
         SignatureOutput { signature },
     ))
 }
