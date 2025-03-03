@@ -1,13 +1,13 @@
 #![allow(clippy::arithmetic_side_effects)]
-#![allow(deprecated)]
 
 use {
-    clap::{CommandFactory, Parser},
-    solana_clap_v3_utils::input_parsers::Amount,
+    clap::{ArgMatches, CommandFactory, Parser},
+    solana_clap_v3_utils::{input_parsers::Amount, keypair::signer_from_source},
     solana_client::{
         rpc_config::RpcProgramAccountsConfig,
         rpc_filter::{Memcmp, RpcFilterType},
     },
+    solana_remote_wallet::remote_wallet::RemoteWalletManager,
     solana_sdk::{
         borsh1::try_from_slice_unchecked,
         pubkey::Pubkey,
@@ -21,6 +21,7 @@ use {
         find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
     },
     spl_token_client::token::Token,
+    std::{rc::Rc, sync::Arc},
 };
 
 mod config;
@@ -40,15 +41,14 @@ async fn main() -> Result<(), Error> {
     let matches = Cli::command().get_matches();
     let mut wallet_manager = None;
 
-    let command = cli
-        .command
-        .clone()
-        .with_signers(&matches, &mut wallet_manager)?;
-    let config = Config::new(cli, matches, &mut wallet_manager);
+    let config = Config::new(cli.clone(), matches.clone(), &mut wallet_manager);
 
     solana_logger::setup_with_default("solana=info");
 
-    let res = command.execute(&config).await?;
+    let res = cli
+        .command
+        .execute(&config, &matches, &mut wallet_manager)
+        .await?;
     println!("{}", res);
 
     Ok(())
@@ -57,7 +57,12 @@ async fn main() -> Result<(), Error> {
 pub type CommandResult = Result<String, Error>;
 
 impl Command {
-    pub async fn execute(self, config: &Config) -> CommandResult {
+    pub async fn execute(
+        self,
+        config: &Config,
+        matches: &ArgMatches,
+        wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+    ) -> CommandResult {
         match self {
             Command::Manage(command) => match command.manage {
                 ManageCommand::Initialize(command_config) => {
@@ -70,11 +75,15 @@ impl Command {
                     command_create_metadata(config, command_config).await
                 }
                 ManageCommand::UpdateTokenMetadata(command_config) => {
-                    command_update_metadata(config, command_config).await
+                    command_update_metadata(config, command_config, matches, wallet_manager).await
                 }
             },
-            Command::Deposit(command_config) => command_deposit(config, command_config).await,
-            Command::Withdraw(command_config) => command_withdraw(config, command_config).await,
+            Command::Deposit(command_config) => {
+                command_deposit(config, command_config, matches, wallet_manager).await
+            }
+            Command::Withdraw(command_config) => {
+                command_withdraw(config, command_config, matches, wallet_manager).await
+            }
             Command::CreateDefaultStake(command_config) => {
                 command_create_stake(config, command_config).await
             }
@@ -223,10 +232,22 @@ async fn command_reactivate_pool_stake(
 }
 
 // deposit stake
-async fn command_deposit(config: &Config, command_config: DepositCli) -> CommandResult {
+async fn command_deposit(
+    config: &Config,
+    command_config: DepositCli,
+    matches: &ArgMatches,
+    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+) -> CommandResult {
     let payer = config.fee_payer()?;
     let owner = config.default_signer()?;
-    let stake_authority = signer_from_arg(command_config.stake_withdraw_authority, &owner)?;
+    let stake_authority = command_config
+        .stake_withdraw_authority
+        .and_then(|source| {
+            signer_from_source(matches, &source, "stake_authority", wallet_manager)
+                .ok()
+                .map(Arc::from)
+        })
+        .unwrap_or(owner.clone());
     let lamport_recipient = command_config
         .lamport_recipient_address
         .unwrap_or_else(|| owner.pubkey());
@@ -397,10 +418,22 @@ async fn command_deposit(config: &Config, command_config: DepositCli) -> Command
 }
 
 // withdraw stake
-async fn command_withdraw(config: &Config, command_config: WithdrawCli) -> CommandResult {
+async fn command_withdraw(
+    config: &Config,
+    command_config: WithdrawCli,
+    matches: &ArgMatches,
+    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+) -> CommandResult {
     let payer = config.fee_payer()?;
     let owner = config.default_signer()?;
-    let token_authority = signer_from_arg(command_config.token_authority, &owner)?;
+    let token_authority = command_config
+        .token_authority
+        .and_then(|source| {
+            signer_from_source(matches, &source, "token_authority", wallet_manager)
+                .ok()
+                .map(Arc::from)
+        })
+        .unwrap_or(owner.clone());
     let stake_authority_address = command_config
         .stake_authority_address
         .unwrap_or_else(|| owner.pubkey());
@@ -600,10 +633,19 @@ async fn command_create_metadata(
 async fn command_update_metadata(
     config: &Config,
     command_config: UpdateMetadataCli,
+    matches: &ArgMatches,
+    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
 ) -> CommandResult {
     let payer = config.fee_payer()?;
     let owner = config.default_signer()?;
-    let authorized_withdrawer = signer_from_arg(command_config.authorized_withdrawer, &owner)?;
+    let authorized_withdrawer = command_config
+        .authorized_withdrawer
+        .and_then(|source| {
+            signer_from_source(matches, &source, "authorized_withdrawer", wallet_manager)
+                .ok()
+                .map(Arc::from)
+        })
+        .unwrap_or(owner);
 
     // first get the pool address
     // i dont check metadata because i dont want to get entangled with mpl
