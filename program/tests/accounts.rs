@@ -127,17 +127,18 @@ async fn build_instructions(
         vec![]
     };
 
-    // TODO FIXME assert the actual union tags and note at least init has several
-    let (instructions, i) = match test_mode {
-        TestMode::Initialize => (initialize_instructions, 4),
-        TestMode::Deposit => (deposit_instructions, 2),
-        TestMode::Withdraw => (withdraw_instructions, 1),
+    // ints hardcoded to guard against instructions moving with code changes
+    // if these asserts fail, update them to match the new multi-instruction builders
+    let (instructions, index, enum_tag) = match test_mode {
+        TestMode::Initialize => (initialize_instructions, 4, 0),
+        TestMode::Deposit => (deposit_instructions, 2, 2),
+        TestMode::Withdraw => (withdraw_instructions, 1, 3),
     };
 
-    // guard against instructions moving with code changes
-    assert_eq!(instructions[i].program_id, id());
+    assert_eq!(instructions[index].program_id, id());
+    assert_eq!(instructions[index].data[0], enum_tag);
 
-    (instructions, i)
+    (instructions, index)
 }
 
 // test that account addresses are checked properly

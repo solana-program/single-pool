@@ -24,7 +24,7 @@ use {
 #[repr(C)]
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize)]
 pub enum SinglePoolInstruction {
-    ///   Initialize the mint and stake account for a new single-validator
+    ///   Initialize the mint and main stake account for a new single-validator
     ///   stake pool. The pool stake account must contain the rent-exempt
     ///   minimum plus the minimum balance of 1 sol. No tokens will be minted;
     ///   to deposit more, use `Deposit` after `InitializeStake`.
@@ -44,37 +44,27 @@ pub enum SinglePoolInstruction {
     ///  12. `[]` Stake program
     InitializePool,
 
-    // XXX design notes... idempotent, permissionless, skips one or the other leg gracefully
-    // moves active stake from onramp to base then moves loose lamports from base to onramp
-    // if theres no active stake, or if theres no loose lamports, just skip that step, dont error
-    // then if the onramp is initialized, delegate it
-    // the numbers math is tricky because of the various ways we treat delegations
-    // withdraw respects cooldown but ignores warmup, to prevent overwithdrawal
-    // movestake requires a fully active source and movelamports a fully active or fully inactive source
-    // ok that means... ok actually thats fine. we have to movestake first to reset onramp status
-    // if reserve isnt fully active, return an error to wait until it is
-    // if onramp isnt fully active, its fine, skip the movestake step. we cant move a partial activation
-    // but this only applies during warmup, if its activating with zero effective do both legs
-    // so movestake onramp->vault if onramp fully active
-    // we already asserted vault is fully active so we movelamports vault->onramp:
-    // total lamps minus rent minus effective. this should never fail
-    // we have to skip if the sum is 0 bc movelamports has an error for that case
-    // at this point onramp is guaranteed to be inactive or activating
-    // we delegate to refresh the delegation, unless:
-    // * delegation matches lamps minus rent, since theres nothing to do
-    // * lamps minus stake is less than the minimum delegation because it would fail
-    //
-    // XXX yknow as a ux thing maybe i should just change Reactivate to Replenish instead of adding a new ixn
-    // itd be the same logic except instead of asserting vault is fully active and aborting if not...
-    // we would be like. is vault activating? do nothing. is vault inactive? delegate it
-    // then if vault was noft fully active... skip both move legs and delegate the onramp if needed
-    // still need a special ixn for onramp creation because we dont want to require a lamports source here
-
-    ///   XXX TODO update desc. NOTE i break the iface so make this svsp 2.0
+    ///   Bring the pool stake accounts to their optimal state. This performs
+    ///   several operations:
+    ///   * If the main stake account has been deactivated by
+    ///     `DeactivateDelinquent`, reactivate it.
+    ///   * Then, if the main stake account is already fully active:
+    ///     - If the onramp is fully active, move its stake to the main account.
+    ///     - If the main account has excess lamports, move them to the onramp.
+    ///     - Delegate the onramp if it has excess lamports to activate.
     ///
-    ///   Restake the pool stake account if it was deactivated. This can
-    ///   happen through the stake program's `DeactivateDelinquent`
-    ///   instruction, or during a cluster restart.
+    ///   Combined, these operations allow harvesting and delegating MEV rewards
+    ///   and will eventually allow depositing liquid sol for pool tokens.
+    ///
+    ///   This instruction is idempotent and gracefully skips operations that
+    ///   would fail or have no effect, up to no-op. This allows it to be
+    ///   executed speculatively or as part of arbitrary flows involving the pool.
+    ///   If the onramp account is already activating, and there are excess lamports
+    ///   beyond the activating delegation, it redelegates to include them.
+    ///
+    ///   This instruction will fail with an error if the onramp account does not
+    ///   exist. If the pool does not have the account, `CreatePoolOnramp` must
+    ///   be called to create it.
     ///
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
@@ -158,12 +148,17 @@ pub enum SinglePoolInstruction {
         uri: String,
     },
 
-    ///   XXX TODO desc
-    ///   TODO NOTE we intend to remove this ixn once all existing pools are upgraded
-    ///   we will create this account inside `InitializePool`. breaking its interface is fine
-    ///   but we dont want to hold up adding this feature for it, bc we want to upgrade all clients
-    ///   to seamlessly do the right thing before a breaking program upgrade. mb when we remove sysvars
-    ///   TODO ixn builder for rent+ixn. r
+    ///   Create the onramp account for a single-validator stake pool, which
+    ///   is used to delegate liquid sol so that it can be merged into the main
+    ///   pool account as active stake.
+    ///
+    ///   New pools created with `initialize()` will include this instruction
+    ///   automatically. Existing pools must use `CreatePoolOnramp` to upgrade to
+    ///   the latest version.
+    ///
+    ///   This is a temporary instruction that will be removed some time after all
+    ///   existing pools have upgraded. Its logic is intended to be incorporated
+    ///   into `InitializePool` itself.
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool onramp account
