@@ -128,6 +128,29 @@ pub enum SinglePoolInstruction {
         /// URI of the uploaded metadata of the spl-token
         uri: String,
     },
+    // TODO comment
+    ///   0. `[]` Pool account
+    ///   1. `[w]` Temp stake account
+    ///   3. `[]` Pool stake authority
+    ///   4. `[]` Vote account
+    ///   5. `[]` Rent sysvar
+    ///   6. `[]` Clock sysvar
+    ///   7. `[]` Stake history sysvar
+    ///   8. `[]` Stake config sysvar
+    ///   9. `[]` System program
+    ///  10. `[]` Stake program
+    InitializeTempStake,
+
+    // TODO comment
+    ///   0. `[]` Pool account
+    ///   1. `[w]` Pool stake account
+    ///   2. `[w]` Temp stake account
+    ///   3. `[]` Pool stake authority
+    ///   4. `[]` Clock sysvar
+    ///   5. `[]` Stake history sysvar
+    ///   6. `[]` System program
+    ///   7. `[]` Stake program
+    ProcessMergeTempStake,
 }
 
 /// Creates all necessary instructions to initialize the stake pool.
