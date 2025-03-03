@@ -259,27 +259,21 @@ async fn create_and_delegate_stake_account(
 #[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn reactivate_pool_stake(raise_minimum_delegation: bool) {
+async fn replenish_pool(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
 
-    // setting up a test validator for this to succeed is hell, and success is
-    // tested in program tests so we just make sure the cli can send a
-    // well-formed instruction
-    let output = Command::new(SVSP_CLI)
+    let status = Command::new(SVSP_CLI)
         .args([
             "manage",
-            "reactivate-pool-stake",
+            "replenish-pool",
             "-C",
             &env.config_file_path,
             "--vote-account",
             &env.vote_account.to_string(),
-            "--skip-deactivation-check",
         ])
-        .output()
+        .status()
         .unwrap();
-    assert!(String::from_utf8(output.stderr)
-        .unwrap()
-        .contains("custom program error: 0xc"));
+    assert!(status.success());
 }
 
 #[test_case(false, false; "one_lamp::normal_stake")]

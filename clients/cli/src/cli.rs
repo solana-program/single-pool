@@ -109,11 +109,11 @@ pub enum ManageCommand {
     /// cluster-configured minimum stake delegation
     Initialize(InitializeCli),
 
-    /// Permissionlessly re-stake the pool stake account in the case when it has
-    /// been deactivated. This may happen if the validator is
-    /// force-deactivated, and then later reactivated using the same address
-    /// for its vote account.
-    ReactivatePoolStake(ReactivateCli),
+    /// Permissionlessly re-stake the main pool stake account if it was
+    /// deactivated from a delinquent validator, move active stake from the
+    /// onramp account into the main account, and move and delegate excess
+    /// lamports from the main account in the onramp account.
+    ReplenishPool(ReplenishCli),
 
     /// Permissionlessly create default MPL token metadata for the pool mint.
     /// Normally this is done automatically upon initialization, so this
@@ -139,18 +139,14 @@ pub struct InitializeCli {
 
 #[derive(Clone, Debug, Args)]
 #[clap(group(pool_source_group()))]
-pub struct ReactivateCli {
-    /// The pool to reactivate
+pub struct ReplenishCli {
+    /// The pool to replenish
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,
 
-    /// The vote account corresponding to the pool to reactivate
+    /// The vote account corresponding to the pool to replenish
     #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
     pub vote_account_address: Option<Pubkey>,
-
-    // backdoor for testing, theres no reason to ever use this
-    #[clap(long, hide = true)]
-    pub skip_deactivation_check: bool,
 }
 
 #[derive(Clone, Debug, Args)]
