@@ -31,6 +31,6 @@
   "dependencies": {
     "@solana/addresses": "2.1.0",
     "@solana/instructions": "2.0.0",
-    "@solana/transaction-messages": "2.0.0"
+    "@solana/transaction-messages": "2.1.0"
   }
 }
