@@ -436,3 +436,34 @@ async fn update_metadata(raise_minimum_delegation: bool) {
         .unwrap();
     assert!(status.success());
 }
+
+#[tokio::test]
+#[serial]
+async fn display() {
+    let env = setup(false, true).await;
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "display",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "display",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
+            "--verbose",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}

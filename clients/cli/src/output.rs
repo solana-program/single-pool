@@ -7,7 +7,7 @@ use {
     solana_sdk::{pubkey::Pubkey, signature::Signature},
     spl_single_pool::{
         self, find_pool_mint_address, find_pool_mint_authority_address,
-        find_pool_mpl_authority_address, find_pool_stake_address,
+        find_pool_mpl_authority_address, find_pool_onramp_address, find_pool_stake_address,
         find_pool_stake_authority_address,
     },
     std::fmt::{Display, Formatter, Result, Write},
@@ -112,8 +112,13 @@ impl VerboseDisplay for StakePoolOutput {
 
         writeln_name_value(
             w,
-            "  Pool stake address:",
+            "  Pool main stake account address:",
             &find_pool_stake_address(&spl_single_pool::id(), &self.pool_address).to_string(),
+        )?;
+        writeln_name_value(
+            w,
+            "  Pool onramp stake account address:",
+            &find_pool_onramp_address(&spl_single_pool::id(), &self.pool_address).to_string(),
         )?;
         writeln_name_value(
             w,
