@@ -535,3 +535,22 @@ pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruc
         data,
     }
 }
+
+/// Creates a `CreatePoolOnramp` instruction plus the transfer to fund it.
+/// This is for convenience, for users who need to create an onramp for existing pools.
+/// We don't use it internally, because `initialize()` carries the necessary logic.
+pub fn create_and_fund_pool_onramp(
+    program_id: &Pubkey,
+    pool_address: &Pubkey,
+    payer: &Pubkey,
+    rent: &Rent,
+) -> Vec<Instruction> {
+    let onramp_address = find_pool_onramp_address(program_id, pool_address);
+    let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+    let stake_rent = rent.minimum_balance(stake_space);
+
+    vec![
+        system_instruction::transfer(payer, &onramp_address, stake_rent),
+        create_pool_onramp(program_id, pool_address),
+    ]
+}

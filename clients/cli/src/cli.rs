@@ -124,6 +124,13 @@ pub enum ManageCommand {
     /// can only be performed by the validator vote account's withdraw
     /// authority
     UpdateTokenMetadata(UpdateMetadataCli),
+
+    /// Permissionlessly create the onramp account for an existing single-
+    /// validator stake pool, necessary for calling `ReplenishPool`.
+    /// This does NOT need to be called after `Initialize`: initialization
+    /// takes care of this in >=v2.0.0. Only pools existing pools created by
+    /// 1.0.x need to to create the onramp explicitly.
+    CreateOnramp(CreateOnrampCli),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -303,6 +310,18 @@ pub struct DisplayCli {
     /// Display all pools
     #[clap(long)]
     pub all: bool,
+}
+
+#[derive(Clone, Debug, Args)]
+#[clap(group(pool_source_group()))]
+pub struct CreateOnrampCli {
+    /// The pool to create the onramp stake account for
+    #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
+    pub pool_address: Option<Pubkey>,
+
+    /// The vote account corresponding to the pool to create the onramp for
+    #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
+    pub vote_account_address: Option<Pubkey>,
 }
 
 fn pool_source_group() -> ArgGroup<'static> {

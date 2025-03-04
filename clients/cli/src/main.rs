@@ -18,7 +18,8 @@ use {
     solana_vote_program::{self as vote_program, vote_state::VoteState},
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
-        find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
+        find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
+        state::SinglePool,
     },
     spl_token_client::token::Token,
     std::{rc::Rc, sync::Arc},
@@ -76,6 +77,9 @@ impl Command {
                 }
                 ManageCommand::UpdateTokenMetadata(command_config) => {
                     command_update_metadata(config, command_config, matches, wallet_manager).await
+                }
+                ManageCommand::CreateOnramp(command_config) => {
+                    command_create_onramp(config, command_config).await
                 }
             },
             Command::Deposit(command_config) => {
@@ -813,6 +817,71 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
             get_pool_display(config, pool_address, None).await?,
         ))
     }
+}
+
+// create pool onramp
+async fn command_create_onramp(config: &Config, command_config: CreateOnrampCli) -> CommandResult {
+    let payer = config.fee_payer()?;
+
+    // first get the pool address
+    let pool_address = pool_address_from_args(
+        command_config.pool_address,
+        command_config.vote_account_address,
+    );
+
+    let onramp_address = find_pool_onramp_address(&spl_single_pool::id(), &pool_address);
+
+    println_display(
+        config,
+        format!(
+            "Creating onramp stake account {} for pool {}\n",
+            onramp_address, pool_address
+        ),
+    );
+
+    if config
+        .program_client
+        .get_account(pool_address)
+        .await?
+        .is_none_or(|account| account.data.is_empty())
+    {
+        return Err(format!("Pool {} has not been initialized", pool_address).into());
+    }
+
+    if config
+        .program_client
+        .get_account(onramp_address)
+        .await?
+        .is_some_and(|account| !account.data.is_empty())
+    {
+        return Err(format!(
+            "Pool {} onramp {} already exists",
+            pool_address, onramp_address
+        )
+        .into());
+    }
+
+    let instructions = spl_single_pool::instruction::create_and_fund_pool_onramp(
+        &spl_single_pool::id(),
+        &pool_address,
+        &payer.pubkey(),
+        &quarantine::get_rent(config).await?,
+    );
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &vec![payer],
+        config.program_client.get_latest_blockhash().await?,
+    );
+
+    let signature = process_transaction(config, transaction).await?;
+
+    Ok(format_output(
+        config,
+        "CreatePoolOnramp".to_string(),
+        SignatureOutput { signature },
+    ))
 }
 
 async fn get_pool_display(
