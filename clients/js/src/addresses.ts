@@ -23,6 +23,10 @@ export type PoolStakeAddress<TAddress extends string = string> = Address<TAddres
   readonly __poolStakeAddress: unique symbol;
 };
 
+export type PoolOnrampAddress<TAddress extends string = string> = Address<TAddress> & {
+  readonly __poolStakeAddress: unique symbol;
+};
+
 export type PoolMintAddress<TAddress extends string = string> = Address<TAddress> & {
   readonly __poolMintAddress: unique symbol;
 };
@@ -51,6 +55,13 @@ export async function findPoolStakeAddress(
   poolAddress: PoolAddress,
 ): Promise<PoolStakeAddress> {
   return (await findPda(programId, poolAddress, 'stake')) as PoolStakeAddress;
+}
+
+export async function findPoolOnrampAddress(
+  programId: Address,
+  poolAddress: PoolAddress,
+): Promise<PoolOnrampAddress> {
+  return (await findPda(programId, poolAddress, 'onramp')) as PoolOnrampAddress;
 }
 
 export async function findPoolMintAddress(

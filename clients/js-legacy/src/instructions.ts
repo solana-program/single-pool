@@ -13,8 +13,8 @@ export class SinglePoolInstruction {
     return modernInstructionToLegacy(instruction);
   }
 
-  static async reactivatePoolStake(voteAccount: PublicKey): Promise<TransactionInstruction> {
-    const instruction = await PoolInstructionModern.reactivatePoolStake(
+  static async replenishPool(voteAccount: PublicKey): Promise<TransactionInstruction> {
+    const instruction = await PoolInstructionModern.replenishPool(
       voteAccount.toBase58() as VoteAccountAddress,
     );
     return modernInstructionToLegacy(instruction);
@@ -77,6 +77,11 @@ export class SinglePoolInstruction {
       tokenSymbol,
       tokenUri,
     );
+    return modernInstructionToLegacy(instruction);
+  }
+
+  static async createOnramp(pool: PublicKey): Promise<TransactionInstruction> {
+    const instruction = await PoolInstructionModern.createOnramp(pool.toBase58() as PoolAddress);
     return modernInstructionToLegacy(instruction);
   }
 }
