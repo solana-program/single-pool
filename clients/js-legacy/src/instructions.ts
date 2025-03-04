@@ -13,8 +13,8 @@ export class SinglePoolInstruction {
     return modernInstructionToLegacy(instruction);
   }
 
-  static async reactivatePoolStake(voteAccount: PublicKey): Promise<TransactionInstruction> {
-    const instruction = await PoolInstructionModern.reactivatePoolStake(
+  static async replenishPool(voteAccount: PublicKey): Promise<TransactionInstruction> {
+    const instruction = await PoolInstructionModern.replenishPool(
       voteAccount.toBase58() as VoteAccountAddress,
     );
     return modernInstructionToLegacy(instruction);

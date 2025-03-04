@@ -16,12 +16,14 @@ import {
   PoolMplAuthorityAddress,
   PoolStakeAuthorityAddress,
   PoolStakeAddress,
+  PoolOnrampAddress,
   findMplMetadataAddress,
   findPoolMplAuthorityAddress,
   findPoolAddress,
   VoteAccountAddress,
   PoolAddress,
   findPoolStakeAddress,
+  findPoolOnrampAddress,
   findPoolMintAddress,
   findPoolMintAuthorityAddress,
   findPoolStakeAuthorityAddress,
@@ -60,12 +62,13 @@ type InitializePoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
   > &
   IInstructionWithData<Uint8Array>;
 
-type ReactivatePoolStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
+type ReplenishPoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
   IInstructionWithAccounts<
     [
       ReadonlyAccount<VoteAccountAddress>,
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
+      WritableAccount<PoolOnrampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
       ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
@@ -141,7 +144,7 @@ type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
 
 const enum SinglePoolInstructionType {
   InitializePool = 0,
-  ReactivatePoolStake,
+  ReplenishPool,
   DepositStake,
   WithdrawStake,
   CreateTokenMetadata,
@@ -150,7 +153,7 @@ const enum SinglePoolInstructionType {
 
 export const SinglePoolInstruction = {
   initializePool: initializePoolInstruction,
-  reactivatePoolStake: reactivatePoolStakeInstruction,
+  replenishPool: replenishPoolInstruction,
   depositStake: depositStakeInstruction,
   withdrawStake: withdrawStakeInstruction,
   createTokenMetadata: createTokenMetadataInstruction,
@@ -192,17 +195,18 @@ export async function initializePoolInstruction(
   };
 }
 
-export async function reactivatePoolStakeInstruction(
+export async function replenishPoolInstruction(
   voteAccount: VoteAccountAddress,
-): Promise<ReactivatePoolStakeInstruction> {
+): Promise<ReplenishPoolInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
   const pool = await findPoolAddress(programAddress, voteAccount);
-  const [stake, stakeAuthority] = await Promise.all([
+  const [stake, onramp, stakeAuthority] = await Promise.all([
     findPoolStakeAddress(programAddress, pool),
+    findPoolOnrampAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
   ]);
 
-  const data = new Uint8Array([SinglePoolInstructionType.ReactivatePoolStake]);
+  const data = new Uint8Array([SinglePoolInstructionType.ReplenishPool]);
 
   return {
     data,
@@ -210,6 +214,7 @@ export async function reactivatePoolStakeInstruction(
       { address: voteAccount, role: AccountRole.READONLY },
       { address: pool, role: AccountRole.READONLY },
       { address: stake, role: AccountRole.WRITABLE },
+      { address: onramp, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
       { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },

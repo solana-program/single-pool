@@ -48,8 +48,8 @@ export class SinglePoolProgram {
     return modernTransactionToLegacy(modernTransaction);
   }
 
-  static async reactivatePoolStake(voteAccount: PublicKey) {
-    const modernTransaction = await PoolProgramModern.reactivatePoolStake(
+  static async replenishPool(voteAccount: PublicKey) {
+    const modernTransaction = await PoolProgramModern.replenishPool(
       voteAccount.toBase58() as VoteAccountAddress,
     );
 
