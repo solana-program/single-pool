@@ -137,7 +137,7 @@ fn check_pool_stake_address(
     )
 }
 
-/// Check pool onramp account address for the pool account
+/// Check pool on-ramp account address for the pool account
 fn check_pool_onramp_address(
     program_id: &Pubkey,
     pool_address: &Pubkey,
@@ -777,7 +777,7 @@ impl Processor {
             );
         let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
 
-        // get onramp and its status. we have to match because unlike the main account it could be Initialized
+        // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
         // if it doesnt exist, it must first be created with CreatePoolOnramp
         let (onramp_status, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
@@ -824,7 +824,7 @@ impl Processor {
             )?;
         }
 
-        // if pool is fully active, we can move stake to the main account and lamports to the onramp
+        // if pool is fully active, we can move stake to the main account and lamports to the on-ramp
         if pool_stake_is_fully_active {
             // determine excess lamports in the main account before we touch either of them
             let pool_excess_lamports = pool_stake_info
@@ -832,7 +832,7 @@ impl Processor {
                 .saturating_sub(pool_stake_state.delegation.stake)
                 .saturating_sub(pool_stake_meta.rent_exempt_reserve);
 
-            // if the onramp is fully active, move its stake to the main pool account
+            // if the on-ramp is fully active, move its stake to the main pool account
             if is_stake_fully_active(&onramp_status) {
                 invoke_signed(
                     &stake::instruction::move_stake(
@@ -850,7 +850,7 @@ impl Processor {
                 )?;
             }
 
-            // if there are any excess lamports to move to the onramp, move them
+            // if there are any excess lamports to move to the on-ramp, move them
             if pool_excess_lamports > 0 {
                 invoke_signed(
                     &stake::instruction::move_lamports(
@@ -868,7 +868,7 @@ impl Processor {
                 )?;
             }
 
-            // finally, delegate the onramp account if it has sufficient undelegated lamports
+            // finally, delegate the on-ramp account if it has sufficient undelegated lamports
             // if activating, this means more lamports than the current activating delegation
             // in all cases, this means having enough to cover the minimum delegation
             // we do nothing if partially active. by doing it here, we know it cannot be fully active
@@ -1363,7 +1363,7 @@ impl Processor {
         ];
         let stake_authority_signers = &[&stake_authority_seeds[..]];
 
-        // create the pool onramp account. user has already transferred in rent
+        // create the pool on-ramp account. user has already transferred in rent
         let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
         let stake_rent = rent.minimum_balance(stake_space);
 

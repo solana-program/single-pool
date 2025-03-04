@@ -94,11 +94,11 @@ pub enum SinglePoolError {
     PoolAlreadyInitialized,
 
     // 20
-    /// Provided pool onramp account does not match address derived from the pool
+    /// Provided pool on-ramp account does not match address derived from the pool
     /// account.
     #[error("InvalidPoolOnrampAccount")]
     InvalidPoolOnrampAccount,
-    /// The onramp account for this pool does not exist; you must call `CreatePoolOnramp`
+    /// The on-ramp account for this pool does not exist; you must call `CreatePoolOnramp`
     /// before you can perform this operation.
     #[error("OnrampDoesntExist")]
     OnrampDoesntExist,

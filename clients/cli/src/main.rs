@@ -819,7 +819,7 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
     }
 }
 
-// create pool onramp
+// create pool on-ramp
 async fn command_create_onramp(config: &Config, command_config: CreateOnrampCli) -> CommandResult {
     let payer = config.fee_payer()?;
 

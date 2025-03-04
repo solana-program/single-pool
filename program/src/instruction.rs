@@ -49,9 +49,9 @@ pub enum SinglePoolInstruction {
     ///   * If the main stake account has been deactivated by
     ///     `DeactivateDelinquent`, reactivate it.
     ///   * Then, if the main stake account is already fully active:
-    ///     - If the onramp is fully active, move its stake to the main account.
-    ///     - If the main account has excess lamports, move them to the onramp.
-    ///     - Delegate the onramp if it has excess lamports to activate.
+    ///     - If the on-ramp is fully active, move its stake to the main account.
+    ///     - If the main account has excess lamports, move them to the on-ramp.
+    ///     - Delegate the on-ramp if it has excess lamports to activate.
     ///
     ///   Combined, these operations allow harvesting and delegating MEV rewards
     ///   and will eventually allow depositing liquid sol for pool tokens.
@@ -59,17 +59,17 @@ pub enum SinglePoolInstruction {
     ///   This instruction is idempotent and gracefully skips operations that
     ///   would fail or have no effect, up to no-op. This allows it to be
     ///   executed speculatively or as part of arbitrary flows involving the pool.
-    ///   If the onramp account is already activating, and there are excess lamports
+    ///   If the on-ramp account is already activating, and there are excess lamports
     ///   beyond the activating delegation, it redelegates to include them.
     ///
-    ///   This instruction will fail with an error if the onramp account does not
+    ///   This instruction will fail with an error if the on-ramp account does not
     ///   exist. If the pool does not have the account, `CreatePoolOnramp` must
     ///   be called to create it.
     ///
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
     ///   2. `[w]` Pool stake account
-    ///   3. `[w]` Pool onramp account
+    ///   3. `[w]` Pool on-ramp account
     ///   4. `[]` Pool stake authority
     ///   5. `[]` Clock sysvar
     ///   6. `[]` Stake history sysvar
@@ -148,7 +148,7 @@ pub enum SinglePoolInstruction {
         uri: String,
     },
 
-    ///   Create the onramp account for a single-validator stake pool, which
+    ///   Create the on-ramp account for a single-validator stake pool, which
     ///   is used to delegate liquid sol so that it can be merged into the main
     ///   pool account as active stake.
     ///
@@ -161,7 +161,7 @@ pub enum SinglePoolInstruction {
     ///   into `InitializePool` itself.
     ///
     ///   0. `[]` Pool account
-    ///   1. `[w]` Pool onramp account
+    ///   1. `[w]` Pool on-ramp account
     ///   2. `[]` Pool stake authority
     ///   3. `[]` Rent sysvar
     ///   4. `[]` System program
@@ -537,7 +537,7 @@ pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruc
 }
 
 /// Creates a `CreatePoolOnramp` instruction plus the transfer to fund it.
-/// This is for convenience, for users who need to create an onramp for existing pools.
+/// This is for convenience, for users who need to create an on-ramp for existing pools.
 /// We don't use it internally, because `initialize()` carries the necessary logic.
 pub fn create_and_fund_pool_onramp(
     program_id: &Pubkey,

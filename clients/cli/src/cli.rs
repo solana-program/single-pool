@@ -111,8 +111,8 @@ pub enum ManageCommand {
 
     /// Permissionlessly re-stake the main pool stake account if it was
     /// deactivated from a delinquent validator, move active stake from the
-    /// onramp account into the main account, and move and delegate excess
-    /// lamports from the main account in the onramp account.
+    /// on-ramp account into the main account, and move and delegate excess
+    /// lamports from the main account in the on-ramp account.
     ReplenishPool(ReplenishCli),
 
     /// Permissionlessly create default MPL token metadata for the pool mint.
@@ -125,11 +125,11 @@ pub enum ManageCommand {
     /// authority
     UpdateTokenMetadata(UpdateMetadataCli),
 
-    /// Permissionlessly create the onramp account for an existing single-
+    /// Permissionlessly create the on-ramp account for an existing single-
     /// validator stake pool, necessary for calling `ReplenishPool`.
     /// This does NOT need to be called after `Initialize`: initialization
     /// takes care of this in >=v2.0.0. Only pools existing pools created by
-    /// 1.0.x need to to create the onramp explicitly.
+    /// 1.0.x need to to create the on-ramp explicitly.
     CreateOnramp(CreateOnrampCli),
 }
 
@@ -315,11 +315,11 @@ pub struct DisplayCli {
 #[derive(Clone, Debug, Args)]
 #[clap(group(pool_source_group()))]
 pub struct CreateOnrampCli {
-    /// The pool to create the onramp stake account for
+    /// The pool to create the on-ramp stake account for
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,
 
-    /// The vote account corresponding to the pool to create the onramp for
+    /// The vote account corresponding to the pool to create the on-ramp for
     #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
     pub vote_account_address: Option<Pubkey>,
 }

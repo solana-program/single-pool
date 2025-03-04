@@ -101,7 +101,7 @@ pub fn find_pool_stake_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pu
     find_pool_stake_address_and_bump(program_id, pool_address).0
 }
 
-/// Find the canonical stake onramp account address for a given pool account.
+/// Find the canonical stake on-ramp account address for a given pool account.
 pub fn find_pool_onramp_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pubkey {
     find_pool_onramp_address_and_bump(program_id, pool_address).0
 }
