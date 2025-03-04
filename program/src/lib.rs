@@ -96,7 +96,7 @@ pub fn find_pool_address(program_id: &Pubkey, vote_account_address: &Pubkey) -> 
     find_pool_address_and_bump(program_id, vote_account_address).0
 }
 
-/// Find the canonical stake vault account address for a given pool account.
+/// Find the canonical main stake account address for a given pool account.
 pub fn find_pool_stake_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pubkey {
     find_pool_stake_address_and_bump(program_id, pool_address).0
 }
