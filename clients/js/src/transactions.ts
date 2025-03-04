@@ -26,6 +26,7 @@ import {
   withdrawStakeInstruction,
   createTokenMetadataInstruction,
   updateTokenMetadataInstruction,
+  createOnrampInstruction,
 } from './instructions.js';
 import {
   STAKE_PROGRAM_ID,
@@ -72,6 +73,7 @@ export const SinglePoolProgram = {
   withdraw: withdrawTransaction,
   createTokenMetadata: createTokenMetadataTransaction,
   updateTokenMetadata: updateTokenMetadataTransaction,
+  createOnramp: createOnrampTransaction,
   createAndDelegateUserStake: createAndDelegateUserStakeTransaction,
 };
 
@@ -84,15 +86,16 @@ export async function initializeTransaction(
   let transaction = createTransactionMessage({ version: 0 });
 
   const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
-  const [stake, mint, onramp, poolRent, stakeRent, mintRent, minimumDelegationObj] = await Promise.all([
-    findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, pool),
-    findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
-    findPoolOnrampAddress(SINGLE_POOL_PROGRAM_ID, pool),
-    rpc.getMinimumBalanceForRentExemption(SINGLE_POOL_ACCOUNT_SIZE).send(),
-    rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
-    rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
-    rpc.getStakeMinimumDelegation().send(),
-  ]);
+  const [stake, mint, onramp, poolRent, stakeRent, mintRent, minimumDelegationObj] =
+    await Promise.all([
+      findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, pool),
+      findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
+      findPoolOnrampAddress(SINGLE_POOL_PROGRAM_ID, pool),
+      rpc.getMinimumBalanceForRentExemption(SINGLE_POOL_ACCOUNT_SIZE).send(),
+      rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
+      rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
+      rpc.getStakeMinimumDelegation().send(),
+    ]);
   const lamportsPerSol = 1_000_000_000n;
   const minimumPoolBalance =
     minimumDelegationObj.value > lamportsPerSol ? minimumDelegationObj.value : lamportsPerSol;
@@ -138,12 +141,10 @@ export async function initializeTransaction(
     transaction,
   );
 
-  /* XXX TODO FIXME
   transaction = appendTransactionMessageInstruction(
-    await createOnrampInstruction(voteAccount),
+    await createOnrampInstruction(pool),
     transaction,
   );
-  */
 
   if (!skipMetadata) {
     transaction = appendTransactionMessageInstruction(
@@ -312,6 +313,35 @@ export async function updateTokenMetadataTransaction(
   let transaction = { instructions: [] as any, version: 'legacy' as TransactionVersion };
   transaction = appendTransactionMessageInstruction(
     await updateTokenMetadataInstruction(voteAccount, authorizedWithdrawer, name, symbol, uri),
+    transaction,
+  );
+
+  return transaction;
+}
+
+export async function createOnrampTransaction(
+  rpc: any, // XXX not exported: Rpc<???>,
+  pool: PoolAddress,
+  payer: Address,
+): Promise<TransactionMessage> {
+  let transaction = { instructions: [] as any, version: 'legacy' as TransactionVersion };
+
+  const [onramp, stakeRent] = await Promise.all([
+    findPoolOnrampAddress(SINGLE_POOL_PROGRAM_ID, pool),
+    rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
+  ]);
+
+  transaction = appendTransactionMessageInstruction(
+    SystemInstruction.transfer({
+      from: payer,
+      to: onramp,
+      lamports: stakeRent,
+    }),
+    transaction,
+  );
+
+  transaction = appendTransactionMessageInstruction(
+    await createOnrampInstruction(pool),
     transaction,
   );
 

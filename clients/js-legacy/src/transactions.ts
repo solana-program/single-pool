@@ -97,6 +97,16 @@ export class SinglePoolProgram {
     return modernTransactionToLegacy(modernTransaction);
   }
 
+  static async createOnramp(connection: Connection, pool: PublicKey, payer: PublicKey) {
+    const modernTransaction = await PoolProgramModern.createOnramp(
+      rpc(connection),
+      pool.toBase58() as PoolAddress,
+      payer.toBase58() as Address,
+    );
+
+    return modernTransactionToLegacy(modernTransaction);
+  }
+
   static async createAndDelegateUserStake(
     connection: Connection,
     voteAccount: PublicKey,

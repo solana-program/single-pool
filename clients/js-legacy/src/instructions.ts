@@ -79,4 +79,9 @@ export class SinglePoolInstruction {
     );
     return modernInstructionToLegacy(instruction);
   }
+
+  static async createOnramp(pool: PublicKey): Promise<TransactionInstruction> {
+    const instruction = await PoolInstructionModern.createOnramp(pool.toBase58() as PoolAddress);
+    return modernInstructionToLegacy(instruction);
+  }
 }

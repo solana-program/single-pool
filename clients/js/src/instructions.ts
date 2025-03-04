@@ -142,6 +142,19 @@ type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
   > &
   IInstructionWithData<Uint8Array>;
 
+type CreateOnrampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  IInstructionWithAccounts<
+    [
+      ReadonlyAccount<PoolAddress>,
+      WritableAccount<PoolOnrampAddress>,
+      ReadonlyAccount<PoolStakeAuthorityAddress>,
+      ReadonlyAccount<typeof SYSVAR_RENT_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+    ]
+  > &
+  IInstructionWithData<Uint8Array>;
+
 const enum SinglePoolInstructionType {
   InitializePool = 0,
   ReplenishPool,
@@ -149,6 +162,7 @@ const enum SinglePoolInstructionType {
   WithdrawStake,
   CreateTokenMetadata,
   UpdateTokenMetadata,
+  CreateOnramp,
 }
 
 export const SinglePoolInstruction = {
@@ -158,6 +172,7 @@ export const SinglePoolInstruction = {
   withdrawStake: withdrawStakeInstruction,
   createTokenMetadata: createTokenMetadataInstruction,
   updateTokenMetadata: updateTokenMetadataInstruction,
+  createOnramp: createOnrampInstruction,
 };
 
 export async function initializePoolInstruction(
@@ -380,6 +395,29 @@ export async function updateTokenMetadataInstruction(
       { address: authorizedWithdrawer, role: AccountRole.READONLY_SIGNER },
       { address: mplMetadata, role: AccountRole.WRITABLE },
       { address: MPL_METADATA_PROGRAM_ID, role: AccountRole.READONLY },
+    ],
+    programAddress,
+  };
+}
+
+export async function createOnrampInstruction(pool: PoolAddress): Promise<CreateOnrampInstruction> {
+  const programAddress = SINGLE_POOL_PROGRAM_ID;
+  const [onramp, stakeAuthority] = await Promise.all([
+    findPoolOnrampAddress(programAddress, pool),
+    findPoolStakeAuthorityAddress(programAddress, pool),
+  ]);
+
+  const data = new Uint8Array([SinglePoolInstructionType.CreateOnramp]);
+
+  return {
+    data,
+    accounts: [
+      { address: pool, role: AccountRole.READONLY },
+      { address: onramp, role: AccountRole.WRITABLE },
+      { address: stakeAuthority, role: AccountRole.READONLY },
+      { address: SYSVAR_RENT_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
     ],
     programAddress,
   };
