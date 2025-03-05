@@ -859,7 +859,7 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
         .into());
     }
 
-    let instructions = spl_single_pool::instruction::create_and_fund_pool_onramp(
+    let instructions = spl_single_pool::instruction::create_pool_onramp(
         &spl_single_pool::id(),
         &pool_address,
         &payer.pubkey(),
@@ -877,7 +877,7 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
 
     Ok(format_output(
         config,
-        "CreatePoolOnRamp".to_string(),
+        "InitializePoolOnRamp".to_string(),
         SignatureOutput { signature },
     ))
 }

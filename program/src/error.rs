@@ -98,7 +98,7 @@ pub enum SinglePoolError {
     /// account.
     #[error("InvalidPoolOnRampAccount")]
     InvalidPoolOnRampAccount,
-    /// The on-ramp account for this pool does not exist; you must call `CreatePoolOnRamp`
+    /// The on-ramp account for this pool does not exist; you must call `InitializePoolOnRamp`
     /// before you can perform this operation.
     #[error("OnRampDoesntExist")]
     OnRampDoesntExist,
@@ -166,7 +166,7 @@ impl PrintProgramError for SinglePoolError {
             SinglePoolError::InvalidPoolOnRampAccount =>
                 msg!("Error: Provided pool onramp account does not match address derived from the pool account."),
             SinglePoolError::OnRampDoesntExist =>
-                msg!("The onramp account for this pool does not exist; you must call `CreatePoolOnRamp` \
+                msg!("The onramp account for this pool does not exist; you must call `InitializePoolOnRamp` \
                      before you can perform this operation."),
         }
     }

@@ -778,7 +778,7 @@ impl Processor {
         let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
 
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
-        // if it doesnt exist, it must first be created with CreatePoolOnRamp
+        // if it doesnt exist, it must first be created with InitializePoolOnRamp
         let (onramp_status, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
                 Ok(StakeStateV2::Initialized(meta)) => {
@@ -1327,7 +1327,10 @@ impl Processor {
         Ok(())
     }
 
-    fn process_create_pool_onramp(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    fn process_initialize_pool_onramp(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let pool_info = next_account_info(account_info_iter)?;
         let pool_onramp_info = next_account_info(account_info_iter)?;
@@ -1435,9 +1438,9 @@ impl Processor {
                 msg!("Instruction: UpdateTokenMetadata");
                 Self::process_update_pool_token_metadata(program_id, accounts, name, symbol, uri)
             }
-            SinglePoolInstruction::CreatePoolOnRamp => {
-                msg!("Instruction: CreatePoolOnRamp");
-                Self::process_create_pool_onramp(program_id, accounts)
+            SinglePoolInstruction::InitializePoolOnRamp => {
+                msg!("Instruction: InitializePoolOnRamp");
+                Self::process_initialize_pool_onramp(program_id, accounts)
             }
         }
     }
