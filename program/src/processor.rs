@@ -779,17 +779,20 @@ impl Processor {
 
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
         // if it doesnt exist, it must first be created with InitializePoolOnRamp
-        let (onramp_status, onramp_rent_exempt_reserve) =
+        let (onramp_status, onramp_deactivation_epoch, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
-                Ok(StakeStateV2::Initialized(meta)) => {
-                    (StakeActivationStatus::default(), meta.rent_exempt_reserve)
-                }
+                Ok(StakeStateV2::Initialized(meta)) => (
+                    StakeActivationStatus::default(),
+                    u64::MAX,
+                    meta.rent_exempt_reserve,
+                ),
                 Ok(StakeStateV2::Stake(meta, stake, _)) => (
                     stake.delegation.stake_activating_and_deactivating(
                         clock.epoch,
                         stake_history,
                         PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                     ),
+                    stake.delegation.deactivation_epoch,
                     meta.rent_exempt_reserve,
                 ),
                 _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
@@ -802,9 +805,11 @@ impl Processor {
         ];
         let stake_authority_signers = &[&stake_authority_seeds[..]];
 
-        // if pool stake was shut down by DeactivateDelinquent, delegate so it reactivates
-        if !pool_stake_is_fully_active
-            && pool_stake_state.delegation.deactivation_epoch <= clock.epoch
+        // if pool stake is deactivating this epoch, or has fully deactivated, delegate it
+        // this may happen as a result of `DeactivateDelinquent`
+        if pool_stake_state.delegation.deactivation_epoch == clock.epoch
+            || (pool_stake_state.delegation.deactivation_epoch < clock.epoch
+                && pool_stake_status.effective == 0)
         {
             invoke_signed(
                 &stake::instruction::delegate_stake(
@@ -871,7 +876,7 @@ impl Processor {
             // finally, delegate the on-ramp account if it has sufficient undelegated lamports
             // if activating, this means more lamports than the current activating delegation
             // in all cases, this means having enough to cover the minimum delegation
-            // we do nothing if partially active. by doing it here, we know it cannot be fully active
+            // we do nothing if partially active. we know it cannot be fully active because of MoveStake
             let onramp_non_rent_lamports = pool_onramp_info
                 .lamports()
                 .saturating_sub(onramp_rent_exempt_reserve);
@@ -885,13 +890,13 @@ impl Processor {
                     onramp_non_rent_lamports >= minimum_delegation
                         && onramp_non_rent_lamports > activating
                 }
-                // inactive, or deactivating due to DeactivateDelinquent
+                // inactive, or deactivating this epoch due to DeactivateDelinquent
                 // effective may be nonzero here because we are using the status prior to MoveStake
                 StakeActivationStatus {
-                    effective,
+                    effective: _,
                     activating: 0,
                     deactivating,
-                } if deactivating == 0 || effective == 0 && deactivating > 0 => {
+                } if deactivating == 0 || onramp_deactivation_epoch == clock.epoch => {
                     onramp_non_rent_lamports >= minimum_delegation
                 }
                 // partially active, partially inactive, or some state beyond mortal reckoning
