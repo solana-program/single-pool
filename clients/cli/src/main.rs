@@ -823,12 +823,10 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
 async fn command_create_onramp(config: &Config, command_config: CreateOnrampCli) -> CommandResult {
     let payer = config.fee_payer()?;
 
-    // first get the pool address
     let pool_address = pool_address_from_args(
         command_config.pool_address,
         command_config.vote_account_address,
     );
-
     let onramp_address = find_pool_onramp_address(&spl_single_pool::id(), &pool_address);
 
     println_display(

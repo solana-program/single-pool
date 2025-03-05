@@ -128,7 +128,7 @@ pub enum ManageCommand {
     /// Permissionlessly create the on-ramp account for an existing single-
     /// validator stake pool, necessary for calling `ReplenishPool`.
     /// This does NOT need to be called after `Initialize`: initialization
-    /// takes care of this in `>=v2.0.0`. Only pools existing pools created by
+    /// takes care of this in `>=v2.0.0`. Only existing pools created by
     /// `1.0.x` need to to create the on-ramp explicitly.
     CreateOnramp(CreateOnrampCli),
 }
