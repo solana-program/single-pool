@@ -81,7 +81,9 @@ export class SinglePoolInstruction {
   }
 
   static async initializeOnRamp(pool: PublicKey): Promise<TransactionInstruction> {
-    const instruction = await PoolInstructionModern.initializeOnRamp(pool.toBase58() as PoolAddress);
+    const instruction = await PoolInstructionModern.initializeOnRamp(
+      pool.toBase58() as PoolAddress,
+    );
     return modernInstructionToLegacy(instruction);
   }
 }

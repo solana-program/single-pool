@@ -400,7 +400,9 @@ export async function updateTokenMetadataInstruction(
   };
 }
 
-export async function initializeOnRampInstruction(pool: PoolAddress): Promise<InitializeOnRampInstruction> {
+export async function initializeOnRampInstruction(
+  pool: PoolAddress,
+): Promise<InitializeOnRampInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
   const [onramp, stakeAuthority] = await Promise.all([
     findPoolOnRampAddress(programAddress, pool),
