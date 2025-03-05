@@ -130,7 +130,7 @@ pub enum ManageCommand {
     /// This does NOT need to be called after `Initialize`: initialization
     /// takes care of this in `>=v2.0.0`. Only existing pools created by
     /// `1.0.x` need to to create the on-ramp explicitly.
-    CreateOnramp(CreateOnrampCli),
+    CreateOnRamp(CreateOnRampCli),
 }
 
 #[derive(Clone, Debug, Args)]
@@ -314,7 +314,7 @@ pub struct DisplayCli {
 
 #[derive(Clone, Debug, Args)]
 #[clap(group(pool_source_group()))]
-pub struct CreateOnrampCli {
+pub struct CreateOnRampCli {
     /// The pool to create the on-ramp stake account for
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,

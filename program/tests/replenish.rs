@@ -177,21 +177,21 @@ async fn reactivate_success(reactivate_pool: bool, fund_onramp: bool) {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-enum OnrampState {
+enum OnRampState {
     Initialized,
     Activating,
     Active,
     Deactive,
 }
 
-#[test_case(OnrampState::Initialized, true; "move_lamports_fresh")]
-#[test_case(OnrampState::Activating, false; "topup_warm")]
-#[test_case(OnrampState::Activating, true; "move_lamports_warm")]
-#[test_case(OnrampState::Active, false; "reset_hot")]
-#[test_case(OnrampState::Active, true; "move_lamports_hot")]
-#[test_case(OnrampState::Deactive, true; "move_lamports_cold")]
+#[test_case(OnRampState::Initialized, true; "move_lamports_fresh")]
+#[test_case(OnRampState::Activating, false; "topup_warm")]
+#[test_case(OnRampState::Activating, true; "move_lamports_warm")]
+#[test_case(OnRampState::Active, false; "reset_hot")]
+#[test_case(OnRampState::Active, true; "move_lamports_hot")]
+#[test_case(OnRampState::Deactive, true; "move_lamports_cold")]
 #[tokio::test]
-async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
+async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts
@@ -208,7 +208,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
     .await;
 
     // set up an activating onramp
-    if onramp_state >= OnrampState::Activating {
+    if onramp_state >= OnRampState::Activating {
         transfer(
             &mut context.banks_client,
             &context.payer,
@@ -222,12 +222,12 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
     }
 
     // allow the delegation to activate
-    if onramp_state >= OnrampState::Active {
+    if onramp_state >= OnRampState::Active {
         advance_epoch(&mut context).await;
     }
 
     // move it over; this case is inactive and behaves identical to Initialized
-    if onramp_state == OnrampState::Deactive {
+    if onramp_state == OnRampState::Deactive {
         replenish(&mut context, &accounts.vote_account.pubkey()).await;
     }
 
@@ -244,7 +244,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
     }
 
     // this one case is to test reupping an activating delegation
-    if onramp_state == OnrampState::Activating && !move_lamports {
+    if onramp_state == OnRampState::Activating && !move_lamports {
         transfer(
             &mut context.banks_client,
             &context.payer,
@@ -286,7 +286,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
 
     match (onramp_state, move_lamports) {
         // stake moved already before test or because of test, new lamports were added to onramp
-        (OnrampState::Deactive, true) | (OnrampState::Active, true) => {
+        (OnRampState::Deactive, true) | (OnRampState::Active, true) => {
             assert_eq!(pool_status.effective, lamports * 2);
             assert_eq!(pool_lamports, lamports * 2 + pool_rent);
 
@@ -295,7 +295,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
             assert_eq!(onramp_lamports, lamports + onramp_rent);
         }
         // no stake moved, but lamports did
-        (OnrampState::Initialized, true) => {
+        (OnRampState::Initialized, true) => {
             assert_eq!(pool_status.effective, lamports);
             assert_eq!(pool_lamports, lamports + pool_rent);
 
@@ -304,7 +304,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
             assert_eq!(onramp_lamports, lamports + onramp_rent);
         }
         // no excess lamports moved, just stake
-        (OnrampState::Active, false) => {
+        (OnRampState::Active, false) => {
             assert_eq!(pool_status.effective, lamports * 2);
             assert_eq!(pool_lamports, lamports * 2 + pool_rent);
 
@@ -313,7 +313,7 @@ async fn move_value_success(onramp_state: OnrampState, move_lamports: bool) {
             assert_eq!(onramp_lamports, onramp_rent);
         }
         // topped up an existing activation, either with pool or onramp lamports
-        (OnrampState::Activating, _) => {
+        (OnRampState::Activating, _) => {
             assert_eq!(pool_status.effective, lamports);
             assert_eq!(pool_lamports, lamports + pool_rent);
 
@@ -399,7 +399,7 @@ async fn fail_onramp_doesnt_exist(activate: bool) {
         .process_transaction(transaction)
         .await
         .unwrap_err();
-    check_error(e, SinglePoolError::OnrampDoesntExist);
+    check_error(e, SinglePoolError::OnRampDoesntExist);
 
     // creating onramp lets replenish succeed in the same epoch
     let transaction = Transaction::new_signed_with_payer(

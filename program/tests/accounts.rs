@@ -239,7 +239,7 @@ fn make_basic_instruction(
             "".to_string(),
             "".to_string(),
         ),
-        SinglePoolInstruction::CreatePoolOnramp => {
+        SinglePoolInstruction::CreatePoolOnRamp => {
             instruction::create_pool_onramp(&id(), &accounts.pool)
         }
     }
@@ -290,7 +290,7 @@ fn consistent_account_order() {
                 uri: "".to_string(),
             },
         ),
-        make_basic_instruction(&accounts, SinglePoolInstruction::CreatePoolOnramp),
+        make_basic_instruction(&accounts, SinglePoolInstruction::CreatePoolOnRamp),
     ];
 
     for instruction in instructions {

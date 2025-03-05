@@ -78,7 +78,7 @@ impl Command {
                 ManageCommand::UpdateTokenMetadata(command_config) => {
                     command_update_metadata(config, command_config, matches, wallet_manager).await
                 }
-                ManageCommand::CreateOnramp(command_config) => {
+                ManageCommand::CreateOnRamp(command_config) => {
                     command_create_onramp(config, command_config).await
                 }
             },
@@ -820,7 +820,7 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
 }
 
 // create pool on-ramp
-async fn command_create_onramp(config: &Config, command_config: CreateOnrampCli) -> CommandResult {
+async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli) -> CommandResult {
     let payer = config.fee_payer()?;
 
     let pool_address = pool_address_from_args(
@@ -877,7 +877,7 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnrampCli)
 
     Ok(format_output(
         config,
-        "CreatePoolOnramp".to_string(),
+        "CreatePoolOnRamp".to_string(),
         SignatureOutput { signature },
     ))
 }

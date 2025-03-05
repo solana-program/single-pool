@@ -149,7 +149,7 @@ fn check_pool_onramp_address(
         check_address,
         &crate::find_pool_onramp_address_and_bump,
         "onramp account",
-        SinglePoolError::InvalidPoolOnrampAccount,
+        SinglePoolError::InvalidPoolOnRampAccount,
     )
 }
 
@@ -778,7 +778,7 @@ impl Processor {
         let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
 
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
-        // if it doesnt exist, it must first be created with CreatePoolOnramp
+        // if it doesnt exist, it must first be created with CreatePoolOnRamp
         let (onramp_status, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
                 Ok(StakeStateV2::Initialized(meta)) => {
@@ -792,7 +792,7 @@ impl Processor {
                     ),
                     meta.rent_exempt_reserve,
                 ),
-                _ => return Err(SinglePoolError::OnrampDoesntExist.into()),
+                _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
             };
 
         let stake_authority_seeds = &[
@@ -1435,8 +1435,8 @@ impl Processor {
                 msg!("Instruction: UpdateTokenMetadata");
                 Self::process_update_pool_token_metadata(program_id, accounts, name, symbol, uri)
             }
-            SinglePoolInstruction::CreatePoolOnramp => {
-                msg!("Instruction: CreatePoolOnramp");
+            SinglePoolInstruction::CreatePoolOnRamp => {
+                msg!("Instruction: CreatePoolOnRamp");
                 Self::process_create_pool_onramp(program_id, accounts)
             }
         }

@@ -63,7 +63,7 @@ pub enum SinglePoolInstruction {
     ///   beyond the activating delegation, it redelegates to include them.
     ///
     ///   This instruction will fail with an error if the on-ramp account does not
-    ///   exist. If the pool does not have the account, `CreatePoolOnramp` must
+    ///   exist. If the pool does not have the account, `CreatePoolOnRamp` must
     ///   be called to create it.
     ///
     ///   0. `[]` Validator vote account
@@ -153,7 +153,7 @@ pub enum SinglePoolInstruction {
     ///   pool account as active stake.
     ///
     ///   New pools created with `initialize()` will include this instruction
-    ///   automatically. Existing pools must use `CreatePoolOnramp` to upgrade to
+    ///   automatically. Existing pools must use `CreatePoolOnRamp` to upgrade to
     ///   the latest version.
     ///
     ///   This is a temporary instruction that will be removed some time after all
@@ -166,7 +166,7 @@ pub enum SinglePoolInstruction {
     ///   3. `[]` Rent sysvar
     ///   4. `[]` System program
     ///   5. `[]` Stake program
-    CreatePoolOnramp,
+    CreatePoolOnRamp,
 }
 
 /// Creates all necessary instructions to initialize the stake pool.
@@ -514,9 +514,9 @@ pub fn update_token_metadata(
     }
 }
 
-/// Creates a `CreatePoolOnramp` instruction.
+/// Creates a `CreatePoolOnRamp` instruction.
 pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruction {
-    let data = borsh::to_vec(&SinglePoolInstruction::CreatePoolOnramp).unwrap();
+    let data = borsh::to_vec(&SinglePoolInstruction::CreatePoolOnRamp).unwrap();
     let accounts = vec![
         AccountMeta::new_readonly(*pool_address, false),
         AccountMeta::new(find_pool_onramp_address(program_id, pool_address), false),
@@ -536,7 +536,7 @@ pub fn create_pool_onramp(program_id: &Pubkey, pool_address: &Pubkey) -> Instruc
     }
 }
 
-/// Creates a `CreatePoolOnramp` instruction plus the transfer to fund it.
+/// Creates a `CreatePoolOnRamp` instruction plus the transfer to fund it.
 /// This is for convenience, for users who need to create an on-ramp for existing pools.
 /// We don't use it internally, because `initialize()` carries the necessary logic.
 pub fn create_and_fund_pool_onramp(

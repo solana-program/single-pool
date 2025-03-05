@@ -96,12 +96,12 @@ pub enum SinglePoolError {
     // 20
     /// Provided pool on-ramp account does not match address derived from the pool
     /// account.
-    #[error("InvalidPoolOnrampAccount")]
-    InvalidPoolOnrampAccount,
-    /// The on-ramp account for this pool does not exist; you must call `CreatePoolOnramp`
+    #[error("InvalidPoolOnRampAccount")]
+    InvalidPoolOnRampAccount,
+    /// The on-ramp account for this pool does not exist; you must call `CreatePoolOnRamp`
     /// before you can perform this operation.
-    #[error("OnrampDoesntExist")]
-    OnrampDoesntExist,
+    #[error("OnRampDoesntExist")]
+    OnRampDoesntExist,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -163,10 +163,10 @@ impl PrintProgramError for SinglePoolError {
                 msg!("Error: Attempted to deposit from or withdraw to pool stake account."),
             SinglePoolError::PoolAlreadyInitialized =>
                 msg!("Error: Attempted to initialize a pool that is already initialized."),
-            SinglePoolError::InvalidPoolOnrampAccount =>
+            SinglePoolError::InvalidPoolOnRampAccount =>
                 msg!("Error: Provided pool onramp account does not match address derived from the pool account."),
-            SinglePoolError::OnrampDoesntExist =>
-                msg!("The onramp account for this pool does not exist; you must call `CreatePoolOnramp` \
+            SinglePoolError::OnRampDoesntExist =>
+                msg!("The onramp account for this pool does not exist; you must call `CreatePoolOnRamp` \
                      before you can perform this operation."),
         }
     }
