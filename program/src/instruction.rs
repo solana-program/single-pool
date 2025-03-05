@@ -156,7 +156,7 @@ pub enum SinglePoolInstruction {
     ///   automatically. Existing pools must use `CreatePoolOnRamp` to upgrade to
     ///   the latest version.
     ///
-    ///   This is a temporary instruction that will be removed some time after all
+    ///   This is a temporary instruction that will be deprecated some time after all
     ///   existing pools have upgraded. Its logic is intended to be incorporated
     ///   into `InitializePool` itself.
     ///
