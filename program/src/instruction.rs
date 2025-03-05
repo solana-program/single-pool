@@ -60,7 +60,7 @@ pub enum SinglePoolInstruction {
     ///   would fail or have no effect, up to no-op. This allows it to be
     ///   executed speculatively or as part of arbitrary flows involving the pool.
     ///   If the on-ramp account is already activating, and there are excess lamports
-    ///   beyond the activating delegation, it redelegates to include them.
+    ///   beyond the activating delegation, it increases the delegation to include them.
     ///
     ///   This instruction will fail with an error if the on-ramp account does not
     ///   exist. If the pool does not have the account, `CreatePoolOnRamp` must
