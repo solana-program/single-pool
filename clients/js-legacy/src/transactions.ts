@@ -97,8 +97,8 @@ export class SinglePoolProgram {
     return modernTransactionToLegacy(modernTransaction);
   }
 
-  static async createOnramp(connection: Connection, pool: PublicKey, payer: PublicKey) {
-    const modernTransaction = await PoolProgramModern.createOnramp(
+  static async initializeOnRamp(connection: Connection, pool: PublicKey, payer: PublicKey) {
+    const modernTransaction = await PoolProgramModern.initializeOnRamp(
       rpc(connection),
       pool.toBase58() as PoolAddress,
       payer.toBase58() as Address,

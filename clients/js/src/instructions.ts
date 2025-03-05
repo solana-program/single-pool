@@ -16,14 +16,14 @@ import {
   PoolMplAuthorityAddress,
   PoolStakeAuthorityAddress,
   PoolStakeAddress,
-  PoolOnrampAddress,
+  PoolOnRampAddress,
   findMplMetadataAddress,
   findPoolMplAuthorityAddress,
   findPoolAddress,
   VoteAccountAddress,
   PoolAddress,
   findPoolStakeAddress,
-  findPoolOnrampAddress,
+  findPoolOnRampAddress,
   findPoolMintAddress,
   findPoolMintAuthorityAddress,
   findPoolStakeAuthorityAddress,
@@ -68,7 +68,7 @@ type ReplenishPoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<VoteAccountAddress>,
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
-      WritableAccount<PoolOnrampAddress>,
+      WritableAccount<PoolOnRampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
       ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
@@ -142,11 +142,11 @@ type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
   > &
   IInstructionWithData<Uint8Array>;
 
-type CreateOnrampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
+type InitializeOnRampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
   IInstructionWithAccounts<
     [
       ReadonlyAccount<PoolAddress>,
-      WritableAccount<PoolOnrampAddress>,
+      WritableAccount<PoolOnRampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<typeof SYSVAR_RENT_ID>,
       ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
@@ -162,7 +162,7 @@ const enum SinglePoolInstructionType {
   WithdrawStake,
   CreateTokenMetadata,
   UpdateTokenMetadata,
-  CreateOnramp,
+  InitializeOnRamp,
 }
 
 export const SinglePoolInstruction = {
@@ -172,7 +172,7 @@ export const SinglePoolInstruction = {
   withdrawStake: withdrawStakeInstruction,
   createTokenMetadata: createTokenMetadataInstruction,
   updateTokenMetadata: updateTokenMetadataInstruction,
-  createOnramp: createOnrampInstruction,
+  initializeOnRamp: initializeOnRampInstruction,
 };
 
 export async function initializePoolInstruction(
@@ -217,7 +217,7 @@ export async function replenishPoolInstruction(
   const pool = await findPoolAddress(programAddress, voteAccount);
   const [stake, onramp, stakeAuthority] = await Promise.all([
     findPoolStakeAddress(programAddress, pool),
-    findPoolOnrampAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
   ]);
 
@@ -400,14 +400,14 @@ export async function updateTokenMetadataInstruction(
   };
 }
 
-export async function createOnrampInstruction(pool: PoolAddress): Promise<CreateOnrampInstruction> {
+export async function initializeOnRampInstruction(pool: PoolAddress): Promise<InitializeOnRampInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
   const [onramp, stakeAuthority] = await Promise.all([
-    findPoolOnrampAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
   ]);
 
-  const data = new Uint8Array([SinglePoolInstructionType.CreateOnramp]);
+  const data = new Uint8Array([SinglePoolInstructionType.InitializeOnRamp]);
 
   return {
     data,

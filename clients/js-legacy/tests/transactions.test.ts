@@ -16,7 +16,7 @@ import {
   MPL_METADATA_PROGRAM_ID,
   findPoolAddress,
   findPoolStakeAddress,
-  findPoolOnrampAddress,
+  findPoolOnRampAddress,
   findPoolMintAddress,
   SinglePoolProgram,
   findMplMetadataAddress,
@@ -165,7 +165,7 @@ test('initialize', async (t) => {
 
   const voteAccountAddress = new PublicKey(voteAccount.pubkey);
   const poolAddress = await findPoolAddress(SinglePoolProgram.programId, voteAccountAddress);
-  const onrampAddress = await findPoolOnrampAddress(SinglePoolProgram.programId, poolAddress);
+  const onrampAddress = await findPoolOnRampAddress(SinglePoolProgram.programId, poolAddress);
 
   // initialize pool
   const transaction = await SinglePoolProgram.initialize(
