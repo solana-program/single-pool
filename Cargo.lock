@@ -8935,7 +8935,7 @@ dependencies = [
 
 [[package]]
 name = "spl-single-pool"
-version = "2.0.0"
+version = "1.0.2"
 dependencies = [
  "approx",
  "arrayref",
@@ -8959,7 +8959,7 @@ dependencies = [
 
 [[package]]
 name = "spl-single-pool-cli"
-version = "2.0.0"
+version = "1.0.0"
 dependencies = [
  "bincode",
  "borsh 1.5.5",

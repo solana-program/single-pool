@@ -1,6 +1,6 @@
 [package]
 name = "spl-single-pool-cli"
-version = "2.0.0"
+version = "1.0.0"
 description = "Solana Program Library Single-Validator Stake Pool Command-line Utility"
 authors = ["Anza Maintainers <maintainers@anza.xyz>"]
 repository = "https://github.com/solana-program/single-pool"
@@ -29,7 +29,7 @@ solana-transaction-status = "2.2.0"
 solana-vote-program = "2.2.0"
 spl-token = { version = "7.0", features = ["no-entrypoint"] }
 spl-token-client = { version = "0.14.0" }
-spl-single-pool = { version = "2.0.0", path = "../../program", features = [
+spl-single-pool = { version = "1.0.0", path = "../../program", features = [
   "no-entrypoint",
 ] }
 
