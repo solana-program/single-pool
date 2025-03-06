@@ -109,7 +109,7 @@ async fn reactivate_success(reactivate_pool: bool, fund_onramp: bool) {
 
     // onramp is already inactive but it doesnt have lamports for delegation
     if fund_onramp {
-        let lamports = get_minimum_pool_balance(
+        let minimum_delegation = get_minimum_delegation(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
@@ -121,7 +121,7 @@ async fn reactivate_success(reactivate_pool: bool, fund_onramp: bool) {
             &context.payer,
             &context.last_blockhash,
             &accounts.onramp_account,
-            lamports,
+            minimum_delegation,
         )
         .await;
     }
@@ -199,8 +199,15 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         .await;
     advance_epoch(&mut context).await;
 
-    // active onramp can be as low as minimum_delegation but this is more convenient
-    let lamports = get_minimum_pool_balance(
+    // active onramp can be as low as minimum_delegation
+    let minimum_delegation = get_minimum_delegation(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+    )
+    .await;
+
+    let minimum_pool_balance = get_minimum_pool_balance(
         &mut context.banks_client,
         &context.payer,
         &context.last_blockhash,
@@ -214,7 +221,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
             &context.payer,
             &context.last_blockhash,
             &accounts.onramp_account,
-            lamports,
+            minimum_delegation,
         )
         .await;
 
@@ -238,7 +245,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
             &context.payer,
             &context.last_blockhash,
             &accounts.stake_account,
-            lamports,
+            minimum_delegation,
         )
         .await;
     }
@@ -250,7 +257,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
             &context.payer,
             &context.last_blockhash,
             &accounts.onramp_account,
-            lamports,
+            minimum_delegation,
         )
         .await;
     }
@@ -264,6 +271,8 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         .get_sysvar::<StakeHistory>()
         .await
         .unwrap();
+
+    println!("HANA sh: {:#?}", stake_history);
 
     let (pool_meta, pool_stake, pool_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
@@ -287,26 +296,38 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
     match (onramp_state, move_lamports) {
         // stake moved already before test or because of test, new lamports were added to onramp
         (OnRampState::Deactive, true) | (OnRampState::Active, true) => {
-            assert_eq!(pool_status.effective, lamports * 2);
-            assert_eq!(pool_lamports, lamports * 2 + pool_rent);
+            assert_eq!(
+                pool_status.effective,
+                minimum_pool_balance + minimum_delegation
+            );
+            assert_eq!(
+                pool_lamports,
+                minimum_pool_balance + minimum_delegation + pool_rent
+            );
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, lamports);
-            assert_eq!(onramp_lamports, lamports + onramp_rent);
+            assert_eq!(onramp_status.activating, minimum_delegation);
+            assert_eq!(onramp_lamports, minimum_delegation + onramp_rent);
         }
         // no stake moved, but lamports did
         (OnRampState::Initialized, true) => {
-            assert_eq!(pool_status.effective, lamports);
-            assert_eq!(pool_lamports, lamports + pool_rent);
+            assert_eq!(pool_status.effective, minimum_pool_balance);
+            assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, lamports);
-            assert_eq!(onramp_lamports, lamports + onramp_rent);
+            assert_eq!(onramp_status.activating, minimum_delegation);
+            assert_eq!(onramp_lamports, minimum_delegation + onramp_rent);
         }
         // no excess lamports moved, just stake
         (OnRampState::Active, false) => {
-            assert_eq!(pool_status.effective, lamports * 2);
-            assert_eq!(pool_lamports, lamports * 2 + pool_rent);
+            assert_eq!(
+                pool_status.effective,
+                minimum_pool_balance + minimum_delegation
+            );
+            assert_eq!(
+                pool_lamports,
+                minimum_pool_balance + minimum_delegation + pool_rent
+            );
 
             assert_eq!(onramp_status.effective, 0);
             assert_eq!(onramp_status.activating, 0);
@@ -314,12 +335,12 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         }
         // topped up an existing activation, either with pool or onramp lamports
         (OnRampState::Activating, _) => {
-            assert_eq!(pool_status.effective, lamports);
-            assert_eq!(pool_lamports, lamports + pool_rent);
+            assert_eq!(pool_status.effective, minimum_pool_balance);
+            assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, lamports * 2);
-            assert_eq!(onramp_lamports, lamports * 2 + onramp_rent);
+            assert_eq!(onramp_status.activating, minimum_delegation * 2);
+            assert_eq!(onramp_lamports, minimum_delegation * 2 + onramp_rent);
         }
         // we have no further test cases
         _ => unreachable!(),
