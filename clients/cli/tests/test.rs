@@ -17,12 +17,17 @@ use {
             state::{Authorized, Lockup, StakeStateV2},
         },
         system_instruction, system_program,
+        sysvar::rent::Rent,
         transaction::Transaction,
     },
     solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
     solana_vote_program::{
         vote_instruction::{self, CreateVoteAccountConfig},
         vote_state::{VoteInit, VoteState},
+    },
+    spl_single_pool::{
+        id,
+        instruction::{self as ixn, SinglePoolInstruction},
     },
     spl_token_client::client::{ProgramClient, ProgramRpcClient, ProgramRpcClientSendTransaction},
     std::{path::PathBuf, process::Command, str::FromStr, sync::Arc, time::Duration},
@@ -462,6 +467,51 @@ async fn display() {
             "--vote-account",
             &env.vote_account.to_string(),
             "--verbose",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
+#[tokio::test]
+#[serial]
+async fn create_onramp(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, false).await;
+
+    let onramp_opcode = borsh::to_vec(&SinglePoolInstruction::InitializePoolOnRamp).unwrap();
+    let instructions = ixn::initialize(
+        &id(),
+        &env.vote_account,
+        &env.payer.pubkey(),
+        &Rent::default(),
+        LAMPORTS_PER_SOL,
+    )
+    .into_iter()
+    .filter(|instruction| instruction.data != onramp_opcode)
+    .collect::<Vec<_>>();
+
+    let blockhash = env.program_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&env.payer.pubkey()),
+        &[&env.payer],
+        blockhash,
+    );
+    env.program_client
+        .send_transaction(&transaction)
+        .await
+        .unwrap();
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "manage",
+            "create-on-ramp",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
         ])
         .status()
         .unwrap();
