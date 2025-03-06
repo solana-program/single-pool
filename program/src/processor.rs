@@ -779,19 +779,15 @@ impl Processor {
 
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
         // if it doesnt exist, it must first be created with InitializePoolOnRamp
-        let (onramp_status, onramp_deactivation_epoch, onramp_rent_exempt_reserve) =
+        let (option_onramp_status, onramp_deactivation_epoch, onramp_rent_exempt_reserve) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
-                Ok(StakeStateV2::Initialized(meta)) => (
-                    StakeActivationStatus::default(),
-                    u64::MAX,
-                    meta.rent_exempt_reserve,
-                ),
+                Ok(StakeStateV2::Initialized(meta)) => (None, u64::MAX, meta.rent_exempt_reserve),
                 Ok(StakeStateV2::Stake(meta, stake, _)) => (
-                    stake.delegation.stake_activating_and_deactivating(
+                    Some(stake.delegation.stake_activating_and_deactivating(
                         clock.epoch,
                         stake_history,
                         PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
-                    ),
+                    )),
                     stake.delegation.deactivation_epoch,
                     meta.rent_exempt_reserve,
                 ),
@@ -838,21 +834,23 @@ impl Processor {
                 .saturating_sub(pool_stake_meta.rent_exempt_reserve);
 
             // if the on-ramp is fully active, move its stake to the main pool account
-            if is_stake_fully_active(&onramp_status) {
-                invoke_signed(
-                    &stake::instruction::move_stake(
-                        pool_onramp_info.key,
-                        pool_stake_info.key,
-                        pool_stake_authority_info.key,
-                        onramp_status.effective,
-                    ),
-                    &[
-                        pool_onramp_info.clone(),
-                        pool_stake_info.clone(),
-                        pool_stake_authority_info.clone(),
-                    ],
-                    stake_authority_signers,
-                )?;
+            if let Some(ref onramp_status) = option_onramp_status {
+                if is_stake_fully_active(onramp_status) {
+                    invoke_signed(
+                        &stake::instruction::move_stake(
+                            pool_onramp_info.key,
+                            pool_stake_info.key,
+                            pool_stake_authority_info.key,
+                            onramp_status.effective,
+                        ),
+                        &[
+                            pool_onramp_info.clone(),
+                            pool_stake_info.clone(),
+                            pool_stake_authority_info.clone(),
+                        ],
+                        stake_authority_signers,
+                    )?;
+                }
             }
 
             // if there are any excess lamports to move to the on-ramp, move them
@@ -880,7 +878,7 @@ impl Processor {
             let onramp_non_rent_lamports = pool_onramp_info
                 .lamports()
                 .saturating_sub(onramp_rent_exempt_reserve);
-            let must_delegate_onramp = match onramp_status {
+            let must_delegate_onramp = match option_onramp_status.unwrap_or_default() {
                 // activating
                 StakeActivationStatus {
                     effective: 0,
