@@ -272,8 +272,6 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         .await
         .unwrap();
 
-    println!("HANA sh: {:#?}", stake_history);
-
     let (pool_meta, pool_stake, pool_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_status = pool_stake
@@ -345,6 +343,62 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         // we have no further test cases
         _ => unreachable!(),
     }
+}
+
+#[tokio::test]
+async fn move_value_deactivating() {
+    let mut context = program_test(false).start_with_context().await;
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
+        .await;
+    advance_epoch(&mut context).await;
+
+    let minimum_delegation = get_minimum_delegation(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+    )
+    .await;
+
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.onramp_account,
+        minimum_delegation,
+    )
+    .await;
+
+    // set up a real active onramp
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    advance_epoch(&mut context).await;
+
+    // edit the account to be deactivating instead
+    let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+    let mut onramp_account = get_account(&mut context.banks_client, &accounts.onramp_account).await;
+    let mut onramp_data: StakeStateV2 = bincode::deserialize(&onramp_account.data).unwrap();
+
+    match onramp_data {
+        StakeStateV2::Stake(_, ref mut stake, _) => {
+            stake.delegation.deactivation_epoch = clock.epoch
+        }
+        _ => unreachable!(),
+    }
+
+    onramp_account.data = bincode::serialize(&onramp_data).unwrap();
+    context.set_account(&accounts.onramp_account, &onramp_account.into());
+
+    // this replenish call reactivates it in the same epoch
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+
+    let (_, Some(stake), _) =
+        get_stake_account(&mut context.banks_client, &accounts.onramp_account).await
+    else {
+        unreachable!()
+    };
+
+    assert_eq!(stake.delegation.deactivation_epoch, u64::MAX);
 }
 
 #[test_case(true; "activated")]
