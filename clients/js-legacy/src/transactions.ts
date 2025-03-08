@@ -48,8 +48,8 @@ export class SinglePoolProgram {
     return modernTransactionToLegacy(modernTransaction);
   }
 
-  static async reactivatePoolStake(voteAccount: PublicKey) {
-    const modernTransaction = await PoolProgramModern.reactivatePoolStake(
+  static async replenishPool(voteAccount: PublicKey) {
+    const modernTransaction = await PoolProgramModern.replenishPool(
       voteAccount.toBase58() as VoteAccountAddress,
     );
 
@@ -92,6 +92,16 @@ export class SinglePoolProgram {
       name,
       symbol,
       uri,
+    );
+
+    return modernTransactionToLegacy(modernTransaction);
+  }
+
+  static async initializeOnRamp(connection: Connection, pool: PublicKey, payer: PublicKey) {
+    const modernTransaction = await PoolProgramModern.initializeOnRamp(
+      rpc(connection),
+      pool.toBase58() as PoolAddress,
+      payer.toBase58() as Address,
     );
 
     return modernTransactionToLegacy(modernTransaction);

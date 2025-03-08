@@ -4,6 +4,7 @@ import type { PoolAddress, VoteAccountAddress } from '@solana/spl-single-pool';
 import {
   findPoolAddress as findPoolModern,
   findPoolStakeAddress as findStakeModern,
+  findPoolOnRampAddress as findOnRampModern,
   findPoolMintAddress as findMintModern,
   findPoolStakeAuthorityAddress as findStakeAuthorityModern,
   findPoolMintAuthorityAddress as findMintAuthorityModern,
@@ -23,6 +24,12 @@ export async function findPoolAddress(programId: PublicKey, voteAccountAddress: 
 export async function findPoolStakeAddress(programId: PublicKey, poolAddress: PublicKey) {
   return new PublicKey(
     await findStakeModern(programId.toBase58() as Address, poolAddress.toBase58() as PoolAddress),
+  );
+}
+
+export async function findPoolOnRampAddress(programId: PublicKey, poolAddress: PublicKey) {
+  return new PublicKey(
+    await findOnRampModern(programId.toBase58() as Address, poolAddress.toBase58() as PoolAddress),
   );
 }
 

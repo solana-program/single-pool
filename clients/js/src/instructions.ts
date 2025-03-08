@@ -16,12 +16,14 @@ import {
   PoolMplAuthorityAddress,
   PoolStakeAuthorityAddress,
   PoolStakeAddress,
+  PoolOnRampAddress,
   findMplMetadataAddress,
   findPoolMplAuthorityAddress,
   findPoolAddress,
   VoteAccountAddress,
   PoolAddress,
   findPoolStakeAddress,
+  findPoolOnRampAddress,
   findPoolMintAddress,
   findPoolMintAuthorityAddress,
   findPoolStakeAuthorityAddress,
@@ -60,12 +62,13 @@ type InitializePoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
   > &
   IInstructionWithData<Uint8Array>;
 
-type ReactivatePoolStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
+type ReplenishPoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
   IInstructionWithAccounts<
     [
       ReadonlyAccount<VoteAccountAddress>,
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
+      WritableAccount<PoolOnRampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
       ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
@@ -139,22 +142,37 @@ type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
   > &
   IInstructionWithData<Uint8Array>;
 
+type InitializeOnRampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  IInstructionWithAccounts<
+    [
+      ReadonlyAccount<PoolAddress>,
+      WritableAccount<PoolOnRampAddress>,
+      ReadonlyAccount<PoolStakeAuthorityAddress>,
+      ReadonlyAccount<typeof SYSVAR_RENT_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+    ]
+  > &
+  IInstructionWithData<Uint8Array>;
+
 const enum SinglePoolInstructionType {
   InitializePool = 0,
-  ReactivatePoolStake,
+  ReplenishPool,
   DepositStake,
   WithdrawStake,
   CreateTokenMetadata,
   UpdateTokenMetadata,
+  InitializeOnRamp,
 }
 
 export const SinglePoolInstruction = {
   initializePool: initializePoolInstruction,
-  reactivatePoolStake: reactivatePoolStakeInstruction,
+  replenishPool: replenishPoolInstruction,
   depositStake: depositStakeInstruction,
   withdrawStake: withdrawStakeInstruction,
   createTokenMetadata: createTokenMetadataInstruction,
   updateTokenMetadata: updateTokenMetadataInstruction,
+  initializeOnRamp: initializeOnRampInstruction,
 };
 
 export async function initializePoolInstruction(
@@ -192,17 +210,18 @@ export async function initializePoolInstruction(
   };
 }
 
-export async function reactivatePoolStakeInstruction(
+export async function replenishPoolInstruction(
   voteAccount: VoteAccountAddress,
-): Promise<ReactivatePoolStakeInstruction> {
+): Promise<ReplenishPoolInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
   const pool = await findPoolAddress(programAddress, voteAccount);
-  const [stake, stakeAuthority] = await Promise.all([
+  const [stake, onramp, stakeAuthority] = await Promise.all([
     findPoolStakeAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
   ]);
 
-  const data = new Uint8Array([SinglePoolInstructionType.ReactivatePoolStake]);
+  const data = new Uint8Array([SinglePoolInstructionType.ReplenishPool]);
 
   return {
     data,
@@ -210,6 +229,7 @@ export async function reactivatePoolStakeInstruction(
       { address: voteAccount, role: AccountRole.READONLY },
       { address: pool, role: AccountRole.READONLY },
       { address: stake, role: AccountRole.WRITABLE },
+      { address: onramp, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
       { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
@@ -375,6 +395,31 @@ export async function updateTokenMetadataInstruction(
       { address: authorizedWithdrawer, role: AccountRole.READONLY_SIGNER },
       { address: mplMetadata, role: AccountRole.WRITABLE },
       { address: MPL_METADATA_PROGRAM_ID, role: AccountRole.READONLY },
+    ],
+    programAddress,
+  };
+}
+
+export async function initializeOnRampInstruction(
+  pool: PoolAddress,
+): Promise<InitializeOnRampInstruction> {
+  const programAddress = SINGLE_POOL_PROGRAM_ID;
+  const [onramp, stakeAuthority] = await Promise.all([
+    findPoolOnRampAddress(programAddress, pool),
+    findPoolStakeAuthorityAddress(programAddress, pool),
+  ]);
+
+  const data = new Uint8Array([SinglePoolInstructionType.InitializeOnRamp]);
+
+  return {
+    data,
+    accounts: [
+      { address: pool, role: AccountRole.READONLY },
+      { address: onramp, role: AccountRole.WRITABLE },
+      { address: stakeAuthority, role: AccountRole.READONLY },
+      { address: SYSVAR_RENT_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
     ],
     programAddress,
   };
