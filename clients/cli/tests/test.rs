@@ -17,12 +17,17 @@ use {
             state::{Authorized, Lockup, StakeStateV2},
         },
         system_instruction, system_program,
+        sysvar::rent::Rent,
         transaction::Transaction,
     },
     solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
     solana_vote_program::{
         vote_instruction::{self, CreateVoteAccountConfig},
         vote_state::{VoteInit, VoteState},
+    },
+    spl_single_pool::{
+        id,
+        instruction::{self as ixn, SinglePoolInstruction},
     },
     spl_token_client::client::{ProgramClient, ProgramRpcClient, ProgramRpcClientSendTransaction},
     std::{path::PathBuf, process::Command, str::FromStr, sync::Arc, time::Duration},
@@ -259,27 +264,21 @@ async fn create_and_delegate_stake_account(
 #[test_case(true; "one_sol")]
 #[tokio::test]
 #[serial]
-async fn reactivate_pool_stake(raise_minimum_delegation: bool) {
+async fn replenish_pool(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
 
-    // setting up a test validator for this to succeed is hell, and success is
-    // tested in program tests so we just make sure the cli can send a
-    // well-formed instruction
-    let output = Command::new(SVSP_CLI)
+    let status = Command::new(SVSP_CLI)
         .args([
             "manage",
-            "reactivate-pool-stake",
+            "replenish-pool",
             "-C",
             &env.config_file_path,
             "--vote-account",
             &env.vote_account.to_string(),
-            "--skip-deactivation-check",
         ])
-        .output()
+        .status()
         .unwrap();
-    assert!(String::from_utf8(output.stderr)
-        .unwrap()
-        .contains("custom program error: 0xc"));
+    assert!(status.success());
 }
 
 #[test_case(false, false; "one_lamp::normal_stake")]
@@ -437,6 +436,82 @@ async fn update_metadata(raise_minimum_delegation: bool) {
             &env.keypair_file_path,
             "something",
             "new",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+#[tokio::test]
+#[serial]
+async fn display() {
+    let env = setup(false, true).await;
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "display",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "display",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
+            "--verbose",
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+}
+
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
+#[tokio::test]
+#[serial]
+async fn create_onramp(raise_minimum_delegation: bool) {
+    let env = setup(raise_minimum_delegation, false).await;
+
+    let onramp_opcode = borsh::to_vec(&SinglePoolInstruction::InitializePoolOnRamp).unwrap();
+    let instructions = ixn::initialize(
+        &id(),
+        &env.vote_account,
+        &env.payer.pubkey(),
+        &Rent::default(),
+        LAMPORTS_PER_SOL,
+    )
+    .into_iter()
+    .filter(|instruction| instruction.data != onramp_opcode)
+    .collect::<Vec<_>>();
+
+    let blockhash = env.program_client.get_latest_blockhash().await.unwrap();
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&env.payer.pubkey()),
+        &[&env.payer],
+        blockhash,
+    );
+    env.program_client
+        .send_transaction(&transaction)
+        .await
+        .unwrap();
+
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "manage",
+            "create-on-ramp",
+            "-C",
+            &env.config_file_path,
+            "--vote-account",
+            &env.vote_account.to_string(),
         ])
         .status()
         .unwrap();

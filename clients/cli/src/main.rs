@@ -18,7 +18,8 @@ use {
     solana_vote_program::{self as vote_program, vote_state::VoteState},
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
-        find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
+        find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
+        state::SinglePool,
     },
     spl_token_client::token::Token,
     std::{rc::Rc, sync::Arc},
@@ -68,14 +69,17 @@ impl Command {
                 ManageCommand::Initialize(command_config) => {
                     command_initialize(config, command_config).await
                 }
-                ManageCommand::ReactivatePoolStake(command_config) => {
-                    command_reactivate_pool_stake(config, command_config).await
+                ManageCommand::ReplenishPool(command_config) => {
+                    command_replenish_pool(config, command_config).await
                 }
                 ManageCommand::CreateTokenMetadata(command_config) => {
                     command_create_metadata(config, command_config).await
                 }
                 ManageCommand::UpdateTokenMetadata(command_config) => {
                     command_update_metadata(config, command_config, matches, wallet_manager).await
+                }
+                ManageCommand::CreateOnRamp(command_config) => {
+                    command_create_onramp(config, command_config).await
                 }
             },
             Command::Deposit(command_config) => {
@@ -170,11 +174,8 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     ))
 }
 
-// reactivate pool stake account
-async fn command_reactivate_pool_stake(
-    config: &Config,
-    command_config: ReactivateCli,
-) -> CommandResult {
+// replenish pool
+async fn command_replenish_pool(config: &Config, command_config: ReplenishCli) -> CommandResult {
     let payer = config.fee_payer()?;
     let pool_address = pool_address_from_args(
         command_config.pool_address,
@@ -183,7 +184,7 @@ async fn command_reactivate_pool_stake(
 
     println_display(
         config,
-        format!("Reactivating stake account for pool {}\n", pool_address),
+        format!("Replenishing stake accounts for pool {}\n", pool_address),
     );
 
     let vote_account_address =
@@ -193,28 +194,8 @@ async fn command_reactivate_pool_stake(
             return Err(format!("Pool {} has not been initialized", pool_address).into());
         };
 
-    // the only reason this check is skippable is for testing, otherwise theres no
-    // reason
-    if !command_config.skip_deactivation_check {
-        let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
-        let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
-        let pool_stake_deactivated = quarantine::get_stake_info(config, &pool_stake_address)
-            .await?
-            .unwrap()
-            .1
-            .delegation
-            .deactivation_epoch
-            <= current_epoch;
-
-        if !pool_stake_deactivated {
-            return Err("Pool stake account is neither deactivating nor deactivated".into());
-        }
-    }
-
-    let instruction = spl_single_pool::instruction::reactivate_pool_stake(
-        &spl_single_pool::id(),
-        &vote_account_address,
-    );
+    let instruction =
+        spl_single_pool::instruction::replenish_pool(&spl_single_pool::id(), &vote_account_address);
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&payer.pubkey()),
@@ -226,7 +207,7 @@ async fn command_reactivate_pool_stake(
 
     Ok(format_output(
         config,
-        "ReactivatePoolStake".to_string(),
+        "ReplenishPool".to_string(),
         SignatureOutput { signature },
     ))
 }
@@ -836,6 +817,69 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
             get_pool_display(config, pool_address, None).await?,
         ))
     }
+}
+
+// create pool on-ramp
+async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli) -> CommandResult {
+    let payer = config.fee_payer()?;
+
+    let pool_address = pool_address_from_args(
+        command_config.pool_address,
+        command_config.vote_account_address,
+    );
+    let onramp_address = find_pool_onramp_address(&spl_single_pool::id(), &pool_address);
+
+    println_display(
+        config,
+        format!(
+            "Creating onramp stake account {} for pool {}\n",
+            onramp_address, pool_address
+        ),
+    );
+
+    if config
+        .program_client
+        .get_account(pool_address)
+        .await?
+        .is_none_or(|account| account.data.is_empty())
+    {
+        return Err(format!("Pool {} has not been initialized", pool_address).into());
+    }
+
+    if config
+        .program_client
+        .get_account(onramp_address)
+        .await?
+        .is_some_and(|account| !account.data.is_empty())
+    {
+        return Err(format!(
+            "Pool {} onramp {} already exists",
+            pool_address, onramp_address
+        )
+        .into());
+    }
+
+    let instructions = spl_single_pool::instruction::create_pool_onramp(
+        &spl_single_pool::id(),
+        &pool_address,
+        &payer.pubkey(),
+        &quarantine::get_rent(config).await?,
+    );
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &vec![payer],
+        config.program_client.get_latest_blockhash().await?,
+    );
+
+    let signature = process_transaction(config, transaction).await?;
+
+    Ok(format_output(
+        config,
+        "InitializePoolOnRamp".to_string(),
+        SignatureOutput { signature },
+    ))
 }
 
 async fn get_pool_display(

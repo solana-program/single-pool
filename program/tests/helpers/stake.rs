@@ -39,7 +39,7 @@ pub async fn get_stake_account_rent(banks_client: &mut BanksClient) -> u64 {
     rent.minimum_balance(std::mem::size_of::<stake::state::StakeStateV2>())
 }
 
-pub async fn get_minimum_pool_balance(
+pub async fn get_minimum_delegation(
     banks_client: &mut BanksClient,
     payer: &Keypair,
     recent_blockhash: &Hash,
@@ -60,8 +60,15 @@ pub async fn get_minimum_pool_balance(
         .unwrap()
         .data;
     data.resize(8, 0);
-    let stake_program_minimum = data.try_into().map(u64::from_le_bytes).unwrap();
+    data.try_into().map(u64::from_le_bytes).unwrap()
+}
 
+pub async fn get_minimum_pool_balance(
+    banks_client: &mut BanksClient,
+    payer: &Keypair,
+    recent_blockhash: &Hash,
+) -> u64 {
+    let stake_program_minimum = get_minimum_delegation(banks_client, payer, recent_blockhash).await;
     std::cmp::max(stake_program_minimum, LAMPORTS_PER_SOL)
 }
 

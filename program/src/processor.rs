@@ -11,10 +11,10 @@ use {
         },
         instruction::SinglePoolInstruction,
         state::{SinglePool, SinglePoolAccountType},
-        MINT_DECIMALS, POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX,
-        POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX,
-        VOTE_STATE_AUTHORIZED_WITHDRAWER_END, VOTE_STATE_AUTHORIZED_WITHDRAWER_START,
-        VOTE_STATE_DISCRIMINATOR_END,
+        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, POOL_MINT_AUTHORITY_PREFIX,
+        POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX, POOL_ONRAMP_PREFIX, POOL_PREFIX,
+        POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
+        VOTE_STATE_AUTHORIZED_WITHDRAWER_START, VOTE_STATE_DISCRIMINATOR_END,
     },
     borsh::BorshDeserialize,
     solana_program::{
@@ -30,11 +30,11 @@ use {
         rent::Rent,
         stake::{
             self,
-            state::{Meta, Stake, StakeStateV2},
+            state::{Meta, Stake, StakeActivationStatus, StakeStateV2},
         },
         stake_history::Epoch,
         system_instruction, system_program,
-        sysvar::{clock::Clock, Sysvar},
+        sysvar::{clock::Clock, stake_history::StakeHistorySysvar, Sysvar},
         vote::program as vote_program,
     },
     spl_token::state::Mint,
@@ -96,6 +96,15 @@ fn is_stake_active_without_history(stake: &Stake, current_epoch: Epoch) -> bool 
         && stake.delegation.deactivation_epoch == Epoch::MAX
 }
 
+/// Determine if stake is fully active with history
+fn is_stake_fully_active(stake_activation_status: &StakeActivationStatus) -> bool {
+    matches!(stake_activation_status, StakeActivationStatus {
+            effective,
+            activating: 0,
+            deactivating: 0,
+        } if *effective > 0)
+}
+
 /// Check pool account address for the validator vote account
 fn check_pool_address(
     program_id: &Pubkey,
@@ -125,6 +134,22 @@ fn check_pool_stake_address(
         &crate::find_pool_stake_address_and_bump,
         "stake account",
         SinglePoolError::InvalidPoolStakeAccount,
+    )
+}
+
+/// Check pool on-ramp account address for the pool account
+fn check_pool_onramp_address(
+    program_id: &Pubkey,
+    pool_address: &Pubkey,
+    check_address: &Pubkey,
+) -> Result<u8, ProgramError> {
+    check_pool_pda(
+        program_id,
+        pool_address,
+        check_address,
+        &crate::find_pool_onramp_address_and_bump,
+        "onramp account",
+        SinglePoolError::InvalidPoolOnRampAccount,
     )
 }
 
@@ -711,14 +736,12 @@ impl Processor {
         Ok(())
     }
 
-    fn process_reactivate_pool_stake(
-        program_id: &Pubkey,
-        accounts: &[AccountInfo],
-    ) -> ProgramResult {
+    fn process_replenish_pool(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
         let account_info_iter = &mut accounts.iter();
         let vote_account_info = next_account_info(account_info_iter)?;
         let pool_info = next_account_info(account_info_iter)?;
         let pool_stake_info = next_account_info(account_info_iter)?;
+        let pool_onramp_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
         let clock = &Clock::from_account_info(clock_info)?;
@@ -726,12 +749,16 @@ impl Processor {
         let stake_config_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
+        let stake_history = &StakeHistorySysvar(clock.epoch);
+        let minimum_delegation = stake::tools::get_minimum_delegation()?;
+
         check_vote_account(vote_account_info)?;
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
 
         SinglePool::from_account_info(pool_info, program_id)?;
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
+        check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -739,10 +766,33 @@ impl Processor {
         )?;
         check_stake_program(stake_program_info.key)?;
 
-        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
-        if pool_stake_state.delegation.deactivation_epoch > clock.epoch {
-            return Err(SinglePoolError::WrongStakeStake.into());
-        }
+        // get main pool account, we require it to be fully active for most operations
+        let (pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let pool_stake_status = pool_stake_state
+            .delegation
+            .stake_activating_and_deactivating(
+                clock.epoch,
+                stake_history,
+                PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+            );
+        let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
+
+        // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
+        // if it doesnt exist, it must first be created with InitializePoolOnRamp
+        let (option_onramp_status, onramp_deactivation_epoch, onramp_rent_exempt_reserve) =
+            match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
+                Ok(StakeStateV2::Initialized(meta)) => (None, u64::MAX, meta.rent_exempt_reserve),
+                Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                    Some(stake.delegation.stake_activating_and_deactivating(
+                        clock.epoch,
+                        stake_history,
+                        PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                    )),
+                    stake.delegation.deactivation_epoch,
+                    meta.rent_exempt_reserve,
+                ),
+                _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
+            };
 
         let stake_authority_seeds = &[
             POOL_STAKE_AUTHORITY_PREFIX,
@@ -751,23 +801,125 @@ impl Processor {
         ];
         let stake_authority_signers = &[&stake_authority_seeds[..]];
 
-        // delegate stake so it activates
-        invoke_signed(
-            &stake::instruction::delegate_stake(
-                pool_stake_info.key,
-                pool_stake_authority_info.key,
-                vote_account_info.key,
-            ),
-            &[
-                pool_stake_info.clone(),
-                vote_account_info.clone(),
-                clock_info.clone(),
-                stake_history_info.clone(),
-                stake_config_info.clone(),
-                pool_stake_authority_info.clone(),
-            ],
-            stake_authority_signers,
-        )?;
+        // if pool stake is deactivating this epoch, or has fully deactivated, delegate it
+        // this may happen as a result of `DeactivateDelinquent`
+        if pool_stake_state.delegation.deactivation_epoch == clock.epoch
+            || (pool_stake_state.delegation.deactivation_epoch < clock.epoch
+                && pool_stake_status.effective == 0)
+        {
+            invoke_signed(
+                &stake::instruction::delegate_stake(
+                    pool_stake_info.key,
+                    pool_stake_authority_info.key,
+                    vote_account_info.key,
+                ),
+                &[
+                    pool_stake_info.clone(),
+                    vote_account_info.clone(),
+                    clock_info.clone(),
+                    stake_history_info.clone(),
+                    stake_config_info.clone(),
+                    pool_stake_authority_info.clone(),
+                ],
+                stake_authority_signers,
+            )?;
+        }
+
+        // if pool is fully active, we can move stake to the main account and lamports to the on-ramp
+        if pool_stake_is_fully_active {
+            // determine excess lamports in the main account before we touch either of them
+            let pool_excess_lamports = pool_stake_info
+                .lamports()
+                .saturating_sub(pool_stake_state.delegation.stake)
+                .saturating_sub(pool_stake_meta.rent_exempt_reserve);
+
+            // if the on-ramp is fully active, move its stake to the main pool account
+            if let Some(ref onramp_status) = option_onramp_status {
+                if is_stake_fully_active(onramp_status) {
+                    invoke_signed(
+                        &stake::instruction::move_stake(
+                            pool_onramp_info.key,
+                            pool_stake_info.key,
+                            pool_stake_authority_info.key,
+                            onramp_status.effective,
+                        ),
+                        &[
+                            pool_onramp_info.clone(),
+                            pool_stake_info.clone(),
+                            pool_stake_authority_info.clone(),
+                        ],
+                        stake_authority_signers,
+                    )?;
+                }
+            }
+
+            // if there are any excess lamports to move to the on-ramp, move them
+            if pool_excess_lamports > 0 {
+                invoke_signed(
+                    &stake::instruction::move_lamports(
+                        pool_stake_info.key,
+                        pool_onramp_info.key,
+                        pool_stake_authority_info.key,
+                        pool_excess_lamports,
+                    ),
+                    &[
+                        pool_stake_info.clone(),
+                        pool_onramp_info.clone(),
+                        pool_stake_authority_info.clone(),
+                    ],
+                    stake_authority_signers,
+                )?;
+            }
+
+            // finally, delegate the on-ramp account if it has sufficient undelegated lamports
+            // if activating, this means more lamports than the current activating delegation
+            // in all cases, this means having enough to cover the minimum delegation
+            // we do nothing if partially active. we know it cannot be fully active because of MoveStake
+            let onramp_non_rent_lamports = pool_onramp_info
+                .lamports()
+                .saturating_sub(onramp_rent_exempt_reserve);
+            let must_delegate_onramp = match option_onramp_status.unwrap_or_default() {
+                // activating
+                StakeActivationStatus {
+                    effective: 0,
+                    activating,
+                    deactivating: 0,
+                } if activating > 0 => {
+                    onramp_non_rent_lamports >= minimum_delegation
+                        && onramp_non_rent_lamports > activating
+                }
+                // inactive, or deactivating this epoch due to DeactivateDelinquent
+                // effective may be nonzero here because we are using the status prior to MoveStake
+                StakeActivationStatus {
+                    effective: _,
+                    activating: 0,
+                    deactivating,
+                } if deactivating == 0 || onramp_deactivation_epoch == clock.epoch => {
+                    onramp_non_rent_lamports >= minimum_delegation
+                }
+                // partially active, partially inactive, or some state beyond mortal reckoning
+                _ => false,
+            };
+
+            if must_delegate_onramp {
+                invoke_signed(
+                    &stake::instruction::delegate_stake(
+                        pool_onramp_info.key,
+                        pool_stake_authority_info.key,
+                        vote_account_info.key,
+                    ),
+                    &[
+                        pool_onramp_info.clone(),
+                        vote_account_info.clone(),
+                        clock_info.clone(),
+                        stake_history_info.clone(),
+                        stake_config_info.clone(),
+                        pool_stake_authority_info.clone(),
+                    ],
+                    stake_authority_signers,
+                )?;
+            }
+        }
 
         Ok(())
     }
@@ -1178,6 +1330,81 @@ impl Processor {
         Ok(())
     }
 
+    fn process_initialize_pool_onramp(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let pool_info = next_account_info(account_info_iter)?;
+        let pool_onramp_info = next_account_info(account_info_iter)?;
+        let pool_stake_authority_info = next_account_info(account_info_iter)?;
+        let rent_info = next_account_info(account_info_iter)?;
+        let rent = &Rent::from_account_info(rent_info)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        SinglePool::from_account_info(pool_info, program_id)?;
+
+        let onramp_bump_seed =
+            check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
+        let stake_authority_bump_seed = check_pool_stake_authority_address(
+            program_id,
+            pool_info.key,
+            pool_stake_authority_info.key,
+        )?;
+        check_system_program(system_program_info.key)?;
+        check_stake_program(stake_program_info.key)?;
+
+        let onramp_seeds = &[
+            POOL_ONRAMP_PREFIX,
+            pool_info.key.as_ref(),
+            &[onramp_bump_seed],
+        ];
+        let onramp_signers = &[&onramp_seeds[..]];
+
+        let stake_authority_seeds = &[
+            POOL_STAKE_AUTHORITY_PREFIX,
+            pool_info.key.as_ref(),
+            &[stake_authority_bump_seed],
+        ];
+        let stake_authority_signers = &[&stake_authority_seeds[..]];
+
+        // create the pool on-ramp account. user has already transferred in rent
+        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+        let stake_rent = rent.minimum_balance(stake_space);
+
+        if pool_onramp_info.lamports() < stake_rent {
+            return Err(SinglePoolError::WrongRentAmount.into());
+        }
+
+        let authorized = stake::state::Authorized::auto(pool_stake_authority_info.key);
+
+        invoke_signed(
+            &system_instruction::allocate(pool_onramp_info.key, stake_space as u64),
+            &[pool_onramp_info.clone()],
+            onramp_signers,
+        )?;
+
+        invoke_signed(
+            &system_instruction::assign(pool_onramp_info.key, stake_program_info.key),
+            &[pool_onramp_info.clone()],
+            onramp_signers,
+        )?;
+
+        invoke_signed(
+            &stake::instruction::initialize_checked(pool_onramp_info.key, &authorized),
+            &[
+                pool_onramp_info.clone(),
+                rent_info.clone(),
+                pool_stake_authority_info.clone(),
+                pool_stake_authority_info.clone(),
+            ],
+            stake_authority_signers,
+        )?;
+
+        Ok(())
+    }
+
     /// Processes [Instruction](enum.Instruction.html).
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = SinglePoolInstruction::try_from_slice(input)?;
@@ -1186,9 +1413,9 @@ impl Processor {
                 msg!("Instruction: InitializePool");
                 Self::process_initialize_pool(program_id, accounts)
             }
-            SinglePoolInstruction::ReactivatePoolStake => {
-                msg!("Instruction: ReactivatePoolStake");
-                Self::process_reactivate_pool_stake(program_id, accounts)
+            SinglePoolInstruction::ReplenishPool => {
+                msg!("Instruction: ReplenishPool");
+                Self::process_replenish_pool(program_id, accounts)
             }
             SinglePoolInstruction::DepositStake => {
                 msg!("Instruction: DepositStake");
@@ -1213,6 +1440,10 @@ impl Processor {
             SinglePoolInstruction::UpdateTokenMetadata { name, symbol, uri } => {
                 msg!("Instruction: UpdateTokenMetadata");
                 Self::process_update_pool_token_metadata(program_id, accounts, name, symbol, uri)
+            }
+            SinglePoolInstruction::InitializePoolOnRamp => {
+                msg!("Instruction: InitializePoolOnRamp");
+                Self::process_initialize_pool_onramp(program_id, accounts)
             }
         }
     }

@@ -20,12 +20,14 @@ solana_program::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
 const POOL_PREFIX: &[u8] = b"pool";
 const POOL_STAKE_PREFIX: &[u8] = b"stake";
+const POOL_ONRAMP_PREFIX: &[u8] = b"onramp";
 const POOL_MINT_PREFIX: &[u8] = b"mint";
 const POOL_MINT_AUTHORITY_PREFIX: &[u8] = b"mint_authority";
 const POOL_STAKE_AUTHORITY_PREFIX: &[u8] = b"stake_authority";
 const POOL_MPL_AUTHORITY_PREFIX: &[u8] = b"mpl_authority";
 
 const MINT_DECIMALS: u8 = 9;
+const PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH: Option<u64> = Some(0);
 
 const VOTE_STATE_DISCRIMINATOR_END: usize = 4;
 const VOTE_STATE_AUTHORIZED_WITHDRAWER_START: usize = 36;
@@ -37,6 +39,10 @@ fn find_pool_address_and_bump(program_id: &Pubkey, vote_account_address: &Pubkey
 
 fn find_pool_stake_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {
     Pubkey::find_program_address(&[POOL_STAKE_PREFIX, pool_address.as_ref()], program_id)
+}
+
+fn find_pool_onramp_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {
+    Pubkey::find_program_address(&[POOL_ONRAMP_PREFIX, pool_address.as_ref()], program_id)
 }
 
 fn find_pool_mint_address_and_bump(program_id: &Pubkey, pool_address: &Pubkey) -> (Pubkey, u8) {
@@ -90,9 +96,14 @@ pub fn find_pool_address(program_id: &Pubkey, vote_account_address: &Pubkey) -> 
     find_pool_address_and_bump(program_id, vote_account_address).0
 }
 
-/// Find the canonical stake account address for a given pool account.
+/// Find the canonical main stake account address for a given pool account.
 pub fn find_pool_stake_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pubkey {
     find_pool_stake_address_and_bump(program_id, pool_address).0
+}
+
+/// Find the canonical stake on-ramp account address for a given pool account.
+pub fn find_pool_onramp_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pubkey {
+    find_pool_onramp_address_and_bump(program_id, pool_address).0
 }
 
 /// Find the canonical token mint address for a given pool account.

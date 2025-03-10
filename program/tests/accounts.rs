@@ -127,16 +127,18 @@ async fn build_instructions(
         vec![]
     };
 
-    let (instructions, i) = match test_mode {
-        TestMode::Initialize => (initialize_instructions, 3),
-        TestMode::Deposit => (deposit_instructions, 2),
-        TestMode::Withdraw => (withdraw_instructions, 1),
+    // ints hardcoded to guard against instructions moving with code changes
+    // if these asserts fail, update them to match the new multi-instruction builders
+    let (instructions, index, enum_tag) = match test_mode {
+        TestMode::Initialize => (initialize_instructions, 4, 0),
+        TestMode::Deposit => (deposit_instructions, 2, 2),
+        TestMode::Withdraw => (withdraw_instructions, 1, 3),
     };
 
-    // guard against instructions moving with code changes
-    assert_eq!(instructions[i].program_id, id());
+    assert_eq!(instructions[index].program_id, id());
+    assert_eq!(instructions[index].data[0], enum_tag);
 
-    (instructions, i)
+    (instructions, index)
 }
 
 // test that account addresses are checked properly
@@ -208,8 +210,8 @@ fn make_basic_instruction(
         SinglePoolInstruction::InitializePool => {
             instruction::initialize_pool(&id(), &accounts.vote_account.pubkey())
         }
-        SinglePoolInstruction::ReactivatePoolStake => {
-            instruction::reactivate_pool_stake(&id(), &accounts.vote_account.pubkey())
+        SinglePoolInstruction::ReplenishPool => {
+            instruction::replenish_pool(&id(), &accounts.vote_account.pubkey())
         }
         SinglePoolInstruction::DepositStake => instruction::deposit_stake(
             &id(),
@@ -237,6 +239,9 @@ fn make_basic_instruction(
             "".to_string(),
             "".to_string(),
         ),
+        SinglePoolInstruction::InitializePoolOnRamp => {
+            instruction::initialize_pool_onramp(&id(), &accounts.pool)
+        }
     }
 }
 
@@ -258,6 +263,7 @@ fn consistent_account_order() {
         accounts.vote_account.pubkey(),
         accounts.pool,
         accounts.stake_account,
+        accounts.onramp_account,
         accounts.mint,
         accounts.stake_authority,
         accounts.mint_authority,
@@ -266,7 +272,7 @@ fn consistent_account_order() {
 
     let instructions = vec![
         make_basic_instruction(&accounts, SinglePoolInstruction::InitializePool),
-        make_basic_instruction(&accounts, SinglePoolInstruction::ReactivatePoolStake),
+        make_basic_instruction(&accounts, SinglePoolInstruction::ReplenishPool),
         make_basic_instruction(&accounts, SinglePoolInstruction::DepositStake),
         make_basic_instruction(
             &accounts,
@@ -284,6 +290,7 @@ fn consistent_account_order() {
                 uri: "".to_string(),
             },
         ),
+        make_basic_instruction(&accounts, SinglePoolInstruction::InitializePoolOnRamp),
     ];
 
     for instruction in instructions {
