@@ -12,6 +12,7 @@
     }
   },
   "scripts": {
+    "prepublishOnly": "pnpm build",
     "clean": "rm -rf dist/*",
     "build": "rm -rf dist/* && tsup && tsc -p ./tsconfig.declarations.json",
     "build:program": "cargo build-sbf --manifest-path=../../program/Cargo.toml",

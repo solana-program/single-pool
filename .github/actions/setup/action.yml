@@ -69,14 +69,14 @@ runs:
       if: ${{ inputs.rustfmt == 'true' }}
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: ${{ env.TOOLCHAIN_FORMAT }}
+        toolchain: ${{ env.TOOLCHAIN_NIGHTLY }}
         components: rustfmt
 
     - name: Install Clippy
       if: ${{ inputs.clippy == 'true' }}
       uses: dtolnay/rust-toolchain@master
       with:
-        toolchain: ${{ env.TOOLCHAIN_LINT }}
+        toolchain: ${{ env.TOOLCHAIN_NIGHTLY }}
         components: clippy
 
     - name: Install Solana

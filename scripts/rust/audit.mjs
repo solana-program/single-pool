@@ -28,7 +28,7 @@ const advisories = [
   // ID:        RUSTSEC-2024-0421
   // URL:       https://rustsec.org/advisories/RUSTSEC-2024-0421
   // Solution:  Upgrade to >=1.0.0
-  // need to solve this depentant tree:
+  // need to solve this dependency tree:
   // jsonrpc-core-client v18.0.0 -> jsonrpc-client-transports v18.0.0 -> url v1.7.2 -> idna v0.1.5
   'RUSTSEC-2024-0421',
 ];
