@@ -2,7 +2,9 @@
 import 'zx/globals';
 import { cliArguments, workingDirectory } from '../utils.mjs';
 
+const [folder, ...args] = cliArguments();
+
 // Check the client using ESLint.
-cd(path.join(workingDirectory, 'clients', 'js-legacy'));
+cd(path.join(workingDirectory, folder, 'js'));
 await $`pnpm install`;
-await $`pnpm lint ${cliArguments()}`;
+await $`pnpm lint ${args}`;

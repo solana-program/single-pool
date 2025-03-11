@@ -2,13 +2,13 @@
 import 'zx/globals';
 import { cliArguments, workingDirectory } from '../utils.mjs';
 
-const [level, tag = 'latest'] = cliArguments();
+const [level, folder, tag = 'latest'] = cliArguments();
 if (!level) {
   throw new Error('A version level — e.g. "path" — must be provided.');
 }
 
 // Go to the client directory and install the dependencies.
-cd(path.join(workingDirectory, 'clients', 'js'));
+cd(path.join(workingDirectory, folder, 'js'));
 await $`pnpm install`;
 
 // Update the version.
@@ -29,7 +29,7 @@ if (process.env.CI) {
 await $`pnpm publish --no-git-checks --tag ${tag}`;
 
 // Commit the new version.
-await $`git commit -am "Publish JS client v${newVersion}"`;
+await $`git commit -am "Publish ${folder} JS client v${newVersion}"`;
 
 // Tag the new version.
-await $`git tag -a js@v${newVersion} -m "JS client v${newVersion}"`;
+await $`git tag -a ${folder}-js@v${newVersion} -m "${folder} JS client v${newVersion}"`;

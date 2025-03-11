@@ -2,7 +2,9 @@
 import 'zx/globals';
 import { cliArguments, workingDirectory } from '../utils.mjs';
 
+const [folder, ...formatArgs] = cliArguments();
+
 // Format the client using Prettier.
-cd(path.join(workingDirectory, 'clients', 'js-legacy'));
+cd(path.join(workingDirectory, folder, 'js'));
 await $`pnpm install`;
-await $`pnpm format ${cliArguments()}`;
+await $`pnpm format ${formatArgs}`;
