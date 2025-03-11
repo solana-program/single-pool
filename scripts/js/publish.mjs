@@ -8,7 +8,7 @@ if (!level) {
 }
 
 // Go to the client directory and install the dependencies.
-cd(path.join(workingDirectory, folder, 'js'));
+cd(path.join(workingDirectory, folder));
 await $`pnpm install`;
 
 // Update the version.
