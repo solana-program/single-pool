@@ -200,7 +200,10 @@ jobs:
           path: ./**/*.so
           key: ${{ runner.os }}-builds-${{ github.sha }}
 
-      - name: Test Client JS
+      - name: Build dependency
+        run: pnpm clients:js:build
+
+      - name: Test
         run: pnpm clients:js-legacy:test
 
   test_client_cli:
