@@ -8,11 +8,15 @@ solana = "2.2.0"
 # Specify Rust toolchains for rustfmt, clippy, and build.
 # Any unprovided toolchains default to stable.
 [workspace.metadata.toolchains]
-format = "nightly-2024-11-22"
-lint = "nightly-2024-11-22"
+nightly = "nightly-2024-11-22"
 
 [workspace.metadata.spellcheck]
 config = "scripts/spellcheck.toml"
+
+[workspace.metadata.release]
+pre-release-commit-message = "Publish {{crate_name}} v{{version}}"
+tag-message = "Publish {{crate_name}} v{{version}}"
+consolidate-commits = false
 
 [workspace.lints.rust.unexpected_cfgs]
 level = "warn"
