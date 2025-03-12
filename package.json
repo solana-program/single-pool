@@ -20,6 +20,7 @@
     "clients:cli:test": "zx ./scripts/rust/test.mjs clients/cli",
     "template:upgrade": "zx ./scripts/upgrade-template.mjs",
     "rust:audit": "zx ./scripts/rust/audit.mjs",
+    "rust:publish": "zx ./scripts/rust/publish.mjs",
     "rust:spellcheck": "cargo spellcheck --code 1",
     "rust:semver": "zx ./scripts/rust/semver.mjs"
   },
