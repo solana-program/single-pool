@@ -21,7 +21,7 @@
     "template:upgrade": "zx ./scripts/upgrade-template.mjs",
     "rust:audit": "zx ./scripts/rust/audit.mjs",
     "rust:spellcheck": "cargo spellcheck --code 1",
-    "rust:semver": "cargo semver-checks"
+    "rust:semver": "zx ./scripts/rust/semver.mjs"
   },
   "devDependencies": {
     "@iarna/toml": "^2.2.5",
