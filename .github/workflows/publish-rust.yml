@@ -45,6 +45,7 @@ jobs:
           clippy: true
           rustfmt: true
           solana: true
+          cli: true
           cargo-cache-key: cargo-test-publish-${{ inputs.package_path }}
           cargo-cache-fallback-key: cargo-test-publish
 
@@ -84,6 +85,7 @@ jobs:
       - name: Setup Environment
         uses: ./.github/actions/setup
         with:
+          cli: true
           cargo-cache-key: cargo-publish-${{ inputs.package_path }}
           cargo-cache-fallback-key: cargo-publish
 
