@@ -67,6 +67,7 @@ jobs:
         run: pnpm zx ./scripts/rust/test.mjs "${{ inputs.package_path }}"
 
       - name: Check semver
+        if: ${{ inputs.package_path == 'program' }}
         run: pnpm rust:semver ${{ inputs.package_path }} --release-type ${{ inputs.level }}
 
   publish:
