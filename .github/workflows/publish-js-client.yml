@@ -87,14 +87,16 @@ jobs:
           echo "Go to \"Settings\" -> \"Secrets and variables\" -> \"Actions\" -> \"New repository secret\"."
           exit 1
 
-      - name: Ensure SOLANA_PROGRAM_NPM_TOKEN variable is set
-        env:
-          token: ${{ secrets.SOLANA_PROGRAM_NPM_TOKEN }}
-        if: ${{ env.token == '' }}
-        run: |
-          echo "The SOLANA_PROGRAM_NPM_TOKEN secret variable is not set"
-          echo "Go to \"Settings\" -> \"Secrets and variables\" -> \"Actions\" -> \"New repository secret\"."
-          exit 1
+      # NOTE there is no @solana-program token because this is reserved for future codama clients
+      # uncomment this, and the pnpm config command in the npm auth job, when it is to be deployed
+      # - name: Ensure SOLANA_PROGRAM_NPM_TOKEN variable is set
+      #   env:
+      #     token: ${{ secrets.SOLANA_PROGRAM_NPM_TOKEN }}
+      #   if: ${{ env.token == '' }}
+      #   run: |
+      #     echo "The SOLANA_PROGRAM_NPM_TOKEN secret variable is not set"
+      #     echo "Go to \"Settings\" -> \"Secrets and variables\" -> \"Actions\" -> \"New repository secret\"."
+      #     exit 1
 
       - name: NPM Authentication
         env:
@@ -105,7 +107,9 @@ jobs:
           cd "${{ inputs.package_path }}"
           org="$(jq '.name|split("/")|.[0]' package.json)"
           if [[ $org == "\"@solana-program\"" ]] then
-            pnpm config set '//registry.npmjs.org/:_authToken' "${SOLANA_PROGRAM_NPM_TOKEN}"
+            # pnpm config set '//registry.npmjs.org/:_authToken' "${SOLANA_PROGRAM_NPM_TOKEN}"
+            echo "The SOLANA_PROGRAM_NPM_TOKEN secret variable is not set"
+            exit 1
           elif [[ $org == "\"@solana\"" ]] then
             pnpm config set '//registry.npmjs.org/:_authToken' "${SOLANA_NPM_TOKEN}"
           else
