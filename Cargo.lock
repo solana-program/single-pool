@@ -5072,7 +5072,7 @@ dependencies = [
  "solana-slot-hashes",
  "solana-slot-history",
  "solana-sysvar",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 7.0.0",
  "spl-token-group-interface",
  "spl-token-metadata-interface",
@@ -6477,7 +6477,7 @@ dependencies = [
  "solana-transaction-status",
  "solana-vote",
  "solana-vote-program",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 7.0.0",
  "static_assertions",
  "strum",
@@ -7307,7 +7307,7 @@ dependencies = [
  "solana-version",
  "solana-vote",
  "solana-vote-program",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 7.0.0",
  "stream-cancel",
  "thiserror 2.0.12",
@@ -8403,7 +8403,7 @@ dependencies = [
  "solana-transaction-status-client-types",
  "spl-associated-token-account",
  "spl-memo",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 7.0.0",
  "spl-token-group-interface",
  "spl-token-metadata-interface",
@@ -8807,7 +8807,7 @@ dependencies = [
  "num-traits",
  "solana-program",
  "spl-associated-token-account-client",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 6.0.0",
  "thiserror 1.0.69",
 ]
@@ -8970,7 +8970,7 @@ dependencies = [
  "solana-vote-program",
  "spl-associated-token-account",
  "spl-associated-token-account-client",
- "spl-token",
+ "spl-token 8.0.0",
  "test-case",
  "thiserror 2.0.12",
 ]
@@ -9000,7 +9000,7 @@ dependencies = [
  "solana-transaction-status",
  "solana-vote-program",
  "spl-single-pool",
- "spl-token",
+ "spl-token 8.0.0",
  "spl-token-client",
  "tempfile",
  "test-case",
@@ -9045,6 +9045,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-token"
+version = "8.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "053067c6a82c705004f91dae058b11b4780407e9ccd6799dc9e7d0fab5f242da"
+dependencies = [
+ "arrayref",
+ "bytemuck",
+ "num-derive",
+ "num-traits",
+ "num_enum",
+ "solana-account-info",
+ "solana-cpi",
+ "solana-decode-error",
+ "solana-instruction",
+ "solana-msg",
+ "solana-program-entrypoint",
+ "solana-program-error",
+ "solana-program-memory",
+ "solana-program-option",
+ "solana-program-pack",
+ "solana-pubkey",
+ "solana-rent",
+ "solana-sdk-ids",
+ "solana-sysvar",
+ "thiserror 2.0.12",
+]
+
+[[package]]
 name = "spl-token-2022"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9061,7 +9089,7 @@ dependencies = [
  "spl-elgamal-registry",
  "spl-memo",
  "spl-pod",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-confidential-transfer-ciphertext-arithmetic",
  "spl-token-confidential-transfer-proof-extraction",
  "spl-token-confidential-transfer-proof-generation 0.2.0",
@@ -9089,7 +9117,7 @@ dependencies = [
  "spl-elgamal-registry",
  "spl-memo",
  "spl-pod",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-confidential-transfer-ciphertext-arithmetic",
  "spl-token-confidential-transfer-proof-extraction",
  "spl-token-confidential-transfer-proof-generation 0.3.0",
@@ -9121,7 +9149,7 @@ dependencies = [
  "spl-elgamal-registry",
  "spl-memo",
  "spl-record",
- "spl-token",
+ "spl-token 7.0.0",
  "spl-token-2022 7.0.0",
  "spl-token-confidential-transfer-proof-extraction",
  "spl-token-confidential-transfer-proof-generation 0.3.0",
