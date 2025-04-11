@@ -42,7 +42,7 @@
     "@solana/addresses": "2.1.0",
     "@solana/prettier-config-solana": "^0.0.5",
     "@solana/spl-single-pool": "workspace:*",
-    "eslint-config-prettier": "^10.1.1",
+    "eslint-config-prettier": "^10.1.2",
     "eslint-plugin-prettier": "^5.2.6",
     "prettier": "^3.5.3"
   },
