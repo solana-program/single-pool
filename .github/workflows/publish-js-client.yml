@@ -124,7 +124,7 @@ jobs:
 
       - name: Publish JS Client
         id: publish
-        run: pnpm js:publish "${{ inputs.package_path }}" ${{ inputs.level }} ${{ inputs.tag }}
+        run: zx ./scripts/js/publish.mjs ${{ inputs.level }} "${{ inputs.package_path }}" ${{ inputs.tag }}
 
       - name: Push Commit and Tag
         run: git push origin --follow-tags
