@@ -30,7 +30,7 @@
   "devDependencies": {
     "@types/node": "^22.14.1",
     "@ava/typescript": "^5.0.0",
-    "@typescript-eslint/eslint-plugin": "^8.30.1",
+    "@typescript-eslint/eslint-plugin": "^8.31.0",
     "ava": "^6.2.0",
     "eslint": "^8.57.0",
     "solana-bankrun": "^0.4.0",
