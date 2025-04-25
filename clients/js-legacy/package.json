@@ -38,7 +38,7 @@
     "typescript": "^5.8.3"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.98.1",
+    "@solana/web3.js": "^1.98.2",
     "@solana/addresses": "2.1.0",
     "@solana/prettier-config-solana": "^0.0.5",
     "@solana/spl-single-pool": "workspace:*",
