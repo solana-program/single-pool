@@ -262,7 +262,7 @@ async fn create_and_delegate_stake_account(
 
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn replenish_pool(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
@@ -285,7 +285,7 @@ async fn replenish_pool(raise_minimum_delegation: bool) {
 #[test_case(true, false; "one_sol::normal_stake")]
 #[test_case(false, true; "one_lamp::default_stake")]
 #[test_case(true, true; "one_sol::default_stake")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
     let env = setup(raise_minimum_delegation, true).await;
@@ -333,7 +333,7 @@ async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
 
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn withdraw(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
@@ -369,7 +369,7 @@ async fn withdraw(raise_minimum_delegation: bool) {
 
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn create_metadata(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, false).await;
@@ -403,7 +403,7 @@ async fn create_metadata(raise_minimum_delegation: bool) {
 
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn update_metadata(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
@@ -442,7 +442,7 @@ async fn update_metadata(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn display() {
     let env = setup(false, true).await;
@@ -475,7 +475,7 @@ async fn display() {
 
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
 async fn create_onramp(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, false).await;
