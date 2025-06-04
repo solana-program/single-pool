@@ -349,26 +349,74 @@ async fn fail_uninitialized(activate: bool) {
     check_error(e, SinglePoolError::InvalidPoolAccount);
 }
 
-#[test_case(true, true; "activated::automorph")]
-#[test_case(false, true; "activating::automorph")]
-#[test_case(true, false; "activated::unauth")]
-#[test_case(false, false; "activating::unauth")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum BadDeposit {
+    User,
+    Pool,
+    Onramp,
+}
+
+#[test_case(true, BadDeposit::User; "activated::unauth")]
+#[test_case(false, BadDeposit::User; "activating::unauth")]
+#[test_case(true, BadDeposit::Pool; "activated::pool")]
+#[test_case(false, BadDeposit::Pool; "activating::pool")]
+#[test_case(true, BadDeposit::Onramp; "activated::onramp")]
 #[tokio::test]
-async fn fail_bad_account(activate: bool, automorph: bool) {
+async fn fail_bad_account(activate: bool, deposit_source: BadDeposit) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
         .await;
 
+    if activate {
+        advance_epoch(&mut context).await;
+    }
+
+    if deposit_source == BadDeposit::Onramp {
+        let minimum_delegation = get_minimum_delegation(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+        )
+        .await;
+
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.onramp_account,
+            minimum_delegation,
+        )
+        .await;
+
+        let instruction = instruction::replenish_pool(&id(), &accounts.vote_account.pubkey());
+        let transaction = Transaction::new_signed_with_payer(
+            &[instruction],
+            Some(&context.payer.pubkey()),
+            &[&context.payer],
+            context.last_blockhash,
+        );
+
+        context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+
+        advance_epoch(&mut context).await;
+    }
+
+    let deposit_source_address = match deposit_source {
+        BadDeposit::User => accounts.alice_stake.pubkey(),
+        BadDeposit::Pool => accounts.stake_account,
+        BadDeposit::Onramp => accounts.onramp_account,
+    };
+
     let instruction = instruction::deposit_stake(
         &id(),
         &accounts.pool,
-        &if automorph {
-            accounts.stake_account
-        } else {
-            accounts.alice_stake.pubkey()
-        },
+        &deposit_source_address,
         &accounts.alice_token,
         &accounts.alice.pubkey(),
     );
@@ -379,20 +427,16 @@ async fn fail_bad_account(activate: bool, automorph: bool) {
         context.last_blockhash,
     );
 
-    if activate {
-        advance_epoch(&mut context).await;
-    }
-
     let e = context
         .banks_client
         .process_transaction(transaction)
         .await
         .unwrap_err();
 
-    if automorph {
-        check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
-    } else {
+    if deposit_source == BadDeposit::User {
         check_error(e, SinglePoolError::WrongStakeStake);
+    } else {
+        check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
     }
 }
 
