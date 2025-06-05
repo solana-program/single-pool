@@ -4,8 +4,9 @@ use {
     solana_clap_v3_utils::keypair::{signer_from_path, signer_from_source},
     solana_cli_output::OutputFormat,
     solana_client::nonblocking::rpc_client::RpcClient,
+    solana_commitment_config::CommitmentConfig,
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
-    solana_sdk::{commitment_config::CommitmentConfig, signature::Signer},
+    solana_signer::Signer,
     spl_token_client::client::{ProgramClient, ProgramRpcClient, ProgramRpcClientSendTransaction},
     std::{process::exit, rc::Rc, sync::Arc},
 };
