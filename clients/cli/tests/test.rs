@@ -4,23 +4,20 @@ use {
     serial_test::serial,
     solana_cli_config::Config as SolanaConfig,
     solana_client::nonblocking::rpc_client::RpcClient,
-    solana_sdk::{
-        bpf_loader_upgradeable,
-        clock::Epoch,
-        epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
-        feature_set::stake_raise_minimum_delegation_to_1_sol,
-        native_token::LAMPORTS_PER_SOL,
-        pubkey::Pubkey,
-        signature::{write_keypair_file, Keypair, Signer},
-        stake::{
-            self,
-            state::{Authorized, Lockup, StakeStateV2},
-        },
-        system_instruction, system_program,
-        sysvar::rent::Rent,
-        transaction::Transaction,
-    },
+    solana_clock::Epoch,
+    solana_epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
+    solana_feature_set::stake_raise_minimum_delegation_to_1_sol,
+    solana_keypair::{write_keypair_file, Keypair},
+    solana_native_token::LAMPORTS_PER_SOL,
+    solana_pubkey::Pubkey,
+    solana_rent::Rent,
+    solana_sdk_ids::bpf_loader_upgradeable,
+    solana_signer::Signer,
+    solana_stake_interface::instruction as stake_instruction,
+    solana_stake_interface::state::{Authorized, Lockup, StakeStateV2},
+    solana_system_interface::{instruction as system_instruction, program as system_program},
     solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
+    solana_transaction::Transaction,
     solana_vote_program::{
         vote_instruction::{self, CreateVoteAccountConfig},
         vote_state::{VoteInit, VoteState},
@@ -225,7 +222,7 @@ async fn create_and_delegate_stake_account(
     let blockhash = program_client.get_latest_blockhash().await.unwrap();
 
     let mut transaction = Transaction::new_with_payer(
-        &stake::instruction::create_account(
+        &stake_instruction::create_account(
             &payer.pubkey(),
             &stake_account.pubkey(),
             &Authorized::auto(&payer.pubkey()),
@@ -245,7 +242,7 @@ async fn create_and_delegate_stake_account(
     program_client.send_transaction(&transaction).await.unwrap();
 
     let mut transaction = Transaction::new_with_payer(
-        &[stake::instruction::delegate_stake(
+        &[stake_instruction::delegate_stake(
             &stake_account.pubkey(),
             &payer.pubkey(),
             vote_account,
