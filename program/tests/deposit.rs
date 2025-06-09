@@ -10,6 +10,7 @@ use {
         signature::Signer,
         signer::keypair::Keypair,
         stake::state::{Authorized, Lockup},
+        system_instruction,
         transaction::Transaction,
     },
     spl_associated_token_account_client::address as atoken,
@@ -19,20 +20,25 @@ use {
     test_case::test_case,
 };
 
-#[test_case(true, 0, false, false, false; "activated::minimum_disabled")]
-#[test_case(true, 0, false, false, true; "activated::minimum_disabled::small")]
-#[test_case(true, 0, false, true, false; "activated::minimum_enabled")]
-#[test_case(false, 0, false, false, false; "activating::minimum_disabled")]
-#[test_case(false, 0, false, false, true; "activating::minimum_disabled::small")]
-#[test_case(false, 0, false, true, false; "activating::minimum_enabled")]
-#[test_case(true, 100_000, false, false, false; "activated::extra")]
-#[test_case(false, 100_000, false, false, false; "activating::extra")]
-#[test_case(true, 0, true, false, false; "activated::second")]
-#[test_case(false, 0, true, false, false; "activating::second")]
+#[test_case(true, 0, 0, false, false, false; "activated::minimum_disabled")]
+#[test_case(true, 0, 0, false, false, true; "activated::minimum_disabled::small")]
+#[test_case(true, 0, 0, false, true, false; "activated::minimum_enabled")]
+#[test_case(false, 0, 0, false, false, false; "activating::minimum_disabled")]
+#[test_case(false, 0, 0, false, false, true; "activating::minimum_disabled::small")]
+#[test_case(false, 0, 0, false, true, false; "activating::minimum_enabled")]
+#[test_case(true, 100_000, 0, false, false, false; "activated::extra_none")]
+#[test_case(false, 100_000, 0, false, false, false; "activating::extra_none")]
+#[test_case(true, 0, 100_000, false, false, false; "activated::none_extra")]
+#[test_case(false, 0, 100_000, false, false, false; "activating::none_extra")]
+#[test_case(true, 100_000, 100_000, false, false, false; "activated::extra_extra")]
+#[test_case(false, 100_000, 100_000, false, false, false; "activating::extra_extra")]
+#[test_case(true, 0, 0, true, false, false; "activated::second")]
+#[test_case(false, 0, 0, true, false, false; "activating::second")]
 #[tokio::test]
 async fn success(
     activate: bool,
-    extra_lamports: u64,
+    pool_extra_lamports: u64,
+    alice_extra_lamports: u64,
     prior_deposit: bool,
     enable_minimum_delegation: bool,
     small_deposit: bool,
@@ -80,24 +86,42 @@ async fn success(
             .unwrap();
     }
 
-    let (_, alice_stake_before_deposit, stake_lamports) =
+    if pool_extra_lamports > 0 {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.stake_account,
+            pool_extra_lamports,
+        )
+        .await;
+    }
+
+    if alice_extra_lamports > 0 {
+        let transaction = Transaction::new_signed_with_payer(
+            &[system_instruction::transfer(
+                &accounts.alice.pubkey(),
+                &accounts.alice_stake.pubkey(),
+                alice_extra_lamports,
+            )],
+            Some(&context.payer.pubkey()),
+            &[&context.payer, &accounts.alice],
+            context.last_blockhash,
+        );
+        context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+    }
+
+    let (alice_meta_before_deposit, alice_stake_before_deposit, _) =
         get_stake_account(&mut context.banks_client, &accounts.alice_stake.pubkey()).await;
     let alice_stake_before_deposit = alice_stake_before_deposit.unwrap().delegation.stake;
 
     let (_, pool_stake_before, pool_lamports_before) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_stake_before = pool_stake_before.unwrap().delegation.stake;
-
-    if extra_lamports > 0 {
-        transfer(
-            &mut context.banks_client,
-            &context.payer,
-            &context.last_blockhash,
-            &accounts.stake_account,
-            extra_lamports,
-        )
-        .await;
-    }
 
     let instructions = instruction::deposit(
         &id(),
@@ -129,12 +153,12 @@ async fn success(
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_stake_after = pool_stake_after.unwrap().delegation.stake;
 
-    // when active, the depositor gets their rent back
-    // but when activating, its just added to stake
+    // when active, the depositor gets their rent and extra back
+    // but when activating, rent is added to stake
     let expected_deposit = if activate {
         alice_stake_before_deposit
     } else {
-        stake_lamports
+        alice_stake_before_deposit + alice_meta_before_deposit.rent_exempt_reserve
     };
 
     // deposit stake account is closed
@@ -148,19 +172,20 @@ async fn success(
     // entire stake has moved to pool
     assert_eq!(pool_stake_before + expected_deposit, pool_stake_after);
 
-    // pool only gained stake
+    // pool only gained stake, pool kept any extra lamports it had
     assert_eq!(pool_lamports_after, pool_lamports_before + expected_deposit);
     assert_eq!(
         pool_lamports_after,
-        pool_stake_before + expected_deposit + pool_meta_after.rent_exempt_reserve,
+        pool_stake_before
+            + expected_deposit
+            + pool_meta_after.rent_exempt_reserve
+            + pool_extra_lamports,
     );
 
-    // alice got her rent back if active, or everything otherwise
-    // and if someone sent lamports to the stake account, the next depositor gets
-    // them
+    // alice got her rent and extra back if active, or just extra back otherwise
     assert_eq!(
         wallet_lamports_after_deposit,
-        USER_STARTING_LAMPORTS - expected_deposit + extra_lamports,
+        USER_STARTING_LAMPORTS - expected_deposit,
     );
 
     // alice got tokens. no rewards have been paid so tokens correspond to stake 1:1
