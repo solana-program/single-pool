@@ -4,7 +4,8 @@ use {
     serde::{Deserialize, Serialize},
     serde_with::{serde_as, DisplayFromStr},
     solana_cli_output::{display::writeln_name_value, QuietDisplay, VerboseDisplay},
-    solana_sdk::{pubkey::Pubkey, signature::Signature},
+    solana_pubkey::Pubkey,
+    solana_signature::Signature,
     spl_single_pool::{
         self, find_pool_mint_address, find_pool_mint_authority_address,
         find_pool_mpl_authority_address, find_pool_onramp_address, find_pool_stake_address,

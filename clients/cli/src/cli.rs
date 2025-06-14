@@ -12,7 +12,7 @@ use {
         keypair::pubkey_from_path,
     },
     solana_cli_output::OutputFormat,
-    solana_sdk::pubkey::Pubkey,
+    solana_pubkey::Pubkey,
     spl_single_pool::{self, find_pool_address},
 };
 

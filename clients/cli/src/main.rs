@@ -2,19 +2,19 @@
 
 use {
     clap::{ArgMatches, CommandFactory, Parser},
+    solana_borsh::v1::try_from_slice_unchecked,
     solana_clap_v3_utils::{input_parsers::Amount, keypair::signer_from_source},
     solana_client::{
         rpc_config::RpcProgramAccountsConfig,
         rpc_filter::{Memcmp, RpcFilterType},
     },
+    solana_keypair::Keypair,
+    solana_pubkey::Pubkey,
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
-    solana_sdk::{
-        borsh1::try_from_slice_unchecked,
-        pubkey::Pubkey,
-        signature::{Keypair, Signature, Signer},
-        stake,
-        transaction::Transaction,
-    },
+    solana_signature::Signature,
+    solana_signer::Signer,
+    solana_stake_interface as stake,
+    solana_transaction::Transaction,
     solana_vote_program::{self as vote_program, vote_state::VoteState},
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
