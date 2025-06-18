@@ -1100,6 +1100,11 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
+        let onramp_account_address = crate::find_pool_onramp_address(program_id, pool_info.key);
+        if onramp_account_address == *user_stake_info.key {
+            return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
+        }
+
         let minimum_pool_balance = minimum_pool_balance()?;
 
         let pre_pool_stake =

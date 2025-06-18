@@ -255,3 +255,35 @@ async fn fail_automorphic(activate: bool) {
         .unwrap_err();
     check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
 }
+
+#[tokio::test]
+async fn fail_onramp() {
+    let mut context = program_test(false).start_with_context().await;
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
+        .await;
+
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.onramp_account,
+        &accounts.stake_authority,
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        TEST_STAKE_AMOUNT,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    let e = context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap_err();
+    check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
+}
