@@ -968,11 +968,16 @@ impl Processor {
 
         let minimum_pool_balance = minimum_pool_balance()?;
 
-        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let (pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let pre_pool_stake = pool_stake_state
             .delegation
             .stake
             .saturating_sub(minimum_pool_balance);
+        let pre_pool_excess_lamports = pool_stake_info
+            .lamports()
+            .checked_sub(pool_stake_state.delegation.stake)
+            .and_then(|amount| amount.checked_sub(pool_stake_meta.rent_exempt_reserve))
+            .ok_or(SinglePoolError::ArithmeticOverflow)?;
         msg!("Available stake pre merge {}", pre_pool_stake);
 
         // user can deposit active stake into an active pool or inactive stake into an
@@ -1012,11 +1017,12 @@ impl Processor {
             .checked_sub(pre_pool_stake)
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
-        // we calculate absolute rather than relative to deposit amount to allow
-        // claiming lamports mistakenly transferred in
-        let excess_lamports = post_pool_lamports
+        // if there were excess lamports in the user-provided account, we return them
+        // this includes their rent-exempt reserve if the pool is fully active
+        let user_excess_lamports = post_pool_lamports
             .checked_sub(pool_stake_state.delegation.stake)
             .and_then(|amount| amount.checked_sub(pool_stake_meta.rent_exempt_reserve))
+            .and_then(|amount| amount.checked_sub(pre_pool_excess_lamports))
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
         // sanity check: the user stake account is empty
@@ -1049,8 +1055,8 @@ impl Processor {
             new_pool_tokens,
         )?;
 
-        // return the lamports their stake account previously held for rent-exemption
-        if excess_lamports > 0 {
+        // return any unstaked lamports the user stake account merged in
+        if user_excess_lamports > 0 {
             Self::stake_withdraw(
                 pool_info.key,
                 pool_stake_info.clone(),
@@ -1059,7 +1065,7 @@ impl Processor {
                 user_lamport_account_info.clone(),
                 clock_info.clone(),
                 stake_history_info.clone(),
-                excess_lamports,
+                user_excess_lamports,
             )?;
         }
 
