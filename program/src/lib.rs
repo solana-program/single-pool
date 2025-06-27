@@ -13,10 +13,28 @@ pub mod entrypoint;
 
 // export current sdk types for downstream users building with a different sdk
 // version
-pub use solana_program;
-use solana_program::{pubkey::Pubkey, stake};
+pub mod solana_program {
+    #![allow(missing_docs)]
+    pub mod entrypoint {
+        pub use solana_program_error::ProgramResult;
+    }
+    pub mod instruction {
+        pub use solana_instruction::{AccountMeta, Instruction};
+    }
+    pub mod program_error {
+        pub use solana_program_error::{PrintProgramError, ProgramError};
+    }
+    pub mod program_pack {
+        pub use solana_program_pack::{IsInitialized, Pack, Sealed};
+    }
+    pub mod pubkey {
+        pub use solana_pubkey::{Pubkey, PUBKEY_BYTES};
+    }
+}
 
-solana_program::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+use {solana_pubkey::Pubkey, solana_stake_interface as stake};
+
+solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
 const POOL_PREFIX: &[u8] = b"pool";
 const POOL_STAKE_PREFIX: &[u8] = b"stake";

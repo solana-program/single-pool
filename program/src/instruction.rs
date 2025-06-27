@@ -11,13 +11,13 @@ use {
         state::SinglePool,
     },
     borsh::{BorshDeserialize, BorshSerialize},
-    solana_program::{
-        instruction::{AccountMeta, Instruction},
-        program_pack::Pack,
-        pubkey::Pubkey,
-        rent::Rent,
-        stake, system_instruction, system_program, sysvar,
-    },
+    solana_instruction::{AccountMeta, Instruction},
+    solana_program_pack::Pack,
+    solana_pubkey::Pubkey,
+    solana_rent::Rent,
+    solana_stake_interface as stake,
+    solana_system_interface::{instruction as system_instruction, program as system_program},
+    solana_sysvar as sysvar,
 };
 
 /// Instructions supported by the `SinglePool` program.
