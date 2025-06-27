@@ -3,17 +3,16 @@
 
 use {
     crate::config::*,
-    solana_sdk::{
-        instruction::Instruction,
-        native_token::LAMPORTS_PER_SOL,
-        pubkey::Pubkey,
-        stake::{
-            self,
-            state::{Meta, Stake, StakeStateV2},
-        },
-        system_instruction,
-        sysvar::{self, rent::Rent},
+    solana_instruction::Instruction,
+    solana_native_token::LAMPORTS_PER_SOL,
+    solana_pubkey::Pubkey,
+    solana_rent::Rent,
+    solana_stake_interface::{
+        self as stake,
+        state::{Meta, Stake, StakeStateV2},
     },
+    solana_system_interface::instruction as system_instruction,
+    solana_sysvar as sysvar,
 };
 
 pub async fn get_rent(config: &Config) -> Result<Rent, Error> {
