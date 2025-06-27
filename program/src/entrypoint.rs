@@ -4,14 +4,14 @@
 
 use {
     crate::{error::SinglePoolError, processor::Processor},
-    solana_program::{
-        account_info::AccountInfo, entrypoint::ProgramResult, program_error::PrintProgramError,
-        pubkey::Pubkey,
-    },
+    solana_account_info::AccountInfo,
+    solana_program_entrypoint::{entrypoint, ProgramResult},
+    solana_program_error::PrintProgramError,
+    solana_pubkey::Pubkey,
     solana_security_txt::security_txt,
 };
 
-solana_program::entrypoint!(process_instruction);
+entrypoint!(process_instruction);
 fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
