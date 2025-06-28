@@ -39,6 +39,7 @@ spl-token = { version = "8.0", features = ["no-entrypoint"] }
 thiserror = "2.0"
 
 [dev-dependencies]
+agave-feature-set = "2.2"
 solana-program-test = "2.2"
 solana-sdk = "2.2"
 solana-vote-program = "2.2"
