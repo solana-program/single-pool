@@ -1,12 +1,12 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 use {
+    agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
     serial_test::serial,
     solana_cli_config::Config as SolanaConfig,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_clock::Epoch,
     solana_epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
-    solana_feature_set::stake_raise_minimum_delegation_to_1_sol,
     solana_keypair::{write_keypair_file, Keypair},
     solana_native_token::LAMPORTS_PER_SOL,
     solana_pubkey::Pubkey,
