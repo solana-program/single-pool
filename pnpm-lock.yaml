@@ -34,8 +34,8 @@ importers:
         specifier: ^0.0.5
         version: 0.0.5(prettier@3.6.2)
       '@types/node':
-        specifier: ^24.0.4
-        version: 24.0.4
+        specifier: ^24.0.7
+        version: 24.0.7
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.35.0
         version: 8.35.0(@typescript-eslint/parser@8.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1)(typescript@5.8.3)
@@ -83,8 +83,8 @@ importers:
         specifier: ^6.0.0
         version: 6.0.0
       '@types/node':
-        specifier: ^24.0.4
-        version: 24.0.4
+        specifier: ^24.0.7
+        version: 24.0.7
       '@typescript-eslint/eslint-plugin':
         specifier: ^8.35.0
         version: 8.35.0(@typescript-eslint/parser@8.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1)(typescript@5.8.3)
@@ -747,8 +747,8 @@ packages:
   '@types/node@12.20.55':
     resolution: {integrity: sha512-J8xLz7q2OFulZ2cyGTLE1TbbZcjpno7FaN6zdJNrgAdrJ+DZzh/uFR6YrTb4C+nXakvud8Q4+rbhoIWlYQbUFQ==}
 
-  '@types/node@24.0.4':
-    resolution: {integrity: sha512-ulyqAkrhnuNq9pB76DRBTkcS6YsmDALy6Ua63V8OhrOBgbcYt6IOdzpw5P1+dyRIyMerzLkeYWBeOXPpA9GMAA==}
+  '@types/node@24.0.7':
+    resolution: {integrity: sha512-YIEUUr4yf8q8oQoXPpSlnvKNVKDQlPMWrmOcgzoduo7kvA2UF0/BwJ/eMKFTiTtkNL17I0M6Xe2tvwFU7be6iw==}
 
   '@types/uuid@8.3.4':
     resolution: {integrity: sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==}
@@ -2632,7 +2632,7 @@ snapshots:
 
   '@types/connect@3.4.38':
     dependencies:
-      '@types/node': 24.0.4
+      '@types/node': 24.0.7
 
   '@types/estree@1.0.7': {}
 
@@ -2640,7 +2640,7 @@ snapshots:
 
   '@types/node@12.20.55': {}
 
-  '@types/node@24.0.4':
+  '@types/node@24.0.7':
     dependencies:
       undici-types: 7.8.0
 
@@ -2648,11 +2648,11 @@ snapshots:
 
   '@types/ws@7.4.7':
     dependencies:
-      '@types/node': 24.0.4
+      '@types/node': 24.0.7
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 24.0.4
+      '@types/node': 24.0.7
 
   '@typescript-eslint/eslint-plugin@8.35.0(@typescript-eslint/parser@8.18.0(eslint@8.57.1)(typescript@5.8.3))(eslint@8.57.1)(typescript@5.8.3)':
     dependencies:
