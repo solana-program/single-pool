@@ -15,8 +15,8 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
       zx:
-        specifier: ^8.6.0
-        version: 8.6.0
+        specifier: ^8.6.1
+        version: 8.6.1
 
   clients/js:
     dependencies:
@@ -2144,8 +2144,8 @@ packages:
     resolution: {integrity: sha512-GQHQqAopRhwU8Kt1DDM8NjibDXHC8eoh1erhGAJPEyveY9qqVeXvVikNKrDz69sHowPMorbPUrH/mx8c50eiBQ==}
     engines: {node: '>=18'}
 
-  zx@8.6.0:
-    resolution: {integrity: sha512-CpOskNj7nNW19z5DkOTHX24Yh1qnnx1oANn8EnD3QbCUBnZpuennJaYkb4zea5GJCxT6/IdxeiA5nweQ1S2YtA==}
+  zx@8.6.1:
+    resolution: {integrity: sha512-ig4Gn2e3L9QaQq3OsyDyGKvXFiq7wYvLCPmFJgcneHsr5vTeJefe0SXtDE7qaur9ysv7giAc0CmEtQcS71UA5Q==}
     engines: {node: '>= 12.17.0'}
     hasBin: true
 
@@ -4076,4 +4076,4 @@ snapshots:
 
   yoctocolors@2.1.1: {}
 
-  zx@8.6.0: {}
+  zx@8.6.1: {}
