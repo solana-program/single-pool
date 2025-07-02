@@ -13,9 +13,9 @@ use {
         system_instruction, system_program,
         transaction::{Transaction, TransactionError},
     },
-    solana_vote_program::{
-        self, vote_instruction,
-        vote_state::{VoteInit, VoteState},
+    solana_vote_interface::{
+        instruction as vote_instruction,
+        state::{VoteInit, VoteState},
     },
     spl_associated_token_account_client::address as atoken,
     spl_single_pool::{

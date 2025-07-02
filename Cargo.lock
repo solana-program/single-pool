@@ -9181,7 +9181,6 @@ dependencies = [
  "solana-system-interface",
  "solana-sysvar",
  "solana-vote-interface",
- "solana-vote-program",
  "spl-associated-token-account 7.0.0",
  "spl-associated-token-account-client",
  "spl-token 8.0.0",
