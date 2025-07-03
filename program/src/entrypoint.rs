@@ -4,14 +4,15 @@
 
 use {
     crate::{error::SinglePoolError, processor::Processor},
-    solana_program::{
-        account_info::AccountInfo, entrypoint::ProgramResult, program_error::PrintProgramError,
-        pubkey::Pubkey,
-    },
+    solana_account_info::AccountInfo,
+    solana_msg::msg,
+    solana_program_entrypoint::{entrypoint, ProgramResult},
+    solana_program_error::ToStr,
+    solana_pubkey::Pubkey,
     solana_security_txt::security_txt,
 };
 
-solana_program::entrypoint!(process_instruction);
+entrypoint!(process_instruction);
 fn process_instruction(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
@@ -19,7 +20,7 @@ fn process_instruction(
 ) -> ProgramResult {
     if let Err(error) = Processor::process(program_id, accounts, instruction_data) {
         // catch the error so we can print it
-        error.print::<SinglePoolError>();
+        msg!(error.to_str::<SinglePoolError>());
         Err(error)
     } else {
         Ok(())

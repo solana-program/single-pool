@@ -3,10 +3,10 @@
 use {
     crate::{error::SinglePoolError, find_pool_address},
     borsh::{BorshDeserialize, BorshSchema, BorshSerialize},
-    solana_program::{
-        account_info::AccountInfo, borsh1::try_from_slice_unchecked, program_error::ProgramError,
-        pubkey::Pubkey,
-    },
+    solana_account_info::AccountInfo,
+    solana_borsh::v1::try_from_slice_unchecked,
+    solana_program_error::ProgramError,
+    solana_pubkey::Pubkey,
 };
 
 /// Single-Validator Stake Pool account type

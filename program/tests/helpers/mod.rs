@@ -1,10 +1,10 @@
 #![allow(dead_code)] // needed because cargo doesn't understand test usage
 
 use {
+    agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
     solana_program_test::*,
     solana_sdk::{
         account::Account as SolanaAccount,
-        feature_set::stake_raise_minimum_delegation_to_1_sol,
         hash::Hash,
         program_error::ProgramError,
         pubkey::Pubkey,
@@ -13,9 +13,9 @@ use {
         system_instruction, system_program,
         transaction::{Transaction, TransactionError},
     },
-    solana_vote_program::{
-        self, vote_instruction,
-        vote_state::{VoteInit, VoteState},
+    solana_vote_interface::{
+        instruction as vote_instruction,
+        state::{VoteInit, VoteState},
     },
     spl_associated_token_account_client::address as atoken,
     spl_single_pool::{
