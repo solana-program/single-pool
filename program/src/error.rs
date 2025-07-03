@@ -6,7 +6,10 @@ use {
 };
 
 /// Errors that may be returned by the `SinglePool` program.
-#[derive(Clone, Debug, Eq, Error, num_derive::FromPrimitive, PartialEq)]
+#[derive(
+    Clone, Debug, Eq, Error, num_enum::TryFromPrimitive, num_derive::FromPrimitive, PartialEq,
+)]
+#[repr(u32)]
 pub enum SinglePoolError {
     // 0.
     /// Provided pool account has the wrong address for its vote account, is

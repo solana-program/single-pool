@@ -3,10 +3,11 @@
 #![cfg(all(target_os = "solana", not(feature = "no-entrypoint")))]
 
 use {
-    crate::processor::Processor,
+    crate::{error::SinglePoolError, processor::Processor},
     solana_account_info::AccountInfo,
     solana_msg::msg,
     solana_program_entrypoint::{entrypoint, ProgramResult},
+    solana_program_error::ToStr,
     solana_pubkey::Pubkey,
     solana_security_txt::security_txt,
 };
@@ -19,7 +20,7 @@ fn process_instruction(
 ) -> ProgramResult {
     if let Err(error) = Processor::process(program_id, accounts, instruction_data) {
         // catch the error so we can print it
-        msg!("{}", error);
+        msg!(error.to_str::<SinglePoolError>());
         Err(error)
     } else {
         Ok(())
