@@ -11,12 +11,9 @@ pub mod state;
 #[cfg(not(feature = "no-entrypoint"))]
 pub mod entrypoint;
 
-// export current sdk types for downstream users building with a different sdk
-// version
-pub use solana_program;
-use solana_program::{pubkey::Pubkey, stake};
+use {solana_pubkey::Pubkey, solana_stake_interface as stake};
 
-solana_program::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
+solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
 const POOL_PREFIX: &[u8] = b"pool";
 const POOL_STAKE_PREFIX: &[u8] = b"stake";
