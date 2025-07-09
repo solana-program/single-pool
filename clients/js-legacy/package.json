@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.2",
-    "@solana/addresses": "2.2.0",
+    "@solana/addresses": "2.2.1",
     "@solana/prettier-config-solana": "^0.0.5",
     "@solana/spl-single-pool": "workspace:*",
     "eslint-config-prettier": "^10.1.5",
