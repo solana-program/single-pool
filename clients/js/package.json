@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@solana/addresses": "2.2.0",
-    "@solana/instructions": "2.2.0",
+    "@solana/instructions": "2.2.1",
     "@solana/transaction-messages": "2.2.1"
   }
 }
