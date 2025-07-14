@@ -6,7 +6,8 @@ mod helpers;
 use {
     helpers::*,
     solana_program_test::*,
-    solana_sdk::{program_pack::Pack, signature::Signer, stake, transaction::Transaction},
+    solana_sdk::{program_pack::Pack, signature::Signer, transaction::Transaction},
+    solana_stake_interface::program as stake_program,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     spl_token::state::Mint,
     test_case::test_case,
@@ -28,7 +29,7 @@ async fn success(enable_minimum_delegation: bool) {
 
     // stake account exists
     let stake_account = get_account(&mut context.banks_client, &accounts.stake_account).await;
-    assert_eq!(stake_account.owner, stake::program::id());
+    assert_eq!(stake_account.owner, stake_program::id());
 }
 
 #[tokio::test]

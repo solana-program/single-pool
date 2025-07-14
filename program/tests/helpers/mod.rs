@@ -9,10 +9,10 @@ use {
         program_error::ProgramError,
         pubkey::Pubkey,
         signature::{Keypair, Signer},
-        stake::state::{Authorized, Lockup},
-        system_instruction, system_program,
         transaction::{Transaction, TransactionError},
     },
+    solana_stake_interface::state::{Authorized, Lockup},
+    solana_system_interface::{instruction as system_instruction, program as system_program},
     solana_vote_interface::{
         instruction as vote_instruction,
         state::{VoteInit, VoteState},

@@ -9,13 +9,13 @@ use {
         native_token::LAMPORTS_PER_SOL,
         pubkey::Pubkey,
         signature::{Keypair, Signer},
-        stake::{
-            self,
-            state::{Meta, Stake, StakeStateV2},
-        },
-        system_instruction,
         transaction::Transaction,
     },
+    solana_stake_interface::{
+        instruction as stake_instruction, program as stake_program,
+        state::{Authorized, Lockup, Meta, Stake, StakeStateV2},
+    },
+    solana_system_interface::instruction as system_instruction,
     std::convert::TryInto,
 };
 
@@ -36,7 +36,7 @@ pub async fn get_stake_account(
 
 pub async fn get_stake_account_rent(banks_client: &mut BanksClient) -> u64 {
     let rent = banks_client.get_rent().await.unwrap();
-    rent.minimum_balance(std::mem::size_of::<stake::state::StakeStateV2>())
+    rent.minimum_balance(std::mem::size_of::<StakeStateV2>())
 }
 
 pub async fn get_minimum_delegation(
@@ -45,7 +45,7 @@ pub async fn get_minimum_delegation(
     recent_blockhash: &Hash,
 ) -> u64 {
     let transaction = Transaction::new_signed_with_payer(
-        &[stake::instruction::get_minimum_delegation()],
+        &[stake_instruction::get_minimum_delegation()],
         Some(&payer.pubkey()),
         &[payer],
         *recent_blockhash,
@@ -79,13 +79,13 @@ pub async fn create_independent_stake_account(
     rent_payer: &Keypair,
     recent_blockhash: &Hash,
     stake: &Keypair,
-    authorized: &stake::state::Authorized,
-    lockup: &stake::state::Lockup,
+    authorized: &Authorized,
+    lockup: &Lockup,
     stake_amount: u64,
 ) -> u64 {
     let lamports = get_stake_account_rent(banks_client).await + stake_amount;
     let transaction = Transaction::new_signed_with_payer(
-        &stake::instruction::create_account(
+        &stake_instruction::create_account(
             &rent_payer.pubkey(),
             &stake.pubkey(),
             authorized,
@@ -114,8 +114,8 @@ pub async fn create_blank_stake_account(
             &rent_payer.pubkey(),
             &stake.pubkey(),
             lamports,
-            std::mem::size_of::<stake::state::StakeStateV2>() as u64,
-            &stake::program::id(),
+            std::mem::size_of::<StakeStateV2>() as u64,
+            &stake_program::id(),
         )],
         Some(&fee_payer.pubkey()),
         &[fee_payer, rent_payer, stake],
@@ -135,7 +135,7 @@ pub async fn delegate_stake_account(
     vote: &Pubkey,
 ) {
     let mut transaction = Transaction::new_with_payer(
-        &[stake::instruction::delegate_stake(
+        &[stake_instruction::delegate_stake(
             stake,
             &authorized.pubkey(),
             vote,
