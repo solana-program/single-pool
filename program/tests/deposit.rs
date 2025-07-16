@@ -6,13 +6,9 @@ mod helpers;
 use {
     helpers::*,
     solana_program_test::*,
-    solana_sdk::{
-        signature::Signer,
-        signer::keypair::Keypair,
-        stake::state::{Authorized, Lockup},
-        system_instruction,
-        transaction::Transaction,
-    },
+    solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
+    solana_stake_interface::state::{Authorized, Lockup},
+    solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_client::address as atoken,
     spl_single_pool::{
         error::SinglePoolError, find_default_deposit_account_address, id, instruction,

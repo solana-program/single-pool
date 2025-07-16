@@ -9,8 +9,10 @@ use {
     solana_program_test::*,
     solana_sdk::{
         instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, signature::Signer,
-        stake, system_program, transaction::Transaction,
+        transaction::Transaction,
     },
+    solana_stake_interface::program as stake_program,
+    solana_system_interface::program as system_program,
     spl_single_pool::{
         error::SinglePoolError,
         id,
@@ -190,7 +192,7 @@ async fn fail_account_checks(test_mode: TestMode) {
             check_error(e, SinglePoolError::InvalidPoolMplAuthority)
         } else if prev_pubkey == accounts.mint {
             check_error(e, SinglePoolError::InvalidPoolMint)
-        } else if [system_program::id(), spl_token::id(), stake::program::id()]
+        } else if [system_program::id(), spl_token::id(), stake_program::id()]
             .contains(&prev_pubkey)
         {
             check_error(e, ProgramError::IncorrectProgramId)
