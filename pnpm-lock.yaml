@@ -15,8 +15,8 @@ importers:
         specifier: ^5.8.3
         version: 5.8.3
       zx:
-        specifier: ^8.7.1
-        version: 8.7.1
+        specifier: ^8.7.2
+        version: 8.7.2
 
   clients/js:
     dependencies:
@@ -1922,6 +1922,7 @@ packages:
   source-map@0.8.0-beta.0:
     resolution: {integrity: sha512-2ymg6oRBpebeZi9UUNsgQ89bhx01TcTkmNTGnNO88imTmbSgy4nfujrgVEFKWpMTEGA11EDkTt7mqObTPdigIA==}
     engines: {node: '>= 8'}
+    deprecated: The work that was done in this beta branch won't be included in future versions
 
   sprintf-js@1.0.3:
     resolution: {integrity: sha512-D9cPgkvLlV3t3IzL0D0YLvGA9Ahk4PcvVwUbN0dSGr1aP0Nrt4AEnTUbuGvquEC0mA64Gqt1fzirlRs5ibXx8g==}
@@ -2198,8 +2199,8 @@ packages:
     resolution: {integrity: sha512-GQHQqAopRhwU8Kt1DDM8NjibDXHC8eoh1erhGAJPEyveY9qqVeXvVikNKrDz69sHowPMorbPUrH/mx8c50eiBQ==}
     engines: {node: '>=18'}
 
-  zx@8.7.1:
-    resolution: {integrity: sha512-28u1w2LlIfvyvJvYe6pmCipesk8oL5AFMVp+P/U445LcaPgzrU5lNDtAPd6nJvWmoCNyXZz37R/xKOGokccjsw==}
+  zx@8.7.2:
+    resolution: {integrity: sha512-4Wtl46msLFx6QW6GjLu1aRnFhavukT4VSp4tdXvfRIBRNW3RP7Si3RlRFD7YeQeecQBacVFRQQgm5LTvE/YEGQ==}
     engines: {node: '>= 12.17.0'}
     hasBin: true
 
@@ -4184,4 +4185,4 @@ snapshots:
 
   yoctocolors@2.1.1: {}
 
-  zx@8.7.1: {}
+  zx@8.7.2: {}
