@@ -35,7 +35,7 @@
     "eslint": "^8.57.0",
     "solana-bankrun": "^0.4.0",
     "tsup": "^8.5.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   },
   "dependencies": {
     "@solana/web3.js": "^1.98.4",
