@@ -80,7 +80,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2733340e0429d146d4b77d265ae80b22e253507b30a2257ff68eccb78eab210b"
 dependencies = [
  "ahash 0.8.11",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-hash",
  "solana-pubkey",
  "solana-sha256-hasher",
@@ -5455,7 +5455,7 @@ dependencies = [
  "solana-address-lookup-table-interface",
  "solana-clock",
  "solana-config-program-client",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-calculator",
  "solana-instruction",
  "solana-loader-v3-interface 5.0.0",
@@ -5544,7 +5544,7 @@ dependencies = [
  "solana-address-lookup-table-interface",
  "solana-bucket-map",
  "solana-clock",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-calculator",
  "solana-genesis-config",
  "solana-hash",
@@ -6061,7 +6061,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-sysvar-id",
 ]
 
@@ -6232,7 +6232,7 @@ dependencies = [
  "solana-connection-cache",
  "solana-cost-model",
  "solana-entry",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee",
  "solana-fee-calculator",
  "solana-fee-structure",
@@ -6452,7 +6452,7 @@ dependencies = [
  "serde_derive",
  "solana-hash",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-sysvar-id",
 ]
 
@@ -6476,8 +6476,17 @@ dependencies = [
  "serde",
  "serde_derive",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-sysvar-id",
+]
+
+[[package]]
+name = "solana-epoch-schedule"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6e5481e72cc4d52c169db73e4c0cd16de8bc943078aac587ec4817a75cc6388f"
+dependencies = [
+ "solana-sdk-macro 3.0.0",
 ]
 
 [[package]]
@@ -6561,7 +6570,7 @@ checksum = "93b93971e289d6425f88e6e3cb6668c4b05df78b3c518c249be55ced8efd6b6d"
 dependencies = [
  "ahash 0.8.11",
  "lazy_static",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-hash",
  "solana-pubkey",
  "solana-sha256-hasher",
@@ -6615,7 +6624,7 @@ dependencies = [
  "solana-account",
  "solana-clock",
  "solana-cluster-type",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-calculator",
  "solana-hash",
  "solana-inflation",
@@ -6696,7 +6705,7 @@ dependencies = [
  "solana-clock",
  "solana-connection-cache",
  "solana-entry",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-hash",
  "solana-keypair",
  "solana-ledger",
@@ -6842,7 +6851,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-sysvar-id",
 ]
 
@@ -6905,7 +6914,7 @@ dependencies = [
  "solana-clock",
  "solana-cost-model",
  "solana-entry",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-genesis-config",
  "solana-hash",
  "solana-instruction",
@@ -7387,7 +7396,7 @@ dependencies = [
  "solana-decode-error",
  "solana-define-syscall",
  "solana-epoch-rewards",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-example-mocks",
  "solana-feature-gate-interface",
  "solana-fee-calculator",
@@ -7412,7 +7421,7 @@ dependencies = [
  "solana-rent",
  "solana-sanitize",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-secp256k1-recover",
  "solana-serde-varint",
  "solana-serialize-utils",
@@ -7500,7 +7509,7 @@ dependencies = [
  "solana-account",
  "solana-clock",
  "solana-epoch-rewards",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-structure",
  "solana-hash",
  "solana-instruction",
@@ -7551,7 +7560,7 @@ dependencies = [
  "solana-commitment-config",
  "solana-compute-budget",
  "solana-epoch-rewards",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-calculator",
  "solana-genesis-config",
  "solana-hash",
@@ -7724,7 +7733,7 @@ dependencies = [
  "serde",
  "serde_derive",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-sysvar-id",
 ]
 
@@ -7738,7 +7747,7 @@ dependencies = [
  "serde_derive",
  "solana-account",
  "solana-clock",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-genesis-config",
  "solana-pubkey",
  "solana-rent",
@@ -7812,7 +7821,7 @@ dependencies = [
  "solana-entry",
  "solana-epoch-info",
  "solana-epoch-rewards-hasher",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-faucet",
  "solana-genesis-config",
  "solana-gossip",
@@ -7887,7 +7896,7 @@ dependencies = [
  "solana-clock",
  "solana-commitment-config",
  "solana-epoch-info",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-feature-gate-interface",
  "solana-hash",
  "solana-instruction",
@@ -8031,7 +8040,7 @@ dependencies = [
  "solana-ed25519-program",
  "solana-epoch-info",
  "solana-epoch-rewards-hasher",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-feature-gate-interface",
  "solana-fee",
  "solana-fee-calculator",
@@ -8198,7 +8207,7 @@ dependencies = [
  "solana-reward-info",
  "solana-sanitize",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-secp256k1-program",
  "solana-secp256k1-recover",
  "solana-secp256r1-program",
@@ -8234,6 +8243,18 @@ name = "solana-sdk-macro"
 version = "2.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "86280da8b99d03560f6ab5aca9de2e38805681df34e0bb8f238e69b29433b9df"
+dependencies = [
+ "bs58",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.90",
+]
+
+[[package]]
+name = "solana-sdk-macro"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d6430000e97083460b71d9fbadc52a2ab2f88f53b3a4c5e58c5ae3640a0e8c00"
 dependencies = [
  "bs58",
  "proc-macro2",
@@ -8796,7 +8817,7 @@ dependencies = [
  "solana-clock",
  "solana-define-syscall",
  "solana-epoch-rewards",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-fee-calculator",
  "solana-hash",
  "solana-instruction",
@@ -8809,7 +8830,7 @@ dependencies = [
  "solana-rent",
  "solana-sanitize",
  "solana-sdk-ids",
- "solana-sdk-macro",
+ "solana-sdk-macro 2.2.1",
  "solana-slot-hashes",
  "solana-slot-history",
  "solana-stake-interface",
@@ -8847,7 +8868,7 @@ dependencies = [
  "solana-commitment-config",
  "solana-compute-budget",
  "solana-core",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-feature-gate-interface",
  "solana-fee-calculator",
  "solana-geyser-plugin-manager",
@@ -8951,7 +8972,7 @@ dependencies = [
  "solana-clock",
  "solana-commitment-config",
  "solana-connection-cache",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-measure",
  "solana-message",
  "solana-net-utils",
@@ -9350,7 +9371,7 @@ dependencies = [
  "solana-account",
  "solana-bincode",
  "solana-clock",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 2.2.1",
  "solana-hash",
  "solana-instruction",
  "solana-keypair",
@@ -9778,7 +9799,7 @@ dependencies = [
  "solana-client",
  "solana-clock",
  "solana-commitment-config",
- "solana-epoch-schedule",
+ "solana-epoch-schedule 3.0.0",
  "solana-instruction",
  "solana-keypair",
  "solana-logger 3.0.0",
