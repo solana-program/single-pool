@@ -31,7 +31,7 @@ solana-pubkey = { version = "2.2", features = ["borsh", "curve25519"] }
 solana-rent = "2.2"
 solana-stake-interface  = { version = "1.2.1", features = ["borsh"] }
 solana-system-interface  = "1.0.0"
-solana-sysvar  = "2.2"
+solana-sysvar  = "3.0"
 solana-vote-interface  = "2.2.6"
 solana-security-txt = "1.1.1"
 spl-token = { version = "8.0", features = ["no-entrypoint"] }
