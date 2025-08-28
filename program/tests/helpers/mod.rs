@@ -11,7 +11,10 @@ use {
         signature::{Keypair, Signer},
         transaction::{Transaction, TransactionError},
     },
-    solana_stake_interface::state::{Authorized, Lockup},
+    solana_stake_interface::{
+        program as stake_program,
+        state::{Authorized, Lockup},
+    },
     solana_system_interface::{instruction as system_instruction, program as system_program},
     solana_vote_interface::{
         instruction as vote_instruction,
@@ -38,6 +41,7 @@ pub const USER_STARTING_LAMPORTS: u64 = 10_000_000_000_000; // 10k sol
 pub fn program_test(enable_minimum_delegation: bool) -> ProgramTest {
     let mut program_test = ProgramTest::default();
 
+    program_test.add_upgradeable_program_to_genesis("solana_stake_program", &stake_program::id());
     program_test.add_program("mpl_token_metadata", inline_mpl_token_metadata::id(), None);
     program_test.add_program("spl_single_pool", id(), processor!(Processor::process));
     program_test.prefer_bpf(false);
