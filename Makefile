@@ -84,7 +84,7 @@ lint-js-%:
 
 test-js-%:
 	make restart-test-validator
-	cd $(call make-path,$*) && pnpm install && pnpm build && pnpm test $(ARGS)
+	cd $(call make-path,$*) && pnpm -r install && pnpm -r build && pnpm test $(ARGS)
 	make stop-test-validator
 
 restart-test-validator:
