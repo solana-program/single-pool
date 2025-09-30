@@ -20,8 +20,7 @@
     "format:fix": "prettier --write .",
     "lint": "eslint --max-warnings 0 .",
     "lint:fix": "eslint . --fix",
-    "test": "ava --serial",
-    "prepublishOnly": "pnpm build"
+    "test": "ava --serial"
   },
   "files": [
     "./dist/src",

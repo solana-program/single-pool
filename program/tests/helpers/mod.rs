@@ -442,9 +442,8 @@ where
     // error-> program error` because StakeError impls the former but not the
     // latter... and that conversion is merely surjective........
     // infomercial lady: "if only there were a better way!"
-    let expected_p = match expected.clone().try_into() {
-        Ok(v) => v,
-        Err(_) => panic!("could not unwrap {:?}", expected),
+    let Ok(expected_p) = expected.clone().try_into() else {
+        panic!("could not unwrap {:?}", expected);
     };
 
     if got_p != expected_p {

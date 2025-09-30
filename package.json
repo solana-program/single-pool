@@ -1,33 +1,7 @@
 {
   "private": true,
   "scripts": {
-    "programs:build": "zx ./scripts/rust/build-sbf.mjs program",
-    "programs:test": "zx ./scripts/rust/test.mjs program",
-    "programs:format": "zx ./scripts/rust/format.mjs program",
-    "programs:lint": "zx ./scripts/rust/lint.mjs program",
-    "solana:check": "zx ./scripts/check-solana-version.mjs",
-    "solana:link": "zx ./scripts/link-solana-version.mjs",
-    "clients:js:build": "zx ./scripts/js/build.mjs clients/js",
-    "clients:js:format": "zx ./scripts/js/format.mjs clients/js",
-    "clients:js:lint": "zx ./scripts/js/lint.mjs clients/js",
-    "clients:js:test": "zx ./scripts/js/test.mjs clients/js",
-    "clients:js-legacy:build": "zx ./scripts/js/build.mjs clients/js-legacy",
-    "clients:js-legacy:format": "zx ./scripts/js/format.mjs clients/js-legacy",
-    "clients:js-legacy:lint": "zx ./scripts/js/lint.mjs clients/js-legacy",
-    "clients:js-legacy:test": "zx ./scripts/js/test.mjs clients/js-legacy",
-    "clients:cli:format": "zx ./scripts/rust/format.mjs clients/cli",
-    "clients:cli:lint": "zx ./scripts/rust/lint.mjs clients/cli",
-    "clients:cli:test": "zx ./scripts/rust/test.mjs clients/cli",
-    "template:upgrade": "zx ./scripts/upgrade-template.mjs",
-    "rust:audit": "zx ./scripts/rust/audit.mjs",
-    "rust:publish": "zx ./scripts/rust/publish.mjs",
-    "rust:spellcheck": "cargo spellcheck --code 1",
-    "rust:semver": "zx ./scripts/rust/semver.mjs"
-  },
-  "devDependencies": {
-    "@iarna/toml": "^2.2.5",
-    "typescript": "^5.9.2",
-    "zx": "^8.8.1"
+    "generate:clients": "exit 0"
   },
   "engines": {
     "node": ">=v20.0.0"
