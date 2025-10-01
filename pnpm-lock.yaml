@@ -14,8 +14,8 @@ importers:
         specifier: 3.0.3
         version: 3.0.3(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/instructions':
-        specifier: 2.3.0
-        version: 2.3.0(typescript@5.9.3)
+        specifier: 3.0.3
+        version: 3.0.3(typescript@5.9.3)
       '@solana/transaction-messages':
         specifier: 2.2.1
         version: 2.2.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
@@ -731,8 +731,8 @@ packages:
     peerDependencies:
       typescript: '>=5.3.3'
 
-  '@solana/instructions@2.3.0':
-    resolution: {integrity: sha512-PLMsmaIKu7hEAzyElrk2T7JJx4D+9eRwebhFZpy2PXziNSmFF929eRHKUsKqBFM3cYR1Yy3m6roBZfA+bGE/oQ==}
+  '@solana/instructions@3.0.3':
+    resolution: {integrity: sha512-4csIi8YUDb5j/J+gDzmYtOvq7ZWLbCxj4t0xKn+fPrBk/FD2pK29KVT3Fu7j4Lh1/ojunQUP9X4NHwUexY3PnA==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: '>=5.3.3'
@@ -1087,6 +1087,10 @@ packages:
 
   commander@14.0.0:
     resolution: {integrity: sha512-2uM9rYjPvyq39NwLRqaiLtWHyDC1FvryJDa2ATTVims5YAS4PupsEQsDvP14FqhFr0P49CYDugi59xaxJlTXRA==}
+    engines: {node: '>=20'}
+
+  commander@14.0.1:
+    resolution: {integrity: sha512-2JkV3gUZUVrbNA+1sjBOYLsMZ5cEEl8GTFP2a4AVz5hvasAMCQ1D2l2le/cX+pV4N6ZU17zjUahLpIXRrnWL8A==}
     engines: {node: '>=20'}
 
   commander@2.20.3:
@@ -2632,8 +2636,8 @@ snapshots:
 
   '@solana/errors@2.3.0(typescript@5.9.3)':
     dependencies:
-      chalk: 5.4.1
-      commander: 14.0.0
+      chalk: 5.6.2
+      commander: 14.0.1
       typescript: 5.9.3
 
   '@solana/errors@3.0.3(typescript@5.9.3)':
@@ -2652,10 +2656,10 @@ snapshots:
       '@solana/errors': 2.2.1(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@solana/instructions@2.3.0(typescript@5.9.3)':
+  '@solana/instructions@3.0.3(typescript@5.9.3)':
     dependencies:
-      '@solana/codecs-core': 2.3.0(typescript@5.9.3)
-      '@solana/errors': 2.3.0(typescript@5.9.3)
+      '@solana/codecs-core': 3.0.3(typescript@5.9.3)
+      '@solana/errors': 3.0.3(typescript@5.9.3)
       typescript: 5.9.3
 
   '@solana/nominal-types@2.2.1(typescript@5.9.3)':
@@ -3103,6 +3107,8 @@ snapshots:
   commander@13.1.0: {}
 
   commander@14.0.0: {}
+
+  commander@14.0.1: {}
 
   commander@2.20.3: {}
 
