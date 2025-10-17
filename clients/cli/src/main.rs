@@ -249,17 +249,21 @@ async fn command_deposit(
     });
 
     // from there we can determine the stake account address
-    let stake_account_address =
-        if let Some(stake_account_address) = command_config.stake_account_address {
-            stake_account_address
-        } else if let Some(pool_address) = provided_pool_address {
-            eprintln!("WARNING: This flag is DEPRECATED and will be removed in a future release.");
-            assert!(command_config.default_stake_account);
-            #[allow(deprecated)]
-            find_default_deposit_account_address(&pool_address, &stake_authority.pubkey())
-        } else {
-            unreachable!()
-        };
+    let stake_account_address = if let Some(stake_account_address) =
+        command_config.stake_account_address
+    {
+        stake_account_address
+    } else if let Some(pool_address) = provided_pool_address {
+        assert!(command_config.default_stake_account);
+        eprintln_display(
+            config,
+            "WARNING: This flag is DEPRECATED and will be removed in a future release.".to_string(),
+        );
+        #[allow(deprecated)]
+        find_default_deposit_account_address(&pool_address, &stake_authority.pubkey())
+    } else {
+        unreachable!()
+    };
 
     // now we validate the stake account and definitively resolve the pool address
     let (pool_address, user_stake_active) = if let Some((meta, stake)) =
@@ -706,6 +710,11 @@ async fn command_update_metadata(
 
 // create default stake account
 async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -> CommandResult {
+    eprintln_display(
+        config,
+        "WARNING: This command is DEPRECATED and will be removed in a future release.".to_string(),
+    );
+
     let payer = config.fee_payer()?;
     let owner = config.default_signer()?;
     let stake_authority_address = command_config
