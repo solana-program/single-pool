@@ -5,7 +5,9 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_instruction::AccountMeta,
     solana_program_test::*,
+    solana_pubkey::pubkey,
     solana_sdk::{
         instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, signature::Signer,
         transaction::Transaction,
@@ -14,7 +16,7 @@ use {
     solana_system_interface::program as system_program,
     spl_single_pool::{
         error::SinglePoolError,
-        id,
+        find_pool_onramp_address, id,
         instruction::{self, SinglePoolInstruction},
     },
     test_case::test_case,
@@ -34,6 +36,7 @@ async fn build_instructions(
     context: &mut ProgramTestContext,
     accounts: &SinglePoolAccounts,
     test_mode: TestMode,
+    include_onramp: bool,
 ) -> (Vec<Instruction>, usize) {
     let initialize_instructions = if test_mode == TestMode::Initialize {
         let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
@@ -83,7 +86,7 @@ async fn build_instructions(
         vec![]
     };
 
-    let deposit_instructions = instruction::deposit(
+    let mut deposit_instructions = instruction::deposit(
         &id(),
         &accounts.pool,
         &accounts.alice_stake.pubkey(),
@@ -92,7 +95,7 @@ async fn build_instructions(
         &accounts.alice.pubkey(),
     );
 
-    let withdraw_instructions = if test_mode == TestMode::Withdraw {
+    let mut withdraw_instructions = if test_mode == TestMode::Withdraw {
         let transaction = Transaction::new_signed_with_payer(
             &deposit_instructions,
             Some(&accounts.alice.pubkey()),
@@ -128,6 +131,31 @@ async fn build_instructions(
         vec![]
     };
 
+    if include_onramp {
+        let instruction = match test_mode {
+            TestMode::Deposit => deposit_instructions.last_mut().unwrap(),
+            TestMode::Withdraw => withdraw_instructions.last_mut().unwrap(),
+            TestMode::Initialize => unreachable!(),
+        };
+
+        if instruction.accounts[2].pubkey == accounts.mint {
+            instruction.accounts.insert(
+                2,
+                AccountMeta {
+                    pubkey: accounts.onramp_account,
+                    is_writable: false,
+                    is_signer: false,
+                },
+            );
+        } else {
+            panic!(
+                "this test enforces forwards-compat pre-instruction builder change. \
+                    if you are adding onramp to builders, refactor `include_onramp` to \
+                    be an `exclude_onramp` and test backwards-compat instead"
+            );
+        }
+    }
+
     // ints hardcoded to guard against instructions moving with code changes
     // if these asserts fail, update them to match the new multi-instruction builders
     let (instructions, index, enum_tag) = match test_mode {
@@ -143,26 +171,42 @@ async fn build_instructions(
 }
 
 // test that account addresses are checked properly
-#[test_case(TestMode::Initialize; "initialize")]
-#[test_case(TestMode::Deposit; "deposit")]
-#[test_case(TestMode::Withdraw; "withdraw")]
+#[test_case(TestMode::Initialize, false; "initialize")]
+#[test_case(TestMode::Deposit, false; "deposit_legacy")]
+#[test_case(TestMode::Withdraw, false; "withdraw_legacy")]
+#[test_case(TestMode::Deposit, true; "deposit_onramp")]
+#[test_case(TestMode::Withdraw, true; "withdraw_onramp")]
 #[tokio::test]
-async fn fail_account_checks(test_mode: TestMode) {
+async fn fail_account_checks(test_mode: TestMode, include_onramp: bool) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
-    let (instructions, i) = build_instructions(&mut context, &accounts, test_mode).await;
+    let (instructions, i) =
+        build_instructions(&mut context, &accounts, test_mode, include_onramp).await;
+    let bad_pubkey = pubkey!("BAD1111111111111111111111111111111111111111");
 
     for j in 0..instructions[i].accounts.len() {
         let mut instructions = instructions.clone();
-        let instruction_account = &mut instructions[i].accounts[j];
+        let instruction_pubkey = instructions[i].accounts[j].pubkey;
 
         // wallet address can be arbitrary
-        if instruction_account.pubkey == accounts.alice.pubkey() {
+        if instruction_pubkey == accounts.alice.pubkey() {
             continue;
         }
 
-        let prev_pubkey = instruction_account.pubkey;
-        instruction_account.pubkey = Pubkey::new_unique();
+        // while onramp is optional, an incorrect onramp misaligns all subsequent accounts
+        // this is not a problem for the program and causes the mint to fail to validate, but requires tweaking this test
+        // NOTE once deposit/withdraw require onramp, delete this block
+        if include_onramp && instruction_pubkey == accounts.pool {
+            if let Some(onramp_account) = instructions[i]
+                .accounts
+                .iter_mut()
+                .find(|account| account.pubkey == accounts.onramp_account)
+            {
+                onramp_account.pubkey = find_pool_onramp_address(&id(), &bad_pubkey);
+            }
+        }
+
+        instructions[i].accounts[j].pubkey = bad_pubkey;
 
         let transaction = Transaction::new_signed_with_payer(
             &instructions,
@@ -171,32 +215,48 @@ async fn fail_account_checks(test_mode: TestMode) {
             context.last_blockhash,
         );
 
-        // random addresses should error always otherwise
+        // random addresses should error in some way
         let e = context
             .banks_client
             .process_transaction(transaction)
             .await
             .unwrap_err();
 
-        // these ones we can also make sure we hit the explicit check, before we use it
-        if prev_pubkey == accounts.pool {
+        // these specific accounts we can also make sure we hit the explicit check, before we use it
+        if instruction_pubkey == accounts.pool {
             check_error(e, SinglePoolError::InvalidPoolAccount)
-        } else if prev_pubkey == accounts.stake_account {
+        } else if instruction_pubkey == accounts.stake_account {
             check_error(e, SinglePoolError::InvalidPoolStakeAccount)
-        } else if prev_pubkey == accounts.stake_authority {
+        } else if instruction_pubkey == accounts.onramp_account {
+            // NOTE add onramp error here when onramp is mandatory
+        } else if instruction_pubkey == accounts.stake_authority {
             check_error(e, SinglePoolError::InvalidPoolStakeAuthority)
-        } else if prev_pubkey == accounts.mint_authority {
+        } else if instruction_pubkey == accounts.mint_authority {
             check_error(e, SinglePoolError::InvalidPoolMintAuthority)
-        } else if prev_pubkey == accounts.mpl_authority {
+        } else if instruction_pubkey == accounts.mpl_authority {
             check_error(e, SinglePoolError::InvalidPoolMplAuthority)
-        } else if prev_pubkey == accounts.mint {
+        } else if instruction_pubkey == accounts.mint {
             check_error(e, SinglePoolError::InvalidPoolMint)
         } else if [system_program::id(), spl_token::id(), stake_program::id()]
-            .contains(&prev_pubkey)
+            .contains(&instruction_pubkey)
         {
             check_error(e, ProgramError::IncorrectProgramId)
         }
     }
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    // sanity check the unmodified transaction does work
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
 }
 
 // make an individual instruction for all program instructions
