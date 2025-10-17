@@ -102,6 +102,7 @@ async function findPda(programId: Address, baseAddress: Address, prefix: string)
   return pda;
 }
 
+/** @deprecated */
 export async function findDefaultDepositAccountAddress(
   poolAddress: PoolAddress,
   userWallet: Address,
@@ -113,6 +114,7 @@ export async function findDefaultDepositAccountAddress(
   });
 }
 
+/** @deprecated */
 export function defaultDepositAccountSeed(poolAddress: PoolAddress): string {
   return 'svsp' + poolAddress.slice(0, 28);
 }

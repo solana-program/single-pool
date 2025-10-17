@@ -87,6 +87,7 @@ pub enum Command {
     /// tokens to burn or the ALL keyword to burn all.
     Withdraw(WithdrawCli),
 
+    /// WARNING: This command is DEPRECATED and will be removed in a future release.
     /// Create and delegate a new stake account to a given validator, using a
     /// default address linked to the intended depository pool
     CreateDefaultStake(CreateStakeCli),
@@ -165,6 +166,7 @@ pub struct DepositCli {
     #[clap(value_parser = |p: &str| parse_address(p, "stake_account_address"))]
     pub stake_account_address: Option<Pubkey>,
 
+    /// WARNING: This flag is DEPRECATED and will be removed in a future release.
     /// Instead of using a stake account by address, use the user's default
     /// account for a specified pool
     #[clap(
