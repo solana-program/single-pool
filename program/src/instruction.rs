@@ -419,6 +419,10 @@ pub fn withdraw_stake(
 /// combination to make it easier to find for deposits. This is an optional
 /// helper function; deposits can come from any owned stake account without
 /// lockup.
+#[deprecated(
+    since = "3.0.0",
+    note = "Will be removed in a future release; this was intended to support a wallet flow that never materialized."
+)]
 pub fn create_and_delegate_user_stake(
     program_id: &Pubkey,
     vote_account_address: &Pubkey,

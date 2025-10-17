@@ -9,11 +9,12 @@ use {
     solana_stake_interface::state::{Authorized, Lockup},
     solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_client::address as atoken,
-    spl_single_pool::{
-        error::SinglePoolError, find_default_deposit_account_address, id, instruction,
-    },
+    spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_case,
 };
+
+#[allow(deprecated)]
+use spl_single_pool::find_default_deposit_account_address;
 
 #[test_case(true, 0, 0, false, false, false; "activated::minimum_disabled")]
 #[test_case(true, 0, 0, false, false, true; "activated::minimum_disabled::small")]
@@ -204,9 +205,11 @@ async fn success_with_seed(activate: bool, enable_minimum_delegation: bool, smal
     let accounts = SinglePoolAccounts::default();
     let rent = context.banks_client.get_rent().await.unwrap();
     let minimum_stake = accounts.initialize(&mut context).await;
+    #[allow(deprecated)]
     let alice_default_stake =
         find_default_deposit_account_address(&accounts.pool, &accounts.alice.pubkey());
 
+    #[allow(deprecated)]
     let instructions = instruction::create_and_delegate_user_stake(
         &id(),
         &accounts.vote_account.pubkey(),
