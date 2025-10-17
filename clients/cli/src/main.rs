@@ -17,13 +17,15 @@ use {
     solana_transaction::Transaction,
     solana_vote_program::{self as vote_program, vote_state::VoteState},
     spl_single_pool::{
-        self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
-        find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
-        state::SinglePool,
+        self, find_pool_address, find_pool_mint_address, find_pool_onramp_address,
+        find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
     },
     spl_token_client::token::Token,
     std::{rc::Rc, sync::Arc},
 };
+
+#[allow(deprecated)]
+use spl_single_pool::find_default_deposit_account_address;
 
 mod config;
 use config::*;
@@ -251,7 +253,9 @@ async fn command_deposit(
         if let Some(stake_account_address) = command_config.stake_account_address {
             stake_account_address
         } else if let Some(pool_address) = provided_pool_address {
+            eprintln!("WARNING: This flag is DEPRECATED and will be removed in a future release.");
             assert!(command_config.default_stake_account);
+            #[allow(deprecated)]
             find_default_deposit_account_address(&pool_address, &stake_authority.pubkey())
         } else {
             unreachable!()
@@ -713,6 +717,10 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
         command_config.vote_account_address,
     );
 
+    #[allow(deprecated)]
+    let stake_account_address =
+        find_default_deposit_account_address(&pool_address, &stake_authority_address);
+
     println_display(
         config,
         format!("Creating default stake account for pool {}\n", pool_address),
@@ -744,6 +752,7 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
         );
     }
 
+    #[allow(deprecated)]
     let instructions = spl_single_pool::instruction::create_and_delegate_user_stake(
         &spl_single_pool::id(),
         &vote_account_address,
@@ -766,10 +775,7 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
         "CreateDefaultStake".to_string(),
         CreateStakeOutput {
             pool_address,
-            stake_account_address: find_default_deposit_account_address(
-                &pool_address,
-                &stake_authority_address,
-            ),
+            stake_account_address,
             signature,
         },
     ))
