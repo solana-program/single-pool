@@ -66,6 +66,7 @@ export async function findPoolMplAuthorityAddress(programId: PublicKey, poolAddr
   );
 }
 
+/** @deprecated */
 export async function findDefaultDepositAccountAddress(
   poolAddress: PublicKey,
   userWallet: PublicKey,
