@@ -17,6 +17,7 @@ use {
     solana_stake_interface as stake,
     solana_transaction::Transaction,
     solana_vote_program::{self as vote_program, vote_state::VoteState},
+    spl_associated_token_account::instruction::create_associated_token_account,
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
         find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
@@ -325,33 +326,37 @@ async fn command_deposit(
         payer.clone(),
     );
 
-    // use token account provided, or get/create the associated account for the
-    // client keypair
+    let mut instructions = vec![];
+
+    // use token account provided, or get/create the associated account for the client keypair
     let token_account_address = if let Some(account) = command_config.token_account_address {
         account
     } else {
-        if !config.dry_run {
-            token
-                .get_or_create_associated_account_info(&owner.pubkey())
-                .await?;
+        let address = token.get_associated_token_address(&owner.pubkey());
+        if get_initialized_account(config, address).await?.is_none() {
+            instructions.push(create_associated_token_account(
+                &payer.pubkey(),
+                &owner.pubkey(),
+                &pool_mint_address,
+                &spl_token::id(),
+            ));
         }
-        token.get_associated_token_address(&owner.pubkey())
+        address
     };
 
-    let previous_token_amount = token
-        .get_account_info(&token_account_address)
-        .await?
-        .base
-        .amount;
+    let previous_token_amount = match token.get_account_info(&token_account_address).await {
+        Ok(account) => account.base.amount,
+        Err(_) => 0,
+    };
 
-    let instructions = spl_single_pool::instruction::deposit(
+    instructions.extend(spl_single_pool::instruction::deposit(
         &spl_single_pool::id(),
         &pool_address,
         &stake_account_address,
         &token_account_address,
         &lamport_recipient,
         &stake_authority.pubkey(),
-    );
+    ));
 
     let mut signers = vec![];
     for signer in [payer.clone(), stake_authority] {
@@ -368,12 +373,19 @@ async fn command_deposit(
     );
 
     let signature = process_transaction(config, transaction).await?;
-    let token_amount = token
-        .get_account_info(&token_account_address)
-        .await?
-        .base
-        .amount
-        - previous_token_amount;
+
+    let token_amount = if config.dry_run {
+        None
+    } else {
+        Some(
+            token
+                .get_account_info(&token_account_address)
+                .await?
+                .base
+                .amount
+                - previous_token_amount,
+        )
+    };
 
     Ok(format_output(
         config,
@@ -516,12 +528,15 @@ async fn command_withdraw(
     );
 
     let signature = process_transaction(config, transaction).await?;
-    let stake_amount = if let Some((_, stake)) =
+
+    let stake_amount = if config.dry_run {
+        None
+    } else if let Some((_, stake)) =
         quarantine::get_stake_info(config, &stake_account_address).await?
     {
-        stake.delegation.stake
+        Some(stake.delegation.stake)
     } else {
-        0
+        Some(0)
     };
 
     Ok(format_output(

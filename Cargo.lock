@@ -9813,6 +9813,7 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-status",
  "solana-vote-program",
+ "spl-associated-token-account",
  "spl-single-pool",
  "spl-token",
  "spl-token-client",

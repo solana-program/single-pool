@@ -44,6 +44,7 @@ solana-stake-program = "2.2"
 solana-transaction = "2.2"
 solana-transaction-status = "2.3.4"
 solana-vote-program = "2.2"
+spl-associated-token-account = { version = "7.0", features = ["no-entrypoint"] }
 spl-token = { version = "8.0", features = ["no-entrypoint"] }
 spl-token-client = { version = "0.16.1" }
 spl-single-pool = { version = "2.0.0", path = "../../program", features = [
