@@ -112,8 +112,10 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
 
     // check if the vote account is valid
     match get_initialized_account(config, vote_account_address).await? {
-        Some(vote_account) if vote_account.owner == vote_program::id() => (),
-        _ => return Err(format!("{} is not a valid vote account", vote_account_address,).into()),
+        Some(vote_account)
+            if vote_account.owner == vote_program::id()
+                && VoteState::deserialize(&vote_account.data).is_ok() => {}
+        _ => return Err(format!("{} is not a valid vote account", vote_account_address).into()),
     }
 
     let pool_address = find_pool_address(&spl_single_pool::id(), &vote_account_address);
@@ -163,6 +165,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
             pool_address,
             vote_account_address,
             available_stake: 0,
+            excess_lamports: 0,
             token_supply: 0,
             signature,
         },
@@ -791,8 +794,8 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         .map(|(pool_address, _)| find_pool_stake_address(&spl_single_pool::id(), pool_address))
         .collect::<Vec<_>>();
 
-    let available_stakes =
-        quarantine::get_available_stakes(config, &stake_addresses, minimum_pool_balance).await?;
+    let available_balances =
+        quarantine::get_available_balances(config, &stake_addresses, minimum_pool_balance).await?;
 
     let mint_addresses = pool_and_vote_addresses
         .iter()
@@ -802,16 +805,19 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
     let token_supplies = quarantine::get_token_supplies(config, &mint_addresses).await?;
 
     let mut displays = vec![];
-    for (((pool_address, vote_account_address), available_stake), token_supply) in
-        pool_and_vote_addresses
-            .into_iter()
-            .zip(available_stakes)
-            .zip(token_supplies)
+    for (
+        ((pool_address, vote_account_address), (available_stake, excess_lamports)),
+        token_supply,
+    ) in pool_and_vote_addresses
+        .into_iter()
+        .zip(available_balances)
+        .zip(token_supplies)
     {
         displays.push(StakePoolOutput {
             pool_address,
             vote_account_address,
             available_stake,
+            excess_lamports,
             token_supply,
             signature: None,
         });

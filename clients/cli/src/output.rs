@@ -94,6 +94,7 @@ pub struct StakePoolOutput {
     #[serde_as(as = "DisplayFromStr")]
     pub vote_account_address: Pubkey,
     pub available_stake: u64,
+    pub excess_lamports: u64,
     pub token_supply: u64,
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub signature: Option<Signature>,
@@ -146,6 +147,7 @@ impl VerboseDisplay for StakePoolOutput {
         )?;
 
         writeln_name_value(w, "  Available stake:", &self.available_stake.to_string())?;
+        writeln_name_value(w, "  Excess lamports:", &self.excess_lamports.to_string())?;
         writeln_name_value(w, "  Token supply:", &self.token_supply.to_string())?;
 
         if let Some(signature) = self.signature {

@@ -58,11 +58,11 @@ pub async fn get_stake_info(
     }
 }
 
-pub async fn get_available_stakes(
+pub async fn get_available_balances(
     config: &Config,
     stake_account_addresses: &[Pubkey],
     minimum_pool_balance: u64,
-) -> Result<Vec<u64>, Error> {
+) -> Result<Vec<(u64, u64)>, Error> {
     let stake_accounts = config
         .rpc_client
         .get_multiple_accounts(stake_account_addresses)
@@ -72,13 +72,20 @@ pub async fn get_available_stakes(
     for stake_account in &stake_accounts {
         let delegation = if let Some(account) = stake_account {
             match bincode::deserialize::<StakeStateV2>(&account.data) {
-                Ok(StakeStateV2::Stake(_, stake, _)) => {
-                    stake.delegation.stake.saturating_sub(minimum_pool_balance)
+                Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                    stake.delegation.stake.saturating_sub(minimum_pool_balance),
+                    account
+                        .lamports
+                        .saturating_sub(stake.delegation.stake)
+                        .saturating_sub(meta.rent_exempt_reserve),
+                ),
+                Ok(StakeStateV2::Initialized(meta)) => {
+                    (0, account.lamports.saturating_sub(meta.rent_exempt_reserve))
                 }
-                _ => 0,
+                _ => unreachable!(),
             }
         } else {
-            0
+            (0, 0)
         };
         delegations.push(delegation);
     }
