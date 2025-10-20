@@ -327,9 +327,11 @@ async fn command_deposit(
     let token_account_address = if let Some(account) = command_config.token_account_address {
         account
     } else {
-        token
-            .get_or_create_associated_account_info(&owner.pubkey())
-            .await?;
+        if !config.dry_run {
+            token
+                .get_or_create_associated_account_info(&owner.pubkey())
+                .await?;
+        }
         token.get_associated_token_address(&owner.pubkey())
     };
 
