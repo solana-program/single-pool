@@ -19,7 +19,7 @@ use {
     solana_vote_program::{self as vote_program, vote_state::VoteState},
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
-        find_pool_onramp_address, find_pool_stake_address, id, instruction::SinglePoolInstruction,
+        find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
         state::SinglePool,
     },
     spl_token_client::token::Token,
@@ -742,7 +742,7 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
 // display stake pool(s)
 async fn command_display(config: &Config, command_config: DisplayCli) -> CommandResult {
     let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
-    if command_config.all {
+    let pool_and_vote_addresses = if command_config.all {
         // the filter isn't necessary now but makes the cli forward-compatible
         let pools = config
             .rpc_client
@@ -758,36 +758,76 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
             )
             .await?;
 
-        let mut displays = vec![];
-        for pool in pools {
+        let mut pool_and_vote_addresses = vec![];
+        for pool in pools.into_iter() {
             let vote_account_address =
                 try_from_slice_unchecked::<SinglePool>(&pool.1.data)?.vote_account_address;
-            displays.push(
-                get_pool_display(
-                    config,
-                    minimum_pool_balance,
-                    pool.0,
-                    Some(vote_account_address),
-                )
-                .await?,
-            );
+            pool_and_vote_addresses.push((pool.0, vote_account_address));
         }
 
-        Ok(format_output(
-            config,
-            "DisplayAll".to_string(),
-            StakePoolListOutput(displays),
-        ))
+        pool_and_vote_addresses
     } else {
         let pool_address = pool_address_from_args(
             command_config.pool_address,
             command_config.vote_account_address,
         );
 
+        vec![(
+            pool_address,
+            get_vote_address_from_pool(config, pool_address).await?,
+        )]
+    };
+
+    if pool_and_vote_addresses.len() > 100 {
+        return Err(
+            "Displaying more than 100 pools is not implemented; if you see \
+            this error, feel free to open an issue in the SVSP repo."
+                .into(),
+        );
+    }
+
+    let stake_addresses = pool_and_vote_addresses
+        .iter()
+        .map(|(pool_address, _)| find_pool_stake_address(&spl_single_pool::id(), pool_address))
+        .collect::<Vec<_>>();
+
+    let available_stakes =
+        quarantine::get_available_stakes(config, &stake_addresses, minimum_pool_balance).await?;
+
+    let mint_addresses = pool_and_vote_addresses
+        .iter()
+        .map(|(pool_address, _)| find_pool_mint_address(&spl_single_pool::id(), pool_address))
+        .collect::<Vec<_>>();
+
+    let token_supplies = quarantine::get_token_supplies(config, &mint_addresses).await?;
+
+    let mut displays = vec![];
+    for (((pool_address, vote_account_address), available_stake), token_supply) in
+        pool_and_vote_addresses
+            .into_iter()
+            .zip(available_stakes)
+            .zip(token_supplies)
+    {
+        displays.push(StakePoolOutput {
+            pool_address,
+            vote_account_address,
+            available_stake,
+            token_supply,
+            signature: None,
+        });
+    }
+
+    if command_config.all {
+        Ok(format_output(
+            config,
+            "DisplayAll".to_string(),
+            StakePoolListOutput(displays),
+        ))
+    } else {
         Ok(format_output(
             config,
             "Display".to_string(),
-            get_pool_display(config, minimum_pool_balance, pool_address, None).await?,
+            displays.remove(0),
         ))
     }
 }
@@ -846,44 +886,6 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
     ))
 }
 
-// XXX TODO i finished acct existance and dryrun. improve display and update readme next
-
-async fn get_pool_display(
-    config: &Config,
-    minimum_pool_balance: u64,
-    pool_address: Pubkey,
-    maybe_vote_account: Option<Pubkey>,
-) -> Result<StakePoolOutput, Error> {
-    let vote_account_address = match maybe_vote_account {
-        Some(vote_account_address) => vote_account_address,
-        None => get_vote_address_from_pool(config, pool_address).await?,
-    };
-
-    let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
-    let available_stake =
-        if let Some((_, stake)) = quarantine::get_stake_info(config, &pool_stake_address).await? {
-            stake.delegation.stake - minimum_pool_balance
-        } else {
-            unreachable!()
-        };
-
-    let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
-    let token_supply = config
-        .rpc_client
-        .get_token_supply(&pool_mint_address)
-        .await?
-        .amount
-        .parse::<u64>()?;
-
-    Ok(StakePoolOutput {
-        pool_address,
-        vote_account_address,
-        available_stake,
-        token_supply,
-        signature: None,
-    })
-}
-
 async fn get_initialized_account(
     config: &Config,
     pubkey: Pubkey,
@@ -903,7 +905,7 @@ async fn get_vote_address_from_pool(
         return Err(format!("Pool {} has not been initialized", pool_address).into());
     };
 
-    if pool_account.owner != id() {
+    if pool_account.owner != spl_single_pool::id() {
         return Err(format!("{} is not owned by the SVSP program", pool_address).into());
     }
 

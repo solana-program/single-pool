@@ -195,7 +195,7 @@ async fn create_vote_account(
 }
 
 async fn create_pool(rpc_client: &RpcClient, payer: &Keypair, config_file_path: &str) -> Pubkey {
-    let vote_account = create_vote_account(rpc_client, &payer, &payer.pubkey()).await;
+    let vote_account = create_vote_account(rpc_client, payer, &payer.pubkey()).await;
     let status = Command::new(SVSP_CLI)
         .args([
             "manage",
