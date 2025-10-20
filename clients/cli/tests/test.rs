@@ -6,6 +6,7 @@ use {
     solana_cli_config::Config as SolanaConfig,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_clock::Epoch,
+    solana_commitment_config::CommitmentConfig,
     solana_epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
     solana_keypair::{write_keypair_file, Keypair},
     solana_native_token::LAMPORTS_PER_SOL,
@@ -53,7 +54,10 @@ async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
     let (validator, payer) = start_validator(raise_minimum_delegation).await;
 
     // make client
-    let rpc_client = Arc::new(validator.get_async_rpc_client());
+    let rpc_client = Arc::new(RpcClient::new_with_commitment(
+        validator.rpc_url(),
+        CommitmentConfig::confirmed(),
+    ));
 
     // write the payer to disk
     let keypair_file = NamedTempFile::new().unwrap();
@@ -125,7 +129,7 @@ async fn wait_for_next_epoch(rpc_client: &RpcClient) -> Epoch {
     println!("current epoch {}, advancing to next...", current_epoch);
     loop {
         let epoch_info = rpc_client.get_epoch_info().await.unwrap();
-        if epoch_info.epoch > current_epoch {
+        if epoch_info.epoch > current_epoch && epoch_info.slot_index > 0 {
             return epoch_info.epoch;
         }
 
