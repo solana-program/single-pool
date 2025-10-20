@@ -741,6 +741,7 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
 
 // display stake pool(s)
 async fn command_display(config: &Config, command_config: DisplayCli) -> CommandResult {
+    let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
     if command_config.all {
         // the filter isn't necessary now but makes the cli forward-compatible
         let pools = config
@@ -761,7 +762,15 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         for pool in pools {
             let vote_account_address =
                 try_from_slice_unchecked::<SinglePool>(&pool.1.data)?.vote_account_address;
-            displays.push(get_pool_display(config, pool.0, Some(vote_account_address)).await?);
+            displays.push(
+                get_pool_display(
+                    config,
+                    minimum_pool_balance,
+                    pool.0,
+                    Some(vote_account_address),
+                )
+                .await?,
+            );
         }
 
         Ok(format_output(
@@ -778,7 +787,7 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         Ok(format_output(
             config,
             "Display".to_string(),
-            get_pool_display(config, pool_address, None).await?,
+            get_pool_display(config, minimum_pool_balance, pool_address, None).await?,
         ))
     }
 }
@@ -837,8 +846,11 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
     ))
 }
 
+// XXX TODO i finished acct existance and dryrun. improve display and update readme next
+
 async fn get_pool_display(
     config: &Config,
+    minimum_pool_balance: u64,
     pool_address: Pubkey,
     maybe_vote_account: Option<Pubkey>,
 ) -> Result<StakePoolOutput, Error> {
@@ -850,7 +862,7 @@ async fn get_pool_display(
     let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
     let available_stake =
         if let Some((_, stake)) = quarantine::get_stake_info(config, &pool_stake_address).await? {
-            stake.delegation.stake - quarantine::get_minimum_pool_balance(config).await?
+            stake.delegation.stake - minimum_pool_balance
         } else {
             unreachable!()
         };
