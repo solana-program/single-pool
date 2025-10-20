@@ -9785,6 +9785,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
+ "solana-account",
  "solana-account-decoder",
  "solana-borsh 3.0.0",
  "solana-clap-v3-utils",
