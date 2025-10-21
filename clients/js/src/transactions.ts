@@ -44,6 +44,7 @@ interface DepositParams {
   pool: PoolAddress;
   userWallet: Address;
   userStakeAccount?: Address;
+  /** @deprecated */
   depositFromDefaultAccount?: boolean;
   userTokenAccount?: Address;
   userLamportAccount?: Address;
@@ -348,6 +349,7 @@ export async function initializeOnRampTransaction(
   return transaction;
 }
 
+/** @deprecated */
 export async function createAndDelegateUserStakeTransaction(
   rpc: any, // XXX not exported: Rpc<???>,
   voteAccount: VoteAccountAddress,
