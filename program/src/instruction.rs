@@ -421,7 +421,10 @@ pub fn withdraw_stake(
 /// lockup.
 #[deprecated(
     since = "3.0.0",
-    note = "Will be removed in a future release; this was intended to support a wallet flow that never materialized."
+    note = "Default deposit helpers will be removed in a future release; these were \
+    intended to support a wallet flow that never materialized. To set up a new stake \
+    account for deposit, use `instruction::create_account_and_delegate_stake` from \
+    `solana-stake-interface` using any normal keypair."
 )]
 pub fn create_and_delegate_user_stake(
     program_id: &Pubkey,
