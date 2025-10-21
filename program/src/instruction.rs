@@ -83,30 +83,32 @@ pub enum SinglePoolInstruction {
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
-    ///   2. `[w]` Pool token mint
-    ///   3. `[]` Pool stake authority
-    ///   4. `[]` Pool mint authority
-    ///   5. `[w]` User stake account to join to the pool
-    ///   6. `[w]` User account to receive pool tokens
-    ///   7. `[w]` User account to receive lamports
-    ///   8. `[]` Clock sysvar
-    ///   9. `[]` Stake history sysvar
-    ///  10. `[]` Token program
-    ///  11. `[]` Stake program
+    ///   2. `[]` Pool on-ramp account (not yet enforced)
+    ///   3. `[w]` Pool token mint
+    ///   4. `[]` Pool stake authority
+    ///   5. `[]` Pool mint authority
+    ///   6. `[w]` User stake account to join to the pool
+    ///   7. `[w]` User account to receive pool tokens
+    ///   8. `[w]` User account to receive lamports
+    ///   9. `[]` Clock sysvar
+    ///  10. `[]` Stake history sysvar
+    ///  11. `[]` Token program
+    ///  12. `[]` Stake program
     DepositStake,
 
     ///   Redeem tokens issued by this pool for stake at the current ratio.
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
-    ///   2. `[w]` Pool token mint
-    ///   3. `[]` Pool stake authority
-    ///   4. `[]` Pool mint authority
-    ///   5. `[w]` User stake account to receive stake at
-    ///   6. `[w]` User account to take pool tokens from
-    ///   7. `[]` Clock sysvar
-    ///   8. `[]` Token program
-    ///   9. `[]` Stake program
+    ///   2. `[]` Pool on-ramp account (not yet enforced)
+    ///   3. `[w]` Pool token mint
+    ///   4. `[]` Pool stake authority
+    ///   5. `[]` Pool mint authority
+    ///   6. `[w]` User stake account to receive stake at
+    ///   7. `[w]` User account to take pool tokens from
+    ///   8. `[]` Clock sysvar
+    ///   9. `[]` Token program
+    ///  10. `[]` Stake program
     WithdrawStake {
         /// User authority for the new stake account
         user_stake_authority: Pubkey,

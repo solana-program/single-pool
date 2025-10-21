@@ -926,7 +926,16 @@ impl Processor {
         let account_info_iter = &mut accounts.iter();
         let pool_info = next_account_info(account_info_iter)?;
         let pool_stake_info = next_account_info(account_info_iter)?;
-        let pool_mint_info = next_account_info(account_info_iter)?;
+        let pool_mint_info = {
+            let account_info = next_account_info(account_info_iter)?;
+            // we havent validated pool_info yet, so this doesnt validate onramp, but it doesnt matter
+            // for now we just need to know whether to skip an account, we dont actually use it
+            if check_pool_onramp_address(program_id, pool_info.key, account_info.key).is_ok() {
+                next_account_info(account_info_iter)?
+            } else {
+                account_info
+            }
+        };
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
         let user_stake_info = next_account_info(account_info_iter)?;
@@ -941,6 +950,7 @@ impl Processor {
         SinglePool::from_account_info(pool_info, program_id)?;
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
+        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -951,7 +961,6 @@ impl Processor {
             pool_info.key,
             pool_mint_authority_info.key,
         )?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
         check_token_program(token_program_info.key)?;
         check_stake_program(stake_program_info.key)?;
 
@@ -1079,7 +1088,16 @@ impl Processor {
         let account_info_iter = &mut accounts.iter();
         let pool_info = next_account_info(account_info_iter)?;
         let pool_stake_info = next_account_info(account_info_iter)?;
-        let pool_mint_info = next_account_info(account_info_iter)?;
+        let pool_mint_info = {
+            let account_info = next_account_info(account_info_iter)?;
+            // we havent validated pool_info yet, so this doesnt validate onramp, but it doesnt matter
+            // for now we just need to know whether to skip an account, we dont actually use it
+            if check_pool_onramp_address(program_id, pool_info.key, account_info.key).is_ok() {
+                next_account_info(account_info_iter)?
+            } else {
+                account_info
+            }
+        };
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
         let user_stake_info = next_account_info(account_info_iter)?;
@@ -1091,6 +1109,7 @@ impl Processor {
         SinglePool::from_account_info(pool_info, program_id)?;
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
+        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -1101,7 +1120,6 @@ impl Processor {
             pool_info.key,
             pool_mint_authority_info.key,
         )?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
         check_token_program(token_program_info.key)?;
         check_stake_program(stake_program_info.key)?;
 
