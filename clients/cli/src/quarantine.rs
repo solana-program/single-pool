@@ -13,6 +13,7 @@ use {
     },
     solana_system_interface::instruction as system_instruction,
     solana_sysvar as sysvar,
+    spl_token::{solana_program::program_pack::Pack, state::Mint},
 };
 
 pub async fn get_rent(config: &Config) -> Result<Rent, Error> {
@@ -55,6 +56,66 @@ pub async fn get_stake_info(
     } else {
         Ok(None)
     }
+}
+
+pub async fn get_available_balances(
+    config: &Config,
+    stake_account_addresses: &[Pubkey],
+    minimum_pool_balance: u64,
+) -> Result<Vec<(u64, u64)>, Error> {
+    let stake_accounts = config
+        .rpc_client
+        .get_multiple_accounts(stake_account_addresses)
+        .await?;
+
+    let mut delegations = vec![];
+    for stake_account in &stake_accounts {
+        let delegation = if let Some(account) = stake_account {
+            match bincode::deserialize::<StakeStateV2>(&account.data) {
+                Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                    stake.delegation.stake.saturating_sub(minimum_pool_balance),
+                    account
+                        .lamports
+                        .saturating_sub(stake.delegation.stake)
+                        .saturating_sub(meta.rent_exempt_reserve),
+                ),
+                Ok(StakeStateV2::Initialized(meta)) => {
+                    (0, account.lamports.saturating_sub(meta.rent_exempt_reserve))
+                }
+                _ => unreachable!(),
+            }
+        } else {
+            (0, 0)
+        };
+        delegations.push(delegation);
+    }
+
+    Ok(delegations)
+}
+
+pub async fn get_token_supplies(
+    config: &Config,
+    mint_addresses: &[Pubkey],
+) -> Result<Vec<u64>, Error> {
+    let mint_accounts = config
+        .rpc_client
+        .get_multiple_accounts(mint_addresses)
+        .await?;
+
+    let mut supplies = vec![];
+    for mint_account in &mint_accounts {
+        let supply = if let Some(account) = mint_account {
+            match Mint::unpack(&account.data) {
+                Ok(mint) => mint.supply,
+                _ => 0,
+            }
+        } else {
+            0
+        };
+        supplies.push(supply);
+    }
+
+    Ok(supplies)
 }
 
 pub async fn create_uninitialized_stake_account_instruction(

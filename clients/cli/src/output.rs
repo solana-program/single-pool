@@ -94,6 +94,7 @@ pub struct StakePoolOutput {
     #[serde_as(as = "DisplayFromStr")]
     pub vote_account_address: Pubkey,
     pub available_stake: u64,
+    pub excess_lamports: u64,
     pub token_supply: u64,
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub signature: Option<Signature>,
@@ -146,6 +147,7 @@ impl VerboseDisplay for StakePoolOutput {
         )?;
 
         writeln_name_value(w, "  Available stake:", &self.available_stake.to_string())?;
+        writeln_name_value(w, "  Excess lamports:", &self.excess_lamports.to_string())?;
         writeln_name_value(w, "  Token supply:", &self.token_supply.to_string())?;
 
         if let Some(signature) = self.signature {
@@ -219,7 +221,7 @@ impl Display for StakePoolListOutput {
 pub struct DepositOutput {
     #[serde_as(as = "DisplayFromStr")]
     pub pool_address: Pubkey,
-    pub token_amount: u64,
+    pub token_amount: Option<u64>,
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub signature: Option<Signature>,
 }
@@ -231,7 +233,13 @@ impl Display for DepositOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         writeln!(f)?;
         writeln_name_value(f, "Pool address:", &self.pool_address.to_string())?;
-        writeln_name_value(f, "Token amount:", &self.token_amount.to_string())?;
+
+        let token_amount = if let Some(amount) = self.token_amount {
+            &amount.to_string()
+        } else {
+            "(cannot display in simulation)"
+        };
+        writeln_name_value(f, "Token amount:", token_amount)?;
 
         if let Some(signature) = self.signature {
             writeln!(f)?;
@@ -250,7 +258,7 @@ pub struct WithdrawOutput {
     pub pool_address: Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub stake_account_address: Pubkey,
-    pub stake_amount: u64,
+    pub stake_amount: Option<u64>,
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub signature: Option<Signature>,
 }
@@ -267,7 +275,13 @@ impl Display for WithdrawOutput {
             "Stake account address:",
             &self.stake_account_address.to_string(),
         )?;
-        writeln_name_value(f, "Stake amount:", &self.stake_amount.to_string())?;
+
+        let stake_amount = if let Some(amount) = self.stake_amount {
+            &amount.to_string()
+        } else {
+            "(cannot display in simulation)"
+        };
+        writeln_name_value(f, "Stake amount:", stake_amount)?;
 
         if let Some(signature) = self.signature {
             writeln!(f)?;
