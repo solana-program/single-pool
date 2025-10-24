@@ -14,8 +14,8 @@ importers:
         specifier: 5.0.0
         version: 5.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/instructions':
-        specifier: 2.3.0
-        version: 2.3.0(typescript@5.9.3)
+        specifier: 5.0.0
+        version: 5.0.0(typescript@5.9.3)
       '@solana/transaction-messages':
         specifier: 2.2.1
         version: 2.2.1(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
@@ -731,8 +731,8 @@ packages:
     peerDependencies:
       typescript: '>=5.3.3'
 
-  '@solana/instructions@2.3.0':
-    resolution: {integrity: sha512-PLMsmaIKu7hEAzyElrk2T7JJx4D+9eRwebhFZpy2PXziNSmFF929eRHKUsKqBFM3cYR1Yy3m6roBZfA+bGE/oQ==}
+  '@solana/instructions@5.0.0':
+    resolution: {integrity: sha512-12dbrmwERT1o6NTr/Uvrjj/ZsiteSXoT5Gi+dnjIeRNHWg9H+gEFuFzJvTDVKlNg34CZ71xdvbVdbV0V8gKGvg==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: '>=5.3.3'
@@ -1084,10 +1084,6 @@ packages:
   commander@13.1.0:
     resolution: {integrity: sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==}
     engines: {node: '>=18'}
-
-  commander@14.0.0:
-    resolution: {integrity: sha512-2uM9rYjPvyq39NwLRqaiLtWHyDC1FvryJDa2ATTVims5YAS4PupsEQsDvP14FqhFr0P49CYDugi59xaxJlTXRA==}
-    engines: {node: '>=20'}
 
   commander@14.0.1:
     resolution: {integrity: sha512-2JkV3gUZUVrbNA+1sjBOYLsMZ5cEEl8GTFP2a4AVz5hvasAMCQ1D2l2le/cX+pV4N6ZU17zjUahLpIXRrnWL8A==}
@@ -2641,8 +2637,8 @@ snapshots:
 
   '@solana/errors@2.3.0(typescript@5.9.3)':
     dependencies:
-      chalk: 5.4.1
-      commander: 14.0.0
+      chalk: 5.6.2
+      commander: 14.0.1
       typescript: 5.9.3
 
   '@solana/errors@5.0.0(typescript@5.9.3)':
@@ -2661,10 +2657,10 @@ snapshots:
       '@solana/errors': 2.2.1(typescript@5.9.3)
       typescript: 5.9.3
 
-  '@solana/instructions@2.3.0(typescript@5.9.3)':
+  '@solana/instructions@5.0.0(typescript@5.9.3)':
     dependencies:
-      '@solana/codecs-core': 2.3.0(typescript@5.9.3)
-      '@solana/errors': 2.3.0(typescript@5.9.3)
+      '@solana/codecs-core': 5.0.0(typescript@5.9.3)
+      '@solana/errors': 5.0.0(typescript@5.9.3)
       typescript: 5.9.3
 
   '@solana/nominal-types@2.2.1(typescript@5.9.3)':
@@ -3110,8 +3106,6 @@ snapshots:
   color-name@1.1.4: {}
 
   commander@13.1.0: {}
-
-  commander@14.0.0: {}
 
   commander@14.0.1: {}
 
