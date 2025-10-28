@@ -516,6 +516,12 @@ async fn display_all() {
         .filter(|line| line.starts_with("  Pool address:"))
         .count();
     assert_eq!(pools, 3);
+
+    let stakes = stdout
+        .lines()
+        .filter(|line| line.starts_with("  Pool main stake account address:"))
+        .count();
+    assert_eq!(stakes, 3);
 }
 
 #[test_case(false; "one_lamp")]
