@@ -6,6 +6,7 @@ use {
     solana_cli_config::Config as SolanaConfig,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_clock::Epoch,
+    solana_commitment_config::CommitmentConfig,
     solana_epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
     solana_keypair::{write_keypair_file, Keypair},
     solana_native_token::LAMPORTS_PER_SOL,
@@ -26,20 +27,17 @@ use {
         id,
         instruction::{self as ixn, SinglePoolInstruction},
     },
-    spl_token_client::client::{ProgramClient, ProgramRpcClient, ProgramRpcClientSendTransaction},
     std::{path::PathBuf, process::Command, str::FromStr, sync::Arc, time::Duration},
     tempfile::NamedTempFile,
     test_case::test_case,
     tokio::time::sleep,
 };
 
-type PClient = Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>;
 const SVSP_CLI: &str = "../../target/debug/spl-single-pool";
 
 #[allow(dead_code)]
 pub struct Env {
     pub rpc_client: Arc<RpcClient>,
-    pub program_client: PClient,
     pub payer: Keypair,
     pub keypair_file_path: String,
     pub config_file_path: String,
@@ -55,11 +53,10 @@ async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
     // start test validator
     let (validator, payer) = start_validator(raise_minimum_delegation).await;
 
-    // make clients
-    let rpc_client = Arc::new(validator.get_async_rpc_client());
-    let program_client: PClient = Arc::new(ProgramRpcClient::new(
-        rpc_client.clone(),
-        ProgramRpcClientSendTransaction,
+    // make client
+    let rpc_client = Arc::new(RpcClient::new_with_commitment(
+        validator.rpc_url(),
+        CommitmentConfig::confirmed(),
     ));
 
     // write the payer to disk
@@ -78,24 +75,14 @@ async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
     solana_config.save(config_file_path).unwrap();
 
     // make vote and stake accounts
-    let vote_account = create_vote_account(&program_client, &payer, &payer.pubkey()).await;
-    if initialize_pool {
-        let status = Command::new(SVSP_CLI)
-            .args([
-                "manage",
-                "initialize",
-                "-C",
-                config_file_path,
-                &vote_account.to_string(),
-            ])
-            .status()
-            .unwrap();
-        assert!(status.success());
-    }
+    let vote_account = if initialize_pool {
+        create_pool(&rpc_client, &payer, config_file_path).await
+    } else {
+        create_vote_account(&rpc_client, &payer, &payer.pubkey()).await
+    };
 
     Env {
         rpc_client,
-        program_client,
         payer,
         keypair_file_path: keypair_file.path().to_str().unwrap().to_string(),
         config_file_path: config_file_path.to_string(),
@@ -142,7 +129,7 @@ async fn wait_for_next_epoch(rpc_client: &RpcClient) -> Epoch {
     println!("current epoch {}, advancing to next...", current_epoch);
     loop {
         let epoch_info = rpc_client.get_epoch_info().await.unwrap();
-        if epoch_info.epoch > current_epoch {
+        if epoch_info.epoch > current_epoch && epoch_info.slot_index > 0 {
             return epoch_info.epoch;
         }
 
@@ -151,7 +138,7 @@ async fn wait_for_next_epoch(rpc_client: &RpcClient) -> Epoch {
 }
 
 async fn create_vote_account(
-    program_client: &PClient,
+    rpc_client: &RpcClient,
     payer: &Keypair,
     withdrawer: &Pubkey,
 ) -> Pubkey {
@@ -159,17 +146,17 @@ async fn create_vote_account(
     let vote_account = Keypair::new();
     let voter = Keypair::new();
 
-    let zero_rent = program_client
+    let zero_rent = rpc_client
         .get_minimum_balance_for_rent_exemption(0)
         .await
         .unwrap();
 
-    let vote_rent = program_client
+    let vote_rent = rpc_client
         .get_minimum_balance_for_rent_exemption(VoteState::size_of() * 2)
         .await
         .unwrap();
 
-    let blockhash = program_client.get_latest_blockhash().await.unwrap();
+    let blockhash = rpc_client.get_latest_blockhash().await.unwrap();
 
     let mut instructions = vec![system_instruction::create_account(
         &payer.pubkey(),
@@ -203,23 +190,43 @@ async fn create_vote_account(
         .try_partial_sign(&vec![&validator, &vote_account], blockhash)
         .unwrap();
 
-    program_client.send_transaction(&transaction).await.unwrap();
+    rpc_client
+        .send_and_confirm_transaction(&transaction)
+        .await
+        .unwrap();
 
     vote_account.pubkey()
 }
 
+async fn create_pool(rpc_client: &RpcClient, payer: &Keypair, config_file_path: &str) -> Pubkey {
+    let vote_account = create_vote_account(rpc_client, payer, &payer.pubkey()).await;
+    let status = Command::new(SVSP_CLI)
+        .args([
+            "manage",
+            "initialize",
+            "-C",
+            config_file_path,
+            &vote_account.to_string(),
+        ])
+        .status()
+        .unwrap();
+    assert!(status.success());
+
+    vote_account
+}
+
 async fn create_and_delegate_stake_account(
-    program_client: &PClient,
+    rpc_client: &RpcClient,
     payer: &Keypair,
     vote_account: &Pubkey,
 ) -> Pubkey {
     let stake_account = Keypair::new();
 
-    let stake_rent = program_client
+    let stake_rent = rpc_client
         .get_minimum_balance_for_rent_exemption(StakeStateV2::size_of())
         .await
         .unwrap();
-    let blockhash = program_client.get_latest_blockhash().await.unwrap();
+    let blockhash = rpc_client.get_latest_blockhash().await.unwrap();
 
     let mut transaction = Transaction::new_with_payer(
         &stake_instruction::create_account(
@@ -239,7 +246,10 @@ async fn create_and_delegate_stake_account(
         .try_partial_sign(&vec![&stake_account], blockhash)
         .unwrap();
 
-    program_client.send_transaction(&transaction).await.unwrap();
+    rpc_client
+        .send_and_confirm_transaction(&transaction)
+        .await
+        .unwrap();
 
     let mut transaction = Transaction::new_with_payer(
         &[stake_instruction::delegate_stake(
@@ -252,7 +262,10 @@ async fn create_and_delegate_stake_account(
 
     transaction.sign(&vec![payer], blockhash);
 
-    program_client.send_transaction(&transaction).await.unwrap();
+    rpc_client
+        .send_and_confirm_transaction(&transaction)
+        .await
+        .unwrap();
 
     stake_account.pubkey()
 }
@@ -303,7 +316,7 @@ async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
 
         Pubkey::default()
     } else {
-        create_and_delegate_stake_account(&env.program_client, &env.payer, &env.vote_account).await
+        create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await
     };
 
     wait_for_next_epoch(&env.rpc_client).await;
@@ -335,7 +348,7 @@ async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
 async fn withdraw(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
     let stake_account =
-        create_and_delegate_stake_account(&env.program_client, &env.payer, &env.vote_account).await;
+        create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await;
 
     wait_for_next_epoch(&env.rpc_client).await;
 
@@ -470,6 +483,47 @@ async fn display() {
     assert!(status.success());
 }
 
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
+async fn display_all() {
+    let env = setup(false, true).await;
+
+    create_pool(&env.rpc_client, &env.payer, &env.config_file_path).await;
+    create_pool(&env.rpc_client, &env.payer, &env.config_file_path).await;
+
+    let output = Command::new(SVSP_CLI)
+        .args(["display", "-C", &env.config_file_path, "--all"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let pools = stdout
+        .lines()
+        .filter(|line| line.starts_with("  Pool address:"))
+        .count();
+    assert_eq!(pools, 3);
+
+    let output = Command::new(SVSP_CLI)
+        .args(["display", "-C", &env.config_file_path, "--all", "--verbose"])
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let pools = stdout
+        .lines()
+        .filter(|line| line.starts_with("  Pool address:"))
+        .count();
+    assert_eq!(pools, 3);
+
+    let stakes = stdout
+        .lines()
+        .filter(|line| line.starts_with("  Pool main stake account address:"))
+        .count();
+    assert_eq!(stakes, 3);
+}
+
 #[test_case(false; "one_lamp")]
 #[test_case(true; "one_sol")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -489,15 +543,15 @@ async fn create_onramp(raise_minimum_delegation: bool) {
     .filter(|instruction| instruction.data != onramp_opcode)
     .collect::<Vec<_>>();
 
-    let blockhash = env.program_client.get_latest_blockhash().await.unwrap();
+    let blockhash = env.rpc_client.get_latest_blockhash().await.unwrap();
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
         Some(&env.payer.pubkey()),
         &[&env.payer],
         blockhash,
     );
-    env.program_client
-        .send_transaction(&transaction)
+    env.rpc_client
+        .send_and_confirm_transaction(&transaction)
         .await
         .unwrap();
 

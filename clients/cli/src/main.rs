@@ -2,6 +2,7 @@
 
 use {
     clap::{ArgMatches, CommandFactory, Parser},
+    solana_account::Account,
     solana_borsh::v1::try_from_slice_unchecked,
     solana_clap_v3_utils::{input_parsers::Amount, keypair::signer_from_source},
     solana_client::{
@@ -16,6 +17,7 @@ use {
     solana_stake_interface as stake,
     solana_transaction::Transaction,
     solana_vote_program::{self as vote_program, vote_state::VoteState},
+    spl_associated_token_account_interface::instruction::create_associated_token_account,
     spl_single_pool::{
         self, find_pool_address, find_pool_mint_address, find_pool_onramp_address,
         find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
@@ -112,29 +114,25 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     );
 
     // check if the vote account is valid
-    let vote_account = config
-        .program_client
-        .get_account(vote_account_address)
-        .await?;
-    if vote_account.is_none() || vote_account.unwrap().owner != vote_program::id() {
-        return Err(format!("{} is not a valid vote account", vote_account_address,).into());
+    match get_initialized_account(config, vote_account_address).await? {
+        Some(vote_account)
+            if vote_account.owner == vote_program::id()
+                && VoteState::deserialize(&vote_account.data).is_ok() => {}
+        _ => return Err(format!("{} is not a valid vote account", vote_account_address).into()),
     }
 
     let pool_address = find_pool_address(&spl_single_pool::id(), &vote_account_address);
 
-    // check if the pool has already been initialized
-    if config
-        .program_client
-        .get_account(pool_address)
-        .await?
-        .is_some()
-    {
+    // the pool must not already be initialized
+    // we do not use `pool_is_initialized()` because that function is restrictive
+    // so its negation would be permissive
+    let None = get_initialized_account(config, pool_address).await? else {
         return Err(format!(
             "Pool {} for vote account {} already exists",
             pool_address, vote_account_address
         )
         .into());
-    }
+    };
 
     let mut instructions = spl_single_pool::instruction::initialize(
         &spl_single_pool::id(),
@@ -170,6 +168,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
             pool_address,
             vote_account_address,
             available_stake: 0,
+            excess_lamports: 0,
             token_supply: 0,
             signature,
         },
@@ -189,12 +188,7 @@ async fn command_replenish_pool(config: &Config, command_config: ReplenishCli) -
         format!("Replenishing stake accounts for pool {}\n", pool_address),
     );
 
-    let vote_account_address =
-        if let Some(pool_data) = config.program_client.get_account(pool_address).await? {
-            try_from_slice_unchecked::<SinglePool>(&pool_data.data)?.vote_account_address
-        } else {
-            return Err(format!("Pool {} has not been initialized", pool_address).into());
-        };
+    let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
 
     let instruction =
         spl_single_pool::instruction::replenish_pool(&spl_single_pool::id(), &vote_account_address);
@@ -316,14 +310,7 @@ async fn command_deposit(
         ),
     );
 
-    if config
-        .program_client
-        .get_account(pool_address)
-        .await?
-        .is_none()
-    {
-        return Err(format!("Pool {} has not been initialized", pool_address).into());
-    }
+    pool_is_initialized(config, pool_address).await?;
 
     let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
     let pool_stake_active = quarantine::get_stake_info(config, &pool_stake_address)
@@ -347,31 +334,37 @@ async fn command_deposit(
         payer.clone(),
     );
 
-    // use token account provided, or get/create the associated account for the
-    // client keypair
+    let mut instructions = vec![];
+
+    // use token account provided, or get/create the associated account for the client keypair
     let token_account_address = if let Some(account) = command_config.token_account_address {
         account
     } else {
-        token
-            .get_or_create_associated_account_info(&owner.pubkey())
-            .await?;
-        token.get_associated_token_address(&owner.pubkey())
+        let address = token.get_associated_token_address(&owner.pubkey());
+        if get_initialized_account(config, address).await?.is_none() {
+            instructions.push(create_associated_token_account(
+                &payer.pubkey(),
+                &owner.pubkey(),
+                &pool_mint_address,
+                &spl_token::id(),
+            ));
+        }
+        address
     };
 
-    let previous_token_amount = token
-        .get_account_info(&token_account_address)
-        .await?
-        .base
-        .amount;
+    let previous_token_amount = match token.get_account_info(&token_account_address).await {
+        Ok(account) => account.base.amount,
+        Err(_) => 0,
+    };
 
-    let instructions = spl_single_pool::instruction::deposit(
+    instructions.extend(spl_single_pool::instruction::deposit(
         &spl_single_pool::id(),
         &pool_address,
         &stake_account_address,
         &token_account_address,
         &lamport_recipient,
         &stake_authority.pubkey(),
-    );
+    ));
 
     let mut signers = vec![];
     for signer in [payer.clone(), stake_authority] {
@@ -388,12 +381,19 @@ async fn command_deposit(
     );
 
     let signature = process_transaction(config, transaction).await?;
-    let token_amount = token
-        .get_account_info(&token_account_address)
-        .await?
-        .base
-        .amount
-        - previous_token_amount;
+
+    let token_amount = if config.dry_run {
+        None
+    } else {
+        Some(
+            token
+                .get_account_info(&token_account_address)
+                .await?
+                .base
+                .amount
+                - previous_token_amount,
+        )
+    };
 
     Ok(format_output(
         config,
@@ -437,14 +437,7 @@ async fn command_withdraw(
         command_config.vote_account_address,
     );
 
-    if config
-        .program_client
-        .get_account(pool_address)
-        .await?
-        .is_none()
-    {
-        return Err(format!("Pool {} has not been initialized", pool_address).into());
-    }
+    pool_is_initialized(config, pool_address).await?;
 
     // now all the mint and token info
     let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
@@ -543,12 +536,15 @@ async fn command_withdraw(
     );
 
     let signature = process_transaction(config, transaction).await?;
-    let stake_amount = if let Some((_, stake)) =
+
+    let stake_amount = if config.dry_run {
+        None
+    } else if let Some((_, stake)) =
         quarantine::get_stake_info(config, &stake_account_address).await?
     {
-        stake.delegation.stake
+        Some(stake.delegation.stake)
     } else {
-        0
+        Some(0)
     };
 
     Ok(format_output(
@@ -585,14 +581,7 @@ async fn command_create_metadata(
         ),
     );
 
-    if config
-        .program_client
-        .get_account(pool_address)
-        .await?
-        .is_none()
-    {
-        return Err(format!("Pool {} has not been initialized", pool_address).into());
-    }
+    pool_is_initialized(config, pool_address).await?;
 
     // and... i guess thats it?
 
@@ -649,12 +638,7 @@ async fn command_update_metadata(
     );
 
     // we always need the vote account
-    let vote_account_address =
-        if let Some(pool_data) = config.program_client.get_account(pool_address).await? {
-            try_from_slice_unchecked::<SinglePool>(&pool_data.data)?.vote_account_address
-        } else {
-            return Err(format!("Pool {} has not been initialized", pool_address).into());
-        };
+    let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
 
     if let Some(vote_account_data) = config
         .program_client
@@ -735,25 +719,23 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
         format!("Creating default stake account for pool {}\n", pool_address),
     );
 
-    let vote_account_address =
-        if let Some(vote_account_address) = command_config.vote_account_address {
-            vote_account_address
-        } else if let Some(pool_data) = config.program_client.get_account(pool_address).await? {
-            try_from_slice_unchecked::<SinglePool>(&pool_data.data)?.vote_account_address
-        } else {
-            return Err(format!(
-                "Cannot determine vote account address from uninitialized pool {}",
-                pool_address,
-            )
-            .into());
-        };
+    let vote_account_address = if let Some(vote_account_address) =
+        command_config.vote_account_address
+    {
+        vote_account_address
+    } else if let Ok(vote_account_address) = get_vote_address_from_pool(config, pool_address).await
+    {
+        vote_account_address
+    } else {
+        return Err(format!(
+            "Cannot determine vote account address from provided pool address {}",
+            pool_address,
+        )
+        .into());
+    };
 
     if command_config.vote_account_address.is_some()
-        && config
-            .program_client
-            .get_account(pool_address)
-            .await?
-            .is_none()
+        && pool_is_initialized(config, pool_address).await.is_err()
     {
         eprintln_display(
             config,
@@ -792,7 +774,8 @@ async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -
 
 // display stake pool(s)
 async fn command_display(config: &Config, command_config: DisplayCli) -> CommandResult {
-    if command_config.all {
+    let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
+    let pool_and_vote_addresses = if command_config.all {
         // the filter isn't necessary now but makes the cli forward-compatible
         let pools = config
             .rpc_client
@@ -808,28 +791,79 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
             )
             .await?;
 
-        let mut displays = vec![];
-        for pool in pools {
+        let mut pool_and_vote_addresses = vec![];
+        for pool in pools.into_iter() {
             let vote_account_address =
                 try_from_slice_unchecked::<SinglePool>(&pool.1.data)?.vote_account_address;
-            displays.push(get_pool_display(config, pool.0, Some(vote_account_address)).await?);
+            pool_and_vote_addresses.push((pool.0, vote_account_address));
         }
 
-        Ok(format_output(
-            config,
-            "DisplayAll".to_string(),
-            StakePoolListOutput(displays),
-        ))
+        pool_and_vote_addresses
     } else {
         let pool_address = pool_address_from_args(
             command_config.pool_address,
             command_config.vote_account_address,
         );
 
+        vec![(
+            pool_address,
+            get_vote_address_from_pool(config, pool_address).await?,
+        )]
+    };
+
+    if pool_and_vote_addresses.len() > 100 {
+        return Err(
+            "Displaying more than 100 pools is not implemented; if you see \
+            this error, feel free to open an issue in the SVSP repo."
+                .into(),
+        );
+    }
+
+    let stake_addresses = pool_and_vote_addresses
+        .iter()
+        .map(|(pool_address, _)| find_pool_stake_address(&spl_single_pool::id(), pool_address))
+        .collect::<Vec<_>>();
+
+    let available_balances =
+        quarantine::get_available_balances(config, &stake_addresses, minimum_pool_balance).await?;
+
+    let mint_addresses = pool_and_vote_addresses
+        .iter()
+        .map(|(pool_address, _)| find_pool_mint_address(&spl_single_pool::id(), pool_address))
+        .collect::<Vec<_>>();
+
+    let token_supplies = quarantine::get_token_supplies(config, &mint_addresses).await?;
+
+    let mut displays = vec![];
+    for (
+        ((pool_address, vote_account_address), (available_stake, excess_lamports)),
+        token_supply,
+    ) in pool_and_vote_addresses
+        .into_iter()
+        .zip(available_balances)
+        .zip(token_supplies)
+    {
+        displays.push(StakePoolOutput {
+            pool_address,
+            vote_account_address,
+            available_stake,
+            excess_lamports,
+            token_supply,
+            signature: None,
+        });
+    }
+
+    if command_config.all {
+        Ok(format_output(
+            config,
+            "DisplayAll".to_string(),
+            StakePoolListOutput(displays),
+        ))
+    } else {
         Ok(format_output(
             config,
             "Display".to_string(),
-            get_pool_display(config, pool_address, None).await?,
+            displays.remove(0),
         ))
     }
 }
@@ -852,20 +886,11 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
         ),
     );
 
-    if config
-        .program_client
-        .get_account(pool_address)
-        .await?
-        .is_none_or(|account| account.data.is_empty())
-    {
-        return Err(format!("Pool {} has not been initialized", pool_address).into());
-    }
+    pool_is_initialized(config, pool_address).await?;
 
-    if config
-        .program_client
-        .get_account(onramp_address)
+    if get_initialized_account(config, onramp_address)
         .await?
-        .is_some_and(|account| !account.data.is_empty())
+        .is_some()
     {
         return Err(format!(
             "Pool {} onramp {} already exists",
@@ -897,50 +922,44 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
     ))
 }
 
-async fn get_pool_display(
+async fn get_initialized_account(
+    config: &Config,
+    pubkey: Pubkey,
+) -> Result<Option<Account>, Error> {
+    Ok(config
+        .program_client
+        .get_account(pubkey)
+        .await?
+        .filter(|account| !account.data.is_empty()))
+}
+
+async fn get_vote_address_from_pool(
     config: &Config,
     pool_address: Pubkey,
-    maybe_vote_account: Option<Pubkey>,
-) -> Result<StakePoolOutput, Error> {
-    let vote_account_address = if let Some(address) = maybe_vote_account {
-        address
-    } else if let Some(pool_data) = config.program_client.get_account(pool_address).await? {
-        if let Ok(data) = try_from_slice_unchecked::<SinglePool>(&pool_data.data) {
-            data.vote_account_address
-        } else {
-            return Err(format!(
-                "Failed to parse account at {}; is this a pool?",
-                pool_address
-            )
-            .into());
-        }
-    } else {
-        return Err(format!("Pool {} does not exist", pool_address).into());
+) -> Result<Pubkey, Error> {
+    let Some(pool_account) = get_initialized_account(config, pool_address).await? else {
+        return Err(format!("Pool {} has not been initialized", pool_address).into());
     };
 
-    let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
-    let available_stake =
-        if let Some((_, stake)) = quarantine::get_stake_info(config, &pool_stake_address).await? {
-            stake.delegation.stake - quarantine::get_minimum_pool_balance(config).await?
-        } else {
-            unreachable!()
-        };
+    if pool_account.owner != spl_single_pool::id() {
+        return Err(format!("{} is not owned by the SVSP program", pool_address).into());
+    }
 
-    let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
-    let token_supply = config
-        .rpc_client
-        .get_token_supply(&pool_mint_address)
-        .await?
-        .amount
-        .parse::<u64>()?;
+    if let Ok(pool) = try_from_slice_unchecked::<SinglePool>(&pool_account.data) {
+        Ok(pool.vote_account_address)
+    } else {
+        Err(format!(
+            "{} is owned by the SVSP program but not a valid pool account",
+            pool_address
+        )
+        .into())
+    }
+}
 
-    Ok(StakePoolOutput {
-        pool_address,
-        vote_account_address,
-        available_stake,
-        token_supply,
-        signature: None,
-    })
+async fn pool_is_initialized(config: &Config, pool_address: Pubkey) -> Result<(), Error> {
+    get_vote_address_from_pool(config, pool_address)
+        .await
+        .map(|_| ())
 }
 
 async fn process_transaction(

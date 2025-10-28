@@ -9558,6 +9558,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "spl-associated-token-account-interface"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5e6bbe0794e532ac08428d3abf5bf8ae75bd81dfddd785c388e326c00c92c6f5"
+dependencies = [
+ "solana-instruction",
+ "solana-pubkey",
+]
+
+[[package]]
 name = "spl-discriminator"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9785,6 +9795,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
+ "solana-account",
  "solana-account-decoder",
  "solana-borsh 3.0.0",
  "solana-clap-v3-utils",
@@ -9812,6 +9823,7 @@ dependencies = [
  "solana-transaction",
  "solana-transaction-status",
  "solana-vote-program",
+ "spl-associated-token-account-interface",
  "spl-single-pool",
  "spl-token",
  "spl-token-client",
