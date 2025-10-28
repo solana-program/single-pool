@@ -17,7 +17,7 @@ use {
     solana_stake_interface as stake,
     solana_transaction::Transaction,
     solana_vote_program::{self as vote_program, vote_state::VoteState},
-    spl_associated_token_account::instruction::create_associated_token_account,
+    spl_associated_token_account_interface::instruction::create_associated_token_account,
     spl_single_pool::{
         self, find_default_deposit_account_address, find_pool_address, find_pool_mint_address,
         find_pool_onramp_address, find_pool_stake_address, instruction::SinglePoolInstruction,
