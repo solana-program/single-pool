@@ -47,6 +47,5 @@ solana-verify get-program-hash -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 with:
 
 ```console
-solana-verify build --library-name program
-solana-verify get-executable-hash target/deploy/spl_single_pool.so
+solana-verify build --library-name spl_single_pool
 ```
