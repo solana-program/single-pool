@@ -25,7 +25,6 @@ use {
         find_pool_address, find_pool_mint_address, find_pool_mint_authority_address,
         find_pool_mpl_authority_address, find_pool_onramp_address, find_pool_stake_address,
         find_pool_stake_authority_address, id, inline_mpl_token_metadata, instruction,
-        processor::Processor,
     },
 };
 
@@ -43,8 +42,8 @@ pub fn program_test(enable_minimum_delegation: bool) -> ProgramTest {
 
     program_test.add_upgradeable_program_to_genesis("solana_stake_program", &stake_program::id());
     program_test.add_program("mpl_token_metadata", inline_mpl_token_metadata::id(), None);
-    program_test.add_program("spl_single_pool", id(), processor!(Processor::process));
-    program_test.prefer_bpf(false);
+    program_test.add_program("spl_single_pool", id(), None);
+    program_test.prefer_bpf(true);
 
     if !enable_minimum_delegation {
         program_test.deactivate_feature(stake_raise_minimum_delegation_to_1_sol::id());
