@@ -6,9 +6,9 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{
-        instruction::InstructionError, pubkey::Pubkey, signature::Signer,
-        system_instruction::SystemError, transaction::Transaction,
+        instruction::InstructionError, pubkey::Pubkey, signature::Signer, transaction::Transaction,
     },
+    solana_system_interface::error::SystemError,
     spl_single_pool::{id, instruction},
 };
 

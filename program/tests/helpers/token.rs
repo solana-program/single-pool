@@ -11,9 +11,12 @@ use {
         signature::{Keypair, Signer},
         transaction::Transaction,
     },
-    spl_associated_token_account as atoken,
+    spl_associated_token_account_interface::instruction::create_associated_token_account,
     spl_single_pool::inline_mpl_token_metadata::pda::find_metadata_account,
-    spl_token::state::{Account, Mint},
+    spl_token_interface::{
+        self as spl_token,
+        state::{Account, Mint},
+    },
 };
 
 pub async fn create_ata(
@@ -23,12 +26,8 @@ pub async fn create_ata(
     recent_blockhash: &Hash,
     pool_mint: &Pubkey,
 ) {
-    let instruction = atoken::instruction::create_associated_token_account(
-        &payer.pubkey(),
-        owner,
-        pool_mint,
-        &spl_token::id(),
-    );
+    let instruction =
+        create_associated_token_account(&payer.pubkey(), owner, pool_mint, &spl_token::id());
     let transaction = Transaction::new_signed_with_payer(
         &[instruction],
         Some(&payer.pubkey()),

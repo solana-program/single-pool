@@ -108,7 +108,7 @@ impl From<SinglePoolError> for ProgramError {
     }
 }
 impl ToStr for SinglePoolError {
-    fn to_str<E>(&self) -> &'static str {
+    fn to_str(&self) -> &'static str {
         match self {
             SinglePoolError::InvalidPoolAccount =>
                 "Error: Provided pool account has the wrong address for its vote account, is uninitialized, \
