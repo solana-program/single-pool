@@ -8,7 +8,7 @@ use {
     solana_sdk::{program_pack::Pack, signature::Signer, transaction::Transaction},
     solana_stake_interface::program as stake_program,
     spl_single_pool::{error::SinglePoolError, id, instruction},
-    spl_token::state::Mint,
+    spl_token_interface::state::Mint,
     test_case::test_case,
 };
 

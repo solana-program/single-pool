@@ -6,15 +6,13 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{
-        account::AccountSharedData,
-        pubkey::Pubkey,
-        signature::Signer,
-        stake::{
-            stake_flags::StakeFlags,
-            state::{Delegation, Stake, StakeStateV2},
-        },
-        sysvar::{clock::Clock, stake_history::StakeHistory},
+        account::AccountSharedData, pubkey::Pubkey, signature::Signer, sysvar::clock::Clock,
         transaction::Transaction,
+    },
+    solana_stake_interface::{
+        stake_flags::StakeFlags,
+        stake_history::StakeHistory,
+        state::{Delegation, Stake, StakeStateV2},
     },
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_case,
