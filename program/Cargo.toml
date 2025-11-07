@@ -33,7 +33,7 @@ solana-system-interface  = "1.0.0"
 solana-sysvar  = "2.2"
 solana-vote-interface  = "2.2.6"
 solana-security-txt = "1.1.1"
-spl-token = { version = "8.0", features = ["no-entrypoint"] }
+spl-token = { version = "9.0", features = ["no-entrypoint"] }
 thiserror = "2.0"
 
 [dev-dependencies]
