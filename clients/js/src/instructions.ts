@@ -83,6 +83,7 @@ type DepositStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
     [
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
+      ReadonlyAccount<PoolOnRampAddress>,
       WritableAccount<PoolMintAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<PoolMintAuthorityAddress>,
@@ -102,6 +103,7 @@ type WithdrawStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
     [
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
+      ReadonlyAccount<PoolOnRampAddress>,
       WritableAccount<PoolMintAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<PoolMintAuthorityAddress>,
@@ -247,8 +249,9 @@ export async function depositStakeInstruction(
   userLamportAccount: Address,
 ): Promise<DepositStakeInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
-  const [stake, mint, stakeAuthority, mintAuthority] = await Promise.all([
+  const [stake, onramp, mint, stakeAuthority, mintAuthority] = await Promise.all([
     findPoolStakeAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
     findPoolMintAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
     findPoolMintAuthorityAddress(programAddress, pool),
@@ -261,6 +264,7 @@ export async function depositStakeInstruction(
     accounts: [
       { address: pool, role: AccountRole.READONLY },
       { address: stake, role: AccountRole.WRITABLE },
+      { address: onramp, role: AccountRole.READONLY },
       { address: mint, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: mintAuthority, role: AccountRole.READONLY },
@@ -284,8 +288,9 @@ export async function withdrawStakeInstruction(
   tokenAmount: bigint,
 ): Promise<WithdrawStakeInstruction> {
   const programAddress = SINGLE_POOL_PROGRAM_ID;
-  const [stake, mint, stakeAuthority, mintAuthority] = await Promise.all([
+  const [stake, onramp, mint, stakeAuthority, mintAuthority] = await Promise.all([
     findPoolStakeAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
     findPoolMintAddress(programAddress, pool),
     findPoolStakeAuthorityAddress(programAddress, pool),
     findPoolMintAuthorityAddress(programAddress, pool),
@@ -303,6 +308,7 @@ export async function withdrawStakeInstruction(
     accounts: [
       { address: pool, role: AccountRole.READONLY },
       { address: stake, role: AccountRole.WRITABLE },
+      { address: onramp, role: AccountRole.READONLY },
       { address: mint, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: mintAuthority, role: AccountRole.READONLY },
