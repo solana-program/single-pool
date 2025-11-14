@@ -10733,7 +10733,7 @@ dependencies = [
  "solana-remote-wallet",
  "solana-rent 2.2.1",
  "solana-sdk-ids 2.2.1",
- "solana-signature 2.3.0",
+ "solana-signature 3.1.0",
  "solana-signer 2.2.1",
  "solana-stake-interface 1.2.1",
  "solana-stake-program 3.0.10",
