@@ -832,7 +832,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -10684,7 +10684,7 @@ dependencies = [
  "solana-instruction 2.3.0",
  "solana-msg 3.0.0",
  "solana-native-token 3.0.0",
- "solana-program-entrypoint 2.3.0",
+ "solana-program-entrypoint 3.1.0",
  "solana-program-error 2.2.2",
  "solana-program-pack",
  "solana-program-test",
