@@ -832,7 +832,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115e54d64eb62cdebad391c19efc9dce4981c690c85a33a12199d99bb9546fee"
 dependencies = [
  "borsh-derive 0.10.4",
- "hashbrown 0.13.2",
+ "hashbrown 0.12.3",
 ]
 
 [[package]]
@@ -10668,7 +10668,7 @@ dependencies = [
 name = "spl-single-pool"
 version = "3.0.1"
 dependencies = [
- "agave-feature-set 2.3.4",
+ "agave-feature-set 3.0.10",
  "approx",
  "arrayref",
  "bincode",
@@ -10707,7 +10707,7 @@ dependencies = [
 name = "spl-single-pool-cli"
 version = "3.0.0"
 dependencies = [
- "agave-feature-set 2.3.4",
+ "agave-feature-set 3.0.10",
  "bincode",
  "borsh 1.5.7",
  "clap 3.2.25",
