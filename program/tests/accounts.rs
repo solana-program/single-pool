@@ -5,7 +5,6 @@ mod helpers;
 
 use {
     helpers::*,
-    solana_instruction::AccountMeta,
     solana_program_test::*,
     solana_pubkey::pubkey,
     solana_sdk::{
@@ -36,7 +35,7 @@ async fn build_instructions(
     context: &mut ProgramTestContext,
     accounts: &SinglePoolAccounts,
     test_mode: TestMode,
-    include_onramp: bool,
+    remove_onramp: bool,
 ) -> (Vec<Instruction>, usize) {
     let initialize_instructions = if test_mode == TestMode::Initialize {
         let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
@@ -131,29 +130,15 @@ async fn build_instructions(
         vec![]
     };
 
-    if include_onramp {
+    if remove_onramp {
         let instruction = match test_mode {
             TestMode::Deposit => deposit_instructions.last_mut().unwrap(),
             TestMode::Withdraw => withdraw_instructions.last_mut().unwrap(),
             TestMode::Initialize => unreachable!(),
         };
 
-        if instruction.accounts[2].pubkey == accounts.mint {
-            instruction.accounts.insert(
-                2,
-                AccountMeta {
-                    pubkey: accounts.onramp_account,
-                    is_writable: false,
-                    is_signer: false,
-                },
-            );
-        } else {
-            panic!(
-                "this test enforces forwards-compat pre-instruction builder change. \
-                    if you are adding onramp to builders, refactor `include_onramp` to \
-                    be an `exclude_onramp` and test backwards-compat instead"
-            );
-        }
+        assert_eq!(instruction.accounts[2].pubkey, accounts.onramp_account);
+        instruction.accounts.remove(2);
     }
 
     // ints hardcoded to guard against instructions moving with code changes
@@ -172,16 +157,16 @@ async fn build_instructions(
 
 // test that account addresses are checked properly
 #[test_case(TestMode::Initialize, false; "initialize")]
-#[test_case(TestMode::Deposit, false; "deposit_legacy")]
-#[test_case(TestMode::Withdraw, false; "withdraw_legacy")]
-#[test_case(TestMode::Deposit, true; "deposit_onramp")]
-#[test_case(TestMode::Withdraw, true; "withdraw_onramp")]
+#[test_case(TestMode::Deposit, true; "deposit_legacy")]
+#[test_case(TestMode::Withdraw, true; "withdraw_legacy")]
+#[test_case(TestMode::Deposit, false; "deposit_onramp")]
+#[test_case(TestMode::Withdraw, false; "withdraw_onramp")]
 #[tokio::test]
-async fn fail_account_checks(test_mode: TestMode, include_onramp: bool) {
+async fn fail_account_checks(test_mode: TestMode, remove_onramp: bool) {
     let mut context = program_test(false).start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     let (instructions, i) =
-        build_instructions(&mut context, &accounts, test_mode, include_onramp).await;
+        build_instructions(&mut context, &accounts, test_mode, remove_onramp).await;
     let bad_pubkey = pubkey!("BAD1111111111111111111111111111111111111111");
 
     for j in 0..instructions[i].accounts.len() {
@@ -195,8 +180,7 @@ async fn fail_account_checks(test_mode: TestMode, include_onramp: bool) {
 
         // while onramp is optional, an incorrect onramp misaligns all subsequent accounts
         // this is not a problem for the program and causes the mint to fail to validate, but requires tweaking this test
-        // NOTE once deposit/withdraw require onramp, delete this block
-        if include_onramp && instruction_pubkey == accounts.pool {
+        if !remove_onramp && instruction_pubkey == accounts.pool {
             if let Some(onramp_account) = instructions[i]
                 .accounts
                 .iter_mut()

@@ -315,6 +315,7 @@ pub fn deposit_stake(
     let accounts = vec![
         AccountMeta::new_readonly(*pool_address, false),
         AccountMeta::new(find_pool_stake_address(program_id, pool_address), false),
+        AccountMeta::new_readonly(find_pool_onramp_address(program_id, pool_address), false),
         AccountMeta::new(find_pool_mint_address(program_id, pool_address), false),
         AccountMeta::new_readonly(
             find_pool_stake_authority_address(program_id, pool_address),
@@ -393,6 +394,7 @@ pub fn withdraw_stake(
     let accounts = vec![
         AccountMeta::new_readonly(*pool_address, false),
         AccountMeta::new(find_pool_stake_address(program_id, pool_address), false),
+        AccountMeta::new_readonly(find_pool_onramp_address(program_id, pool_address), false),
         AccountMeta::new(find_pool_mint_address(program_id, pool_address), false),
         AccountMeta::new_readonly(
             find_pool_stake_authority_address(program_id, pool_address),
