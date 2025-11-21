@@ -15,9 +15,9 @@ use {
     solana_program_pack::Pack,
     solana_pubkey::Pubkey,
     solana_rent::Rent,
-    solana_stake_interface as stake,
+    solana_stake_interface::{self as stake, sysvar::stake_history},
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_sysvar as sysvar,
+    solana_sysvar as sysvar, spl_token_interface as spl_token,
 };
 
 /// Instructions supported by the `SinglePool` program.
@@ -223,7 +223,7 @@ pub fn initialize_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> In
         ),
         AccountMeta::new_readonly(sysvar::rent::id(), false),
         AccountMeta::new_readonly(sysvar::clock::id(), false),
-        AccountMeta::new_readonly(sysvar::stake_history::id(), false),
+        AccountMeta::new_readonly(stake_history::id(), false),
         #[allow(deprecated)]
         AccountMeta::new_readonly(stake::config::id(), false),
         AccountMeta::new_readonly(system_program::id(), false),
@@ -253,7 +253,7 @@ pub fn replenish_pool(program_id: &Pubkey, vote_account_address: &Pubkey) -> Ins
             false,
         ),
         AccountMeta::new_readonly(sysvar::clock::id(), false),
-        AccountMeta::new_readonly(sysvar::stake_history::id(), false),
+        AccountMeta::new_readonly(stake_history::id(), false),
         #[allow(deprecated)]
         AccountMeta::new_readonly(stake::config::id(), false),
         AccountMeta::new_readonly(stake::program::id(), false),
@@ -329,7 +329,7 @@ pub fn deposit_stake(
         AccountMeta::new(*user_token_account, false),
         AccountMeta::new(*user_lamport_account, false),
         AccountMeta::new_readonly(sysvar::clock::id(), false),
-        AccountMeta::new_readonly(sysvar::stake_history::id(), false),
+        AccountMeta::new_readonly(stake_history::id(), false),
         AccountMeta::new_readonly(spl_token::id(), false),
         AccountMeta::new_readonly(stake::program::id(), false),
     ];
