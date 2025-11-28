@@ -37,7 +37,7 @@ spl-token = { version = "8.0", features = ["no-entrypoint"] }
 thiserror = "2.0"
 
 [dev-dependencies]
-agave-feature-set = "2.2"
+agave-feature-set = "3.0"
 solana-program-test = "2.3.4"
 solana-sdk = "2.2"
 spl-associated-token-account = { version = "7.0.0", features = ["no-entrypoint"] }
