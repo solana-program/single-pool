@@ -8,7 +8,7 @@ use {
     solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
     solana_stake_interface::state::{Authorized, Lockup},
     solana_system_interface::instruction as system_instruction,
-    spl_associated_token_account_client::address as atoken,
+    spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_case,
 };
@@ -320,8 +320,7 @@ async fn fail_uninitialized(activate: bool) {
     )
     .await;
 
-    let token_account =
-        atoken::get_associated_token_address(&context.payer.pubkey(), &accounts.mint);
+    let token_account = get_associated_token_address(&context.payer.pubkey(), &accounts.mint);
 
     create_independent_stake_account(
         &mut context.banks_client,
