@@ -1,4 +1,5 @@
 #![allow(clippy::arithmetic_side_effects)]
+#![allow(clippy::uninlined_format_args)]
 
 use {
     clap::{ArgMatches, CommandFactory, Parser},
@@ -16,7 +17,7 @@ use {
     solana_signer::Signer,
     solana_stake_interface as stake,
     solana_transaction::Transaction,
-    solana_vote_program::{self as vote_program, vote_state::VoteState},
+    solana_vote_program::{self as vote_program, vote_state::VoteStateV4},
     spl_associated_token_account_interface::instruction::create_associated_token_account,
     spl_single_pool::{
         self, find_pool_address, find_pool_mint_address, find_pool_onramp_address,
@@ -117,7 +118,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     match get_initialized_account(config, vote_account_address).await? {
         Some(vote_account)
             if vote_account.owner == vote_program::id()
-                && VoteState::deserialize(&vote_account.data).is_ok() => {}
+                && VoteStateV4::deserialize(&vote_account.data, &vote_account_address).is_ok() => {}
         _ => return Err(format!("{} is not a valid vote account", vote_account_address).into()),
     }
 
@@ -645,7 +646,8 @@ async fn command_update_metadata(
         .get_account(vote_account_address)
         .await?
     {
-        let vote_account = VoteState::deserialize(&vote_account_data.data)?;
+        let vote_account =
+            VoteStateV4::deserialize(&vote_account_data.data, &vote_account_address)?;
 
         if authorized_withdrawer.pubkey() != vote_account.authorized_withdrawer {
             return Err(format!(
@@ -777,6 +779,7 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
     let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
     let pool_and_vote_addresses = if command_config.all {
         // the filter isn't necessary now but makes the cli forward-compatible
+        #[allow(deprecated)]
         let pools = config
             .rpc_client
             .get_program_accounts_with_config(

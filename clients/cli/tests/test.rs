@@ -21,7 +21,7 @@ use {
     solana_transaction::Transaction,
     solana_vote_program::{
         vote_instruction::{self, CreateVoteAccountConfig},
-        vote_state::{VoteInit, VoteState},
+        vote_state::{VoteInit, VoteStateV4},
     },
     spl_single_pool::{
         id,
@@ -126,7 +126,7 @@ async fn start_validator(raise_minimum_delegation: bool) -> (TestValidator, Keyp
 
 async fn wait_for_next_epoch(rpc_client: &RpcClient) -> Epoch {
     let current_epoch = rpc_client.get_epoch_info().await.unwrap().epoch;
-    println!("current epoch {}, advancing to next...", current_epoch);
+    println!("current epoch {current_epoch}, advancing to next...");
     loop {
         let epoch_info = rpc_client.get_epoch_info().await.unwrap();
         if epoch_info.epoch > current_epoch && epoch_info.slot_index > 0 {
@@ -152,7 +152,7 @@ async fn create_vote_account(
         .unwrap();
 
     let vote_rent = rpc_client
-        .get_minimum_balance_for_rent_exemption(VoteState::size_of() * 2)
+        .get_minimum_balance_for_rent_exemption(VoteStateV4::size_of() * 2)
         .await
         .unwrap();
 
@@ -176,7 +176,7 @@ async fn create_vote_account(
         },
         vote_rent,
         CreateVoteAccountConfig {
-            space: VoteState::size_of() as u64,
+            space: VoteStateV4::size_of() as u64,
             ..Default::default()
         },
     ));

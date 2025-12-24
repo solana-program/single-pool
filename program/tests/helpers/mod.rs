@@ -1,4 +1,5 @@
 #![allow(dead_code)] // needed because cargo doesn't understand test usage
+#![allow(clippy::uninlined_format_args)]
 
 use {
     agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
@@ -18,14 +19,15 @@ use {
     solana_system_interface::{instruction as system_instruction, program as system_program},
     solana_vote_interface::{
         instruction as vote_instruction,
-        state::{VoteInit, VoteState},
+        state::{VoteInit, VoteStateV4},
     },
-    spl_associated_token_account_client::address as atoken,
+    spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{
         find_pool_address, find_pool_mint_address, find_pool_mint_authority_address,
         find_pool_mpl_authority_address, find_pool_onramp_address, find_pool_stake_address,
         find_pool_stake_authority_address, id, inline_mpl_token_metadata, instruction,
     },
+    spl_token_interface as spl_token,
 };
 
 pub mod token;
@@ -324,8 +326,8 @@ impl Default for SinglePoolAccounts {
             vote_account,
             alice_stake: Keypair::new(),
             bob_stake: Keypair::new(),
-            alice_token: atoken::get_associated_token_address(&alice.pubkey(), &mint),
-            bob_token: atoken::get_associated_token_address(&bob.pubkey(), &mint),
+            alice_token: get_associated_token_address(&alice.pubkey(), &mint),
+            bob_token: get_associated_token_address(&bob.pubkey(), &mint),
             alice,
             bob,
             token_program_id: spl_token::id(),
@@ -365,7 +367,7 @@ pub async fn create_vote(
     vote_account: &Keypair,
 ) {
     let rent = banks_client.get_rent().await.unwrap();
-    let rent_voter = rent.minimum_balance(VoteState::size_of());
+    let rent_voter = rent.minimum_balance(VoteStateV4::size_of());
 
     let mut instructions = vec![system_instruction::create_account(
         &payer.pubkey(),
@@ -385,7 +387,7 @@ pub async fn create_vote(
         },
         rent_voter,
         vote_instruction::CreateVoteAccountConfig {
-            space: VoteState::size_of() as u64,
+            space: VoteStateV4::size_of() as u64,
             ..Default::default()
         },
     ));
