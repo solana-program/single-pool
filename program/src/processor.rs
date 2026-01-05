@@ -19,7 +19,7 @@ use {
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
     solana_borsh::v1::{get_packed_len, try_from_slice_unchecked},
-    solana_clock::Epoch,
+    solana_clock::{Clock, Epoch},
     solana_cpi::invoke_signed,
     solana_msg::msg,
     solana_native_token::LAMPORTS_PER_SOL,
@@ -31,11 +31,12 @@ use {
     solana_stake_interface::{
         self as stake,
         state::{Meta, Stake, StakeActivationStatus, StakeStateV2},
+        sysvar::stake_history::StakeHistorySysvar,
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_sysvar::{clock::Clock, stake_history::StakeHistorySysvar, Sysvar},
+    solana_sysvar::SysvarSerialize,
     solana_vote_interface::program as vote_program,
-    spl_token::state::Mint,
+    spl_token_interface::{self as spl_token, state::Mint},
 };
 
 /// Calculate pool tokens to mint, given outstanding token supply, pool active
@@ -248,8 +249,9 @@ fn check_vote_account(vote_account_info: &AccountInfo) -> Result<(), ProgramErro
         .and_then(|s| s.try_into().ok())
         .ok_or(SinglePoolError::UnparseableVoteAccount)?;
 
+    #[allow(clippy::manual_range_patterns)]
     match u32::from_le_bytes(state_variant) {
-        1 | 2 => Ok(()),
+        1 | 2 | 3 => Ok(()),
         0 => Err(SinglePoolError::LegacyVoteAccount.into()),
         _ => Err(SinglePoolError::UnparseableVoteAccount.into()),
     }
@@ -1635,8 +1637,7 @@ mod tests {
     #[test_case(rand::random(), true, true; "no_minimum")]
     fn random_deposit_withdraw(seed: u64, with_rewards: bool, no_minimum: bool) {
         println!(
-            "TEST SEED: {}. edit the test case to pass this value if needed to debug failures",
-            seed
+            "TEST SEED: {seed}. edit the test case to pass this value if needed to debug failures",
         );
         let mut prng = rand::rngs::StdRng::seed_from_u64(seed);
 

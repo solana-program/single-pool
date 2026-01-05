@@ -7,7 +7,6 @@ use {
     solana_account_info::AccountInfo,
     solana_msg::msg,
     solana_program_entrypoint::{entrypoint, ProgramResult},
-    solana_program_error::ToStr,
     solana_pubkey::Pubkey,
     solana_security_txt::security_txt,
 };
