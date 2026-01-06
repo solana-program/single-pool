@@ -9116,24 +9116,23 @@ dependencies = [
 
 [[package]]
 name = "solana-stake-program"
-version = "3.1.5"
+version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af8297d8e3e97708fac54d4fad9bb9d31aa1de2f084e347f14f5e63a576f955c"
+checksum = "e2ffb723f5c2aae1b26a69148b3bfe82ffa4918ae7491dcc347436592b42158d"
 dependencies = [
- "agave-feature-set",
  "bincode",
- "log",
- "solana-account",
+ "solana-account-info",
  "solana-clock",
- "solana-config-interface",
- "solana-genesis-config",
+ "solana-cpi",
+ "solana-instruction-error",
+ "solana-msg",
  "solana-native-token",
+ "solana-program-entrypoint",
+ "solana-program-error",
  "solana-pubkey 3.0.0",
  "solana-rent",
- "solana-sdk-ids",
  "solana-stake-interface",
  "solana-sysvar",
- "solana-transaction-context",
  "solana-vote-interface 4.0.4",
 ]
 
