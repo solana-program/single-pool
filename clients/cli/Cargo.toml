@@ -15,7 +15,7 @@ clap = { version = "3.2.25", features = ["derive"] }
 console = "0.16.1"
 serde = "1.0.228"
 serde_derive = "1.0.228"
-serde_json = "1.0.145"
+serde_json = "1.0.149"
 serde_with = "3.16.1"
 solana-account = "3.2"
 solana-account-decoder = "3.1.3"
