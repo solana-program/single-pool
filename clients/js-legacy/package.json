@@ -27,7 +27,7 @@
     "./dist/types"
   ],
   "devDependencies": {
-    "@types/node": "^25.1.0",
+    "@types/node": "^25.2.0",
     "@ava/typescript": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.54.0",
     "ava": "^6.4.1",
