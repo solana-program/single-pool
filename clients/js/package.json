@@ -30,7 +30,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@solana/addresses": "5.5.1",
+    "@solana/addresses": "6.0.0",
     "@solana/instructions": "2.3.0",
     "@solana/transaction-messages": "2.2.1"
   }
