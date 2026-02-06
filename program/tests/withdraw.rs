@@ -24,7 +24,7 @@ async fn success(
     other_user_deposits: bool,
     small_withdrawal: bool,
 ) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -149,12 +149,19 @@ async fn success(
     );
 }
 
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+)]
 #[tokio::test]
-async fn success_with_rewards() {
+async fn success_with_rewards(stake_version: StakeProgramVersion) {
     let alice_deposit = TEST_STAKE_AMOUNT;
     let bob_deposit = TEST_STAKE_AMOUNT * 3;
 
-    let mut context = program_test(false).start_with_context().await;
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let minimum_pool_balance = accounts
         .initialize_for_withdraw(&mut context, alice_deposit, Some(bob_deposit), true)

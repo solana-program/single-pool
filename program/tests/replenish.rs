@@ -47,7 +47,7 @@ async fn reactivate_success(
     reactivate_pool: bool,
     fund_onramp: bool,
 ) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -213,7 +213,7 @@ async fn move_value_success(
         _ => (),
     };
 
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -375,7 +375,7 @@ async fn move_value_success(
 )]
 #[tokio::test]
 async fn move_value_deactivating(stake_version: StakeProgramVersion) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -439,7 +439,7 @@ async fn move_value_deactivating(stake_version: StakeProgramVersion) {
 )]
 #[tokio::test]
 async fn fail_onramp_doesnt_exist(stake_version: StakeProgramVersion, activate: bool) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;

@@ -173,7 +173,7 @@ async fn fail_account_checks(
         return;
     }
 
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;

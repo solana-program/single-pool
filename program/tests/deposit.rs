@@ -33,7 +33,7 @@ async fn success(
     prior_deposit: bool,
     small_deposit: bool,
 ) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -198,7 +198,7 @@ async fn success_with_seed(
     activate: bool,
     small_deposit: bool,
 ) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -305,7 +305,7 @@ async fn success_with_seed(
 )]
 #[tokio::test]
 async fn fail_uninitialized(stake_version: StakeProgramVersion, activate: bool) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -396,7 +396,7 @@ async fn fail_bad_account(
     activate: bool,
     deposit_source: BadDeposit,
 ) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
@@ -483,7 +483,7 @@ async fn fail_bad_account(
 )]
 #[tokio::test]
 async fn fail_activation_mismatch(stake_version: StakeProgramVersion, pool_first: bool) {
-    let Some(program_test) = hana_program_test(stake_version) else {
+    let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
