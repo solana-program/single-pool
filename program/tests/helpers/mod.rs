@@ -2,7 +2,6 @@
 #![allow(clippy::uninlined_format_args)]
 
 use {
-    agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
     solana_program_test::*,
     solana_sdk::{
         account::Account as SolanaAccount,
