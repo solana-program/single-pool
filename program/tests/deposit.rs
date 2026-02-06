@@ -10,38 +10,34 @@ use {
     solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
-    test_case::test_case,
+    test_case::test_matrix,
 };
 
 #[allow(deprecated)]
 use spl_single_pool::find_default_deposit_account_address;
 
-#[test_case(true, 0, 0, false, false, false; "activated::minimum_disabled")]
-#[test_case(true, 0, 0, false, false, true; "activated::minimum_disabled::small")]
-#[test_case(true, 0, 0, false, true, false; "activated::minimum_enabled")]
-#[test_case(false, 0, 0, false, false, false; "activating::minimum_disabled")]
-#[test_case(false, 0, 0, false, false, true; "activating::minimum_disabled::small")]
-#[test_case(false, 0, 0, false, true, false; "activating::minimum_enabled")]
-#[test_case(true, 100_000, 0, false, false, false; "activated::extra_none")]
-#[test_case(false, 100_000, 0, false, false, false; "activating::extra_none")]
-#[test_case(true, 0, 100_000, false, false, false; "activated::none_extra")]
-#[test_case(false, 0, 100_000, false, false, false; "activating::none_extra")]
-#[test_case(true, 100_000, 100_000, false, false, false; "activated::extra_extra")]
-#[test_case(false, 100_000, 100_000, false, false, false; "activating::extra_extra")]
-#[test_case(true, 0, 0, true, false, false; "activated::second")]
-#[test_case(false, 0, 0, true, false, false; "activating::second")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [false, true],
+    [0, 100_000],
+    [0, 100_000],
+    [false, true],
+    [false, true]
+)]
 #[tokio::test]
 async fn success(
+    stake_version: StakeProgramVersion,
     activate: bool,
     pool_extra_lamports: u64,
     alice_extra_lamports: u64,
     prior_deposit: bool,
-    enable_minimum_delegation: bool,
     small_deposit: bool,
 ) {
-    let mut context = program_test(enable_minimum_delegation)
-        .start_with_context()
-        .await;
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(
@@ -191,17 +187,22 @@ async fn success(
     );
 }
 
-#[test_case(true, false, false; "activated::minimum_disabled")]
-#[test_case(true, false, true; "activated::minimum_disabled::small")]
-#[test_case(true, true, false; "activated::minimum_enabled")]
-#[test_case(false, false, false; "activating::minimum_disabled")]
-#[test_case(false, false, true; "activating::minimum_disabled::small")]
-#[test_case(false, true, false; "activating::minimum_enabled")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [false, true],
+    [false, true]
+)]
 #[tokio::test]
-async fn success_with_seed(activate: bool, enable_minimum_delegation: bool, small_deposit: bool) {
-    let mut context = program_test(enable_minimum_delegation)
-        .start_with_context()
-        .await;
+async fn success_with_seed(
+    stake_version: StakeProgramVersion,
+    activate: bool,
+    small_deposit: bool,
+) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let rent = context.banks_client.get_rent().await.unwrap();
     let minimum_stake = accounts.initialize(&mut context).await;
@@ -298,11 +299,17 @@ async fn success_with_seed(activate: bool, enable_minimum_delegation: bool, smal
     );
 }
 
-#[test_case(true; "activated")]
-#[test_case(false; "activating")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [false, true]
+)]
 #[tokio::test]
-async fn fail_uninitialized(activate: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_uninitialized(stake_version: StakeProgramVersion, activate: bool) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let stake_account = Keypair::new();
 
@@ -378,14 +385,22 @@ enum BadDeposit {
     Onramp,
 }
 
-#[test_case(true, BadDeposit::User; "activated::unauth")]
-#[test_case(false, BadDeposit::User; "activating::unauth")]
-#[test_case(true, BadDeposit::Pool; "activated::pool")]
-#[test_case(false, BadDeposit::Pool; "activating::pool")]
-#[test_case(true, BadDeposit::Onramp; "activated::onramp")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [false, true],
+    [BadDeposit::User, BadDeposit::Pool, BadDeposit::Onramp]
+)]
 #[tokio::test]
-async fn fail_bad_account(activate: bool, deposit_source: BadDeposit) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_bad_account(
+    stake_version: StakeProgramVersion,
+    activate: bool,
+    deposit_source: BadDeposit,
+) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
@@ -462,11 +477,17 @@ async fn fail_bad_account(activate: bool, deposit_source: BadDeposit) {
     }
 }
 
-#[test_case(true; "pool_active")]
-#[test_case(false; "user_active")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [false, true]
+)]
 #[tokio::test]
-async fn fail_activation_mismatch(pool_first: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_activation_mismatch(stake_version: StakeProgramVersion, pool_first: bool) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
 
     let minimum_pool_balance = get_minimum_pool_balance(
