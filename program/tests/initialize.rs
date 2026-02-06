@@ -9,16 +9,19 @@ use {
     solana_stake_interface::program as stake_program,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     spl_token_interface::state::Mint,
-    test_case::test_case,
+    test_case::test_matrix,
 };
 
-#[test_case(true; "minimum_enabled")]
-#[test_case(false; "minimum_disabled")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+)]
 #[tokio::test]
-async fn success(enable_minimum_delegation: bool) {
-    let mut context = program_test(enable_minimum_delegation)
-        .start_with_context()
-        .await;
+async fn success(stake_version: StakeProgramVersion) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts.initialize(&mut context).await;
 
@@ -33,7 +36,7 @@ async fn success(enable_minimum_delegation: bool) {
 
 #[tokio::test]
 async fn fail_double_init() {
-    let mut context = program_test(false).start_with_context().await;
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     let minimum_pool_balance = accounts.initialize(&mut context).await;
     refresh_blockhash(&mut context).await;
@@ -61,13 +64,16 @@ async fn fail_double_init() {
     check_error(e, SinglePoolError::PoolAlreadyInitialized);
 }
 
-#[test_case(true; "minimum_enabled")]
-#[test_case(false; "minimum_disabled")]
+#[test_matrix(
+    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+)]
 #[tokio::test]
-async fn fail_below_pool_minimum(enable_minimum_delegation: bool) {
-    let mut context = program_test(enable_minimum_delegation)
-        .start_with_context()
-        .await;
+async fn fail_below_pool_minimum(stake_version: StakeProgramVersion) {
+    let Some(program_test) = hana_program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
     context.warp_to_slot(slot).unwrap();

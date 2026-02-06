@@ -76,10 +76,15 @@ pub fn hana_program_test(stake_version: StakeProgramVersion) -> Option<ProgramTe
     Some(program_test)
 }
 
+pub fn program_test_live() -> ProgramTest {
+    hana_program_test(StakeProgramVersion::Live).unwrap()
+}
+
 pub fn program_test(enable_minimum_delegation: bool) -> ProgramTest {
     let mut program_test = ProgramTest::default();
 
-    program_test.add_upgradeable_program_to_genesis("solana_stake_program", &stake_program::id());
+    program_test
+        .add_upgradeable_program_to_genesis("solana_stake_program-v1.0.0", &stake_program::id());
     program_test.add_program("mpl_token_metadata", inline_mpl_token_metadata::id(), None);
     program_test.add_program("spl_single_pool", id(), None);
     program_test.prefer_bpf(true);
