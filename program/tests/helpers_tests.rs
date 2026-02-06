@@ -10,7 +10,7 @@ fn test_program_versions() {
             return;
         };
 
-        let path = Path::new("tests/fixtures").join(format!("{}.so", basename));
+        let path = Path::new("tests/fixtures").join(format!("{basename}.so"));
         assert!(path.exists());
     }
 }

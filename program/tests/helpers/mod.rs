@@ -1,4 +1,5 @@
 #![allow(dead_code)] // needed because cargo doesn't understand test usage
+#![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::uninlined_format_args)]
 
 use {
