@@ -15,7 +15,7 @@ const UPDATED_URI: &str = "updated_uri";
 
 #[tokio::test]
 async fn success_update_pool_token_metadata() {
-    let mut context = program_test(false).start_with_context().await;
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts.initialize(&mut context).await;
 
@@ -50,7 +50,7 @@ async fn success_update_pool_token_metadata() {
 
 #[tokio::test]
 async fn fail_no_signature() {
-    let mut context = program_test(false).start_with_context().await;
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts.initialize(&mut context).await;
 
@@ -91,7 +91,7 @@ enum BadWithdrawer {
 #[test_case(BadWithdrawer::VoteAccount; "vote_account")]
 #[tokio::test]
 async fn fail_bad_withdrawer(withdrawer_type: BadWithdrawer) {
-    let mut context = program_test(false).start_with_context().await;
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts.initialize(&mut context).await;
 
