@@ -13,7 +13,7 @@ use {
 };
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
 )]
 #[tokio::test]
 async fn success(stake_version: StakeProgramVersion) {
@@ -65,7 +65,7 @@ async fn fail_double_init() {
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
 )]
 #[tokio::test]
 async fn fail_below_pool_minimum(stake_version: StakeProgramVersion) {

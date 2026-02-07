@@ -44,12 +44,14 @@ pub const USER_STARTING_LAMPORTS: u64 = 10_000_000_000_000; // 10k sol
 // we provide three enum variants, which remain static, and optionally resolve to binary basenames
 // tests are written to try all three variants and ignore the ones that dont resolve
 // thus, when rolling new stake program versions, one just adds, removes, or changes basename strings
-// we must always have a Live version, but there may genuinely be no Upcoming or Testing versions
+// we must always have a Stable version. there may or may not be a Beta version, depending on release plans
+// Edge is not intended to be updated with every BPF Stake commit and probably should almost always be None
+// it is intended for if we have two in-flight releases, or a convenient slot for local testing
 #[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter)]
 pub enum StakeProgramVersion {
-    Live,
-    Upcoming,
-    Testing,
+    Stable,
+    Beta,
+    Edge,
 }
 
 impl StakeProgramVersion {
@@ -57,9 +59,9 @@ impl StakeProgramVersion {
     // whereas `solana_stake_program-v1.2.3` is the verified build that is on or will go to chain
     pub fn basename(self) -> Option<&'static str> {
         match self {
-            Self::Live => Some("solana_stake_program-v1.0.0"),
-            Self::Upcoming => Some("solana_stake_program-v4.0.0-RC"),
-            Self::Testing => None,
+            Self::Stable => Some("solana_stake_program-v1.0.0"),
+            Self::Beta => Some("solana_stake_program-v4.0.0-RC"),
+            Self::Edge => None,
         }
     }
 }
@@ -77,7 +79,7 @@ pub fn program_test(stake_version: StakeProgramVersion) -> Option<ProgramTest> {
 }
 
 pub fn program_test_live() -> ProgramTest {
-    program_test(StakeProgramVersion::Live).unwrap()
+    program_test(StakeProgramVersion::Stable).unwrap()
 }
 
 #[derive(Debug, PartialEq)]

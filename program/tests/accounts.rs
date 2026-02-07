@@ -158,7 +158,7 @@ async fn build_instructions(
 
 // test that account addresses are checked properly
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [TestMode::Initialize, TestMode::Deposit, TestMode::Withdraw],
     [false, true]
 )]

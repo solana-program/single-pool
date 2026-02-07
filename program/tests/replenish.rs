@@ -37,7 +37,7 @@ async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [false, true]
 )]
@@ -197,7 +197,7 @@ enum OnRampState {
 // active/move: onramp stake can be moved back into pool *and* pool lamports can be delegated in onramp
 // deactive/move: same as the initialized case, but if onramp was deactivated
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [OnRampState::Initialized, OnRampState::Activating, OnRampState::Active, OnRampState::Deactive],
     [false, true]
 )]
@@ -371,7 +371,7 @@ async fn move_value_success(
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
 )]
 #[tokio::test]
 async fn move_value_deactivating(stake_version: StakeProgramVersion) {
@@ -434,7 +434,7 @@ async fn move_value_deactivating(stake_version: StakeProgramVersion) {
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true]
 )]
 #[tokio::test]

@@ -17,7 +17,7 @@ use {
 use spl_single_pool::find_default_deposit_account_address;
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [0, 100_000],
     [0, 100_000],
@@ -188,7 +188,7 @@ async fn success(
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [false, true]
 )]
@@ -300,7 +300,7 @@ async fn success_with_seed(
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true]
 )]
 #[tokio::test]
@@ -386,7 +386,7 @@ enum BadDeposit {
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [BadDeposit::User, BadDeposit::Pool, BadDeposit::Onramp]
 )]
@@ -478,7 +478,7 @@ async fn fail_bad_account(
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true]
 )]
 #[tokio::test]

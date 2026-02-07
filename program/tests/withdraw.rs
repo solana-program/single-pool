@@ -10,7 +10,7 @@ use {
 };
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing],
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [0, 100_000],
     [false, true],
@@ -150,7 +150,7 @@ async fn success(
 }
 
 #[test_matrix(
-    [StakeProgramVersion::Live, StakeProgramVersion::Upcoming, StakeProgramVersion::Testing]
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
 )]
 #[tokio::test]
 async fn success_with_rewards(stake_version: StakeProgramVersion) {

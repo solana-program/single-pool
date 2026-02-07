@@ -15,8 +15,8 @@ fn test_program_versions() {
     }
 }
 
-// sanity: there always a Live program. otherwise, we might "pass" by skipping all tests
+// sanity: there always a Stable program. otherwise, we might "pass" by skipping all tests
 #[test]
 fn test_live_program() {
-    assert!(StakeProgramVersion::Live.basename().is_some());
+    assert!(StakeProgramVersion::Stable.basename().is_some());
 }
