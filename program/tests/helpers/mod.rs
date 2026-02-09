@@ -1,8 +1,8 @@
 #![allow(dead_code)] // needed because cargo doesn't understand test usage
+#![allow(clippy::arithmetic_side_effects)]
 #![allow(clippy::uninlined_format_args)]
 
 use {
-    agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
     solana_program_test::*,
     solana_sdk::{
         account::Account as SolanaAccount,
@@ -28,6 +28,7 @@ use {
         find_pool_stake_authority_address, id, inline_mpl_token_metadata, instruction,
     },
     spl_token_interface as spl_token,
+    strum_macros::EnumIter,
 };
 
 pub mod token;
@@ -39,19 +40,46 @@ pub use stake::*;
 pub const FIRST_NORMAL_EPOCH: u64 = 15;
 pub const USER_STARTING_LAMPORTS: u64 = 10_000_000_000_000; // 10k sol
 
-pub fn program_test(enable_minimum_delegation: bool) -> ProgramTest {
-    let mut program_test = ProgramTest::default();
+// this is a convenience to test multiple versions that regularly change without updating test cases
+// we provide three enum variants, which remain static, and optionally resolve to binary basenames
+// tests are written to try all three variants and ignore the ones that dont resolve
+// thus, when rolling new stake program versions, one just adds, removes, or changes basename strings
+// we must always have a Stable version. there may or may not be a Beta version, depending on release plans
+// Edge is not intended to be updated with every BPF Stake commit and probably should almost always be None
+// it is intended for if we have two in-flight releases, or a convenient slot for local testing
+#[derive(Clone, Copy, Debug, PartialEq, Eq, EnumIter)]
+pub enum StakeProgramVersion {
+    Stable,
+    Beta,
+    Edge,
+}
 
-    program_test.add_upgradeable_program_to_genesis("solana_stake_program", &stake_program::id());
+impl StakeProgramVersion {
+    // by convention, `solana_stake_program-v1.2.3-RC` is a normal build from a tag
+    // whereas `solana_stake_program-v1.2.3` is the verified build that is on or will go to chain
+    pub fn basename(self) -> Option<&'static str> {
+        match self {
+            Self::Stable => Some("solana_stake_program-v1.0.0"),
+            Self::Beta => Some("solana_stake_program-v4.0.0-RC"),
+            Self::Edge => None,
+        }
+    }
+}
+
+pub fn program_test(stake_version: StakeProgramVersion) -> Option<ProgramTest> {
+    let mut program_test = ProgramTest::default();
+    let stake_program = stake_version.basename()?;
+
+    program_test.add_upgradeable_program_to_genesis(stake_program, &stake_program::id());
     program_test.add_program("mpl_token_metadata", inline_mpl_token_metadata::id(), None);
     program_test.add_program("spl_single_pool", id(), None);
     program_test.prefer_bpf(true);
 
-    if !enable_minimum_delegation {
-        program_test.deactivate_feature(stake_raise_minimum_delegation_to_1_sol::id());
-    }
+    Some(program_test)
+}
 
-    program_test
+pub fn program_test_live() -> ProgramTest {
+    program_test(StakeProgramVersion::Stable).unwrap()
 }
 
 #[derive(Debug, PartialEq)]

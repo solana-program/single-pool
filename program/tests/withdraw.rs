@@ -6,39 +6,42 @@ use {
     solana_program_test::*,
     solana_sdk::{signature::Signer, transaction::Transaction},
     spl_single_pool::{error::SinglePoolError, id, instruction},
-    test_case::test_case,
+    test_case::{test_case, test_matrix},
 };
 
-#[test_case(true, 0, false, false, false; "activated::minimum_disabled")]
-#[test_case(true, 0, false, false, true; "activated::minimum_disabled::small")]
-#[test_case(true, 0, false, true, false; "activated::minimum_enabled")]
-#[test_case(false, 0, false, false, false; "activating::minimum_disabled")]
-#[test_case(false, 0, false, false, true; "activating::minimum_disabled::small")]
-#[test_case(false, 0, false, true, false; "activating::minimum_enabled")]
-#[test_case(true, 100_000, false, false, false; "activated::extra")]
-#[test_case(false, 100_000, false, false, false; "activating::extra")]
-#[test_case(true, 0, true, false, false; "activated::second")]
-#[test_case(false, 0, true, false, false; "activating::second")]
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [false, true],
+    [0, 100_000],
+    [false, true],
+    [false, true]
+)]
 #[tokio::test]
 async fn success(
+    stake_version: StakeProgramVersion,
     activate: bool,
-    extra_lamports: u64,
-    prior_deposit: bool,
-    enable_minimum_delegation: bool,
-    small_deposit: bool,
+    extra_lamports_in_destination: u64,
+    other_user_deposits: bool,
+    small_withdrawal: bool,
 ) {
-    let mut context = program_test(enable_minimum_delegation)
-        .start_with_context()
-        .await;
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
 
-    let amount_deposited = if small_deposit { 1 } else { TEST_STAKE_AMOUNT };
+    let amount_deposited = if small_withdrawal {
+        1
+    } else {
+        TEST_STAKE_AMOUNT
+    };
 
     let minimum_pool_balance = accounts
         .initialize_for_withdraw(
             &mut context,
             amount_deposited,
-            if prior_deposit {
+            if other_user_deposits {
                 Some(TEST_STAKE_AMOUNT * 10)
             } else {
                 None
@@ -54,13 +57,13 @@ async fn success(
         .await
         .lamports;
 
-    if extra_lamports > 0 {
+    if extra_lamports_in_destination > 0 {
         transfer(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
             &accounts.stake_account,
-            extra_lamports,
+            extra_lamports_in_destination,
         )
         .await;
     }
@@ -107,7 +110,7 @@ async fn success(
         amount_deposited + get_stake_account_rent(&mut context.banks_client).await
     };
 
-    let prior_deposits = if prior_deposit {
+    let other_user_deposits = if other_user_deposits {
         if activate {
             TEST_STAKE_AMOUNT * 10
         } else {
@@ -125,12 +128,12 @@ async fn success(
     assert_eq!(wallet_lamports_after, wallet_lamports_before);
 
     // pool retains minstake
-    assert_eq!(pool_stake_after, prior_deposits + minimum_pool_balance);
+    assert_eq!(pool_stake_after, other_user_deposits + minimum_pool_balance);
 
     // pool lamports otherwise unchanged. unexpected transfers affect nothing
     assert_eq!(
         pool_lamports_after,
-        pool_lamports_before - expected_deposit + extra_lamports
+        pool_lamports_before - expected_deposit + extra_lamports_in_destination
     );
 
     // alice has no tokens
@@ -142,16 +145,23 @@ async fn success(
     // tokens were burned
     assert_eq!(
         get_token_supply(&mut context.banks_client, &accounts.mint).await,
-        prior_deposits,
+        other_user_deposits,
     );
 }
 
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
 #[tokio::test]
-async fn success_with_rewards() {
+async fn success_with_rewards(stake_version: StakeProgramVersion) {
     let alice_deposit = TEST_STAKE_AMOUNT;
     let bob_deposit = TEST_STAKE_AMOUNT * 3;
 
-    let mut context = program_test(false).start_with_context().await;
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let minimum_pool_balance = accounts
         .initialize_for_withdraw(&mut context, alice_deposit, Some(bob_deposit), true)
@@ -223,8 +233,8 @@ async fn success_with_rewards() {
 #[test_case(true; "activated")]
 #[test_case(false; "activating")]
 #[tokio::test]
-async fn fail_automorphic(activate: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_withdraw_to_pool(activate: bool) {
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, activate)
@@ -255,8 +265,8 @@ async fn fail_automorphic(activate: bool) {
 }
 
 #[tokio::test]
-async fn fail_onramp() {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_withdraw_to_onramp() {
+    let mut context = program_test_live().start_with_context().await;
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)

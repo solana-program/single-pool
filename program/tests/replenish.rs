@@ -15,7 +15,7 @@ use {
         state::{Delegation, Stake, StakeStateV2},
     },
     spl_single_pool::{error::SinglePoolError, id, instruction},
-    test_case::test_case,
+    test_case::test_matrix,
 };
 
 async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
@@ -36,13 +36,22 @@ async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
     refresh_blockhash(context).await;
 }
 
-#[test_case(false, false; "noop")]
-#[test_case(true, false; "pool")]
-#[test_case(false, true; "onramp")]
-#[test_case(true, true; "pool_precedence")]
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [false, true],
+    [false, true]
+)]
 #[tokio::test]
-async fn reactivate_success(reactivate_pool: bool, fund_onramp: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn reactivate_success(
+    stake_version: StakeProgramVersion,
+    reactivate_pool: bool,
+    fund_onramp: bool,
+) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
@@ -181,15 +190,34 @@ enum OnRampState {
     Deactive,
 }
 
-#[test_case(OnRampState::Initialized, true; "move_lamports_fresh")]
-#[test_case(OnRampState::Activating, false; "topup_warm")]
-#[test_case(OnRampState::Activating, true; "move_lamports_warm")]
-#[test_case(OnRampState::Active, false; "reset_hot")]
-#[test_case(OnRampState::Active, true; "move_lamports_hot")]
-#[test_case(OnRampState::Deactive, true; "move_lamports_cold")]
+// initialized/move: onramp is fresh from its last replenish, we can move from pool and delegate
+// activating/no move: onramp has loose lamports, we can add to its delegation
+// activating/move: onramp has loose lamports, we can add them and pool lamports both to delegation
+// active/no move: onramp stake can be moved back into pool
+// active/move: onramp stake can be moved back into pool *and* pool lamports can be delegated in onramp
+// deactive/move: same as the initialized case, but if onramp was deactivated
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [OnRampState::Initialized, OnRampState::Activating, OnRampState::Active, OnRampState::Deactive],
+    [false, true]
+)]
 #[tokio::test]
-async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn move_value_success(
+    stake_version: StakeProgramVersion,
+    onramp_state: OnRampState,
+    move_lamports_to_onramp: bool,
+) {
+    // these cases would not attempt to move value in either direction
+    match (onramp_state, move_lamports_to_onramp) {
+        (OnRampState::Initialized, false) | (OnRampState::Deactive, false) => return,
+        _ => (),
+    };
+
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
@@ -236,7 +264,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
     }
 
     // if we are testing the pool -> onramp leg, add lamports for it
-    if move_lamports {
+    if move_lamports_to_onramp {
         transfer(
             &mut context.banks_client,
             &context.payer,
@@ -248,7 +276,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
     }
 
     // this one case is to test reupping an activating delegation
-    if onramp_state == OnRampState::Activating && !move_lamports {
+    if onramp_state == OnRampState::Activating && !move_lamports_to_onramp {
         transfer(
             &mut context.banks_client,
             &context.payer,
@@ -288,7 +316,7 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
         .unwrap_or_default();
     let onramp_rent = onramp_meta.rent_exempt_reserve;
 
-    match (onramp_state, move_lamports) {
+    match (onramp_state, move_lamports_to_onramp) {
         // stake moved already before test or because of test, new lamports were added to onramp
         (OnRampState::Deactive, true) | (OnRampState::Active, true) => {
             assert_eq!(
@@ -342,9 +370,16 @@ async fn move_value_success(onramp_state: OnRampState, move_lamports: bool) {
     }
 }
 
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
 #[tokio::test]
-async fn move_value_deactivating() {
-    let mut context = program_test(false).start_with_context().await;
+async fn move_value_deactivating(stake_version: StakeProgramVersion) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
@@ -398,11 +433,17 @@ async fn move_value_deactivating() {
     assert_eq!(stake.delegation.deactivation_epoch, u64::MAX);
 }
 
-#[test_case(true; "activated")]
-#[test_case(false; "activating")]
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [false, true]
+)]
 #[tokio::test]
-async fn fail_onramp_doesnt_exist(activate: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_onramp_doesnt_exist(stake_version: StakeProgramVersion, activate: bool) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
 
     let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;

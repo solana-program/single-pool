@@ -19,7 +19,7 @@ use {
         instruction::{self, SinglePoolInstruction},
     },
     spl_token_interface as spl_token,
-    test_case::test_case,
+    test_case::test_matrix,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -157,14 +157,27 @@ async fn build_instructions(
 }
 
 // test that account addresses are checked properly
-#[test_case(TestMode::Initialize, false; "initialize")]
-#[test_case(TestMode::Deposit, true; "deposit_legacy")]
-#[test_case(TestMode::Withdraw, true; "withdraw_legacy")]
-#[test_case(TestMode::Deposit, false; "deposit_onramp")]
-#[test_case(TestMode::Withdraw, false; "withdraw_onramp")]
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [TestMode::Initialize, TestMode::Deposit, TestMode::Withdraw],
+    [false, true]
+)]
 #[tokio::test]
-async fn fail_account_checks(test_mode: TestMode, remove_onramp: bool) {
-    let mut context = program_test(false).start_with_context().await;
+async fn fail_account_checks(
+    stake_version: StakeProgramVersion,
+    test_mode: TestMode,
+    remove_onramp: bool,
+) {
+    // initialize does not take the onramp account
+    if test_mode == TestMode::Initialize && remove_onramp {
+        return;
+    }
+
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
     let accounts = SinglePoolAccounts::default();
     let (instructions, i) =
         build_instructions(&mut context, &accounts, test_mode, remove_onramp).await;
