@@ -56,12 +56,13 @@ pub enum StakeProgramVersion {
 
 impl StakeProgramVersion {
     // by convention, `solana_stake_program-v1.2.3-RC` is a normal build from a tag
-    // whereas `solana_stake_program-v1.2.3` is the verified build that is on or will go to chain
+    // `solana_stake_program-12345abc` is a build from an arbitrary commit
+    // `solana_stake_program-v1.2.3` is the verified build that is on or will go to chain
     pub fn basename(self) -> Option<&'static str> {
         match self {
             Self::Stable => Some("solana_stake_program-v1.0.0"),
             Self::Beta => Some("solana_stake_program-v4.0.0-RC"),
-            Self::Edge => None,
+            Self::Edge => Some("solana_stake_program-5f54c11b"),
         }
     }
 }
