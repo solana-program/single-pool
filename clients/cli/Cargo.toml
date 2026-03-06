@@ -50,7 +50,7 @@ spl-token-client = { version = "0.18.0" }
 spl-single-pool = { version = "3.0.0", path = "../../program", features = [
   "no-entrypoint",
 ] }
-tokio = "1.49"
+tokio = "1.50"
 
 [dev-dependencies]
 solana-test-validator = "3.1.3"
