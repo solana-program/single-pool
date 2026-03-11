@@ -34,7 +34,7 @@ use {
         sysvar::stake_history::StakeHistorySysvar,
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_sysvar::SysvarSerialize,
+    solana_sysvar::{Sysvar, SysvarSerialize},
     solana_vote_interface::program as vote_program,
     spl_token_interface::{self as spl_token, state::Mint},
 };
@@ -766,8 +766,13 @@ impl Processor {
         )?;
         check_stake_program(stake_program_info.key)?;
 
+        // we expect these numbers to be equal but get them separately in case of future changes
+        let rent = Rent::get()?;
+        let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
+        let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
+
         // get main pool account, we require it to be fully active for most operations
-        let (pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let pool_stake_status = pool_stake_state
             .delegation
             .stake_activating_and_deactivating(
@@ -779,17 +784,16 @@ impl Processor {
 
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
         // if it doesnt exist, it must first be created with InitializePoolOnRamp
-        let (option_onramp_status, onramp_deactivation_epoch, onramp_rent_exempt_reserve) =
+        let (option_onramp_status, onramp_deactivation_epoch) =
             match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
-                Ok(StakeStateV2::Initialized(meta)) => (None, u64::MAX, meta.rent_exempt_reserve),
-                Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                Ok(StakeStateV2::Initialized(_)) => (None, u64::MAX),
+                Ok(StakeStateV2::Stake(_, stake, _)) => (
                     Some(stake.delegation.stake_activating_and_deactivating(
                         clock.epoch,
                         stake_history,
                         PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                     )),
                     stake.delegation.deactivation_epoch,
-                    meta.rent_exempt_reserve,
                 ),
                 _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
             };
@@ -831,7 +835,7 @@ impl Processor {
             let pool_excess_lamports = pool_stake_info
                 .lamports()
                 .saturating_sub(pool_stake_state.delegation.stake)
-                .saturating_sub(pool_stake_meta.rent_exempt_reserve);
+                .saturating_sub(pool_rent_exempt_reserve);
 
             // if the on-ramp is fully active, move its stake to the main pool account
             if let Some(ref onramp_status) = option_onramp_status {
@@ -975,9 +979,12 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
+        let rent = Rent::get()?;
+        let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
+
         let minimum_pool_balance = minimum_pool_balance()?;
 
-        let (pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let pre_pool_stake = pool_stake_state
             .delegation
             .stake
@@ -985,7 +992,7 @@ impl Processor {
         let pre_pool_excess_lamports = pool_stake_info
             .lamports()
             .checked_sub(pool_stake_state.delegation.stake)
-            .and_then(|amount| amount.checked_sub(pool_stake_meta.rent_exempt_reserve))
+            .and_then(|amount| amount.checked_sub(pool_rent_exempt_reserve))
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
         msg!("Available stake pre merge {}", pre_pool_stake);
 
@@ -1013,7 +1020,7 @@ impl Processor {
             stake_history_info.clone(),
         )?;
 
-        let (pool_stake_meta, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let post_pool_stake = pool_stake_state
             .delegation
             .stake
@@ -1030,7 +1037,7 @@ impl Processor {
         // this includes their rent-exempt reserve if the pool is fully active
         let user_excess_lamports = post_pool_lamports
             .checked_sub(pool_stake_state.delegation.stake)
-            .and_then(|amount| amount.checked_sub(pool_stake_meta.rent_exempt_reserve))
+            .and_then(|amount| amount.checked_sub(pool_rent_exempt_reserve))
             .and_then(|amount| amount.checked_sub(pre_pool_excess_lamports))
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
