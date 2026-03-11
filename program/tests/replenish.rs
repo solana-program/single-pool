@@ -218,6 +218,10 @@ async fn move_value_success(
     };
     let mut context = program_test.start_with_context().await;
 
+    let rent = context.banks_client.get_rent().await.unwrap();
+    let pool_rent = rent.minimum_balance(StakeStateV2::size_of());
+    let onramp_rent = pool_rent;
+
     let accounts = SinglePoolAccounts::default();
     accounts
         .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
@@ -297,15 +301,14 @@ async fn move_value_success(
         .await
         .unwrap();
 
-    let (pool_meta, pool_stake, pool_lamports) =
+    let (_, pool_stake, pool_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_status = pool_stake
         .unwrap()
         .delegation
         .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0));
-    let pool_rent = pool_meta.rent_exempt_reserve;
 
-    let (onramp_meta, onramp_stake, onramp_lamports) =
+    let (_, onramp_stake, onramp_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.onramp_account).await;
     let onramp_status = onramp_stake
         .map(|stake| {
@@ -314,7 +317,6 @@ async fn move_value_success(
                 .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0))
         })
         .unwrap_or_default();
-    let onramp_rent = onramp_meta.rent_exempt_reserve;
 
     match (onramp_state, move_lamports_to_onramp) {
         // stake moved already before test or because of test, new lamports were added to onramp

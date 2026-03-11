@@ -63,6 +63,11 @@ pub async fn get_available_balances(
     stake_account_addresses: &[Pubkey],
     minimum_pool_balance: u64,
 ) -> Result<Vec<(u64, u64)>, Error> {
+    let rent_exempt_reserve = config
+        .program_client
+        .get_minimum_balance_for_rent_exemption(StakeStateV2::size_of())
+        .await?;
+
     let stake_accounts = config
         .rpc_client
         .get_multiple_accounts(stake_account_addresses)
@@ -71,16 +76,25 @@ pub async fn get_available_balances(
     let mut delegations = vec![];
     for stake_account in &stake_accounts {
         let delegation = if let Some(account) = stake_account {
+            // if this assert ever triggers, multistake or another account change has landed
+            // this function should be updated to use real stake account sizes
+            // we may be fetching hundreds of accounts here so memoize the rents
+            assert_eq!(
+                account.data.len(),
+                StakeStateV2::size_of(),
+                "StakeStateV2 is no longer canonical, or StakeStateV2::size_of() is no longer 200."
+            );
+
             match bincode::deserialize::<StakeStateV2>(&account.data) {
-                Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                Ok(StakeStateV2::Stake(_, stake, _)) => (
                     stake.delegation.stake.saturating_sub(minimum_pool_balance),
                     account
                         .lamports
                         .saturating_sub(stake.delegation.stake)
-                        .saturating_sub(meta.rent_exempt_reserve),
+                        .saturating_sub(rent_exempt_reserve),
                 ),
-                Ok(StakeStateV2::Initialized(meta)) => {
-                    (0, account.lamports.saturating_sub(meta.rent_exempt_reserve))
+                Ok(StakeStateV2::Initialized(_)) => {
+                    (0, account.lamports.saturating_sub(rent_exempt_reserve))
                 }
                 _ => unreachable!(),
             }
@@ -125,14 +139,14 @@ pub async fn create_uninitialized_stake_account_instruction(
 ) -> Result<Instruction, Error> {
     let rent_amount = config
         .program_client
-        .get_minimum_balance_for_rent_exemption(std::mem::size_of::<StakeStateV2>())
+        .get_minimum_balance_for_rent_exemption(StakeStateV2::size_of())
         .await?;
 
     Ok(system_instruction::create_account(
         payer,
         stake_account,
         rent_amount,
-        std::mem::size_of::<StakeStateV2>() as u64,
+        StakeStateV2::size_of() as u64,
         &stake::program::id(),
     ))
 }

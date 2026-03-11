@@ -6,7 +6,7 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
-    solana_stake_interface::state::{Authorized, Lockup},
+    solana_stake_interface::state::{Authorized, Lockup, StakeStateV2},
     solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
@@ -37,6 +37,9 @@ async fn success(
         return;
     };
     let mut context = program_test.start_with_context().await;
+
+    let rent = context.banks_client.get_rent().await.unwrap();
+    let rent_exempt_reserve = rent.minimum_balance(StakeStateV2::size_of());
 
     let accounts = SinglePoolAccounts::default();
     accounts
@@ -107,7 +110,7 @@ async fn success(
             .unwrap();
     }
 
-    let (alice_meta_before_deposit, alice_stake_before_deposit, _) =
+    let (_, alice_stake_before_deposit, _) =
         get_stake_account(&mut context.banks_client, &accounts.alice_stake.pubkey()).await;
     let alice_stake_before_deposit = alice_stake_before_deposit.unwrap().delegation.stake;
 
@@ -141,7 +144,7 @@ async fn success(
             .await
             .lamports;
 
-    let (pool_meta_after, pool_stake_after, pool_lamports_after) =
+    let (_, pool_stake_after, pool_lamports_after) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_stake_after = pool_stake_after.unwrap().delegation.stake;
 
@@ -150,7 +153,7 @@ async fn success(
     let expected_deposit = if activate {
         alice_stake_before_deposit
     } else {
-        alice_stake_before_deposit + alice_meta_before_deposit.rent_exempt_reserve
+        alice_stake_before_deposit + rent_exempt_reserve
     };
 
     // deposit stake account is closed
@@ -168,10 +171,7 @@ async fn success(
     assert_eq!(pool_lamports_after, pool_lamports_before + expected_deposit);
     assert_eq!(
         pool_lamports_after,
-        pool_stake_before
-            + expected_deposit
-            + pool_meta_after.rent_exempt_reserve
-            + pool_extra_lamports,
+        pool_stake_before + expected_deposit + rent_exempt_reserve + pool_extra_lamports,
     );
 
     // alice got her rent and extra back if active, or just extra back otherwise
