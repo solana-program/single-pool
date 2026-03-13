@@ -18,7 +18,7 @@ use {
     },
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
-    solana_borsh::v1::{get_packed_len, try_from_slice_unchecked},
+    solana_borsh::v1::try_from_slice_unchecked,
     solana_clock::{Clock, Epoch},
     solana_cpi::invoke_signed,
     solana_msg::msg,
@@ -626,7 +626,7 @@ impl Processor {
         let mint_authority_signers = &[&mint_authority_seeds[..]];
 
         // create the pool. user has already transferred in rent
-        let pool_space = get_packed_len::<SinglePool>();
+        let pool_space = SinglePool::size_of();
         if !rent.is_exempt(pool_info.lamports(), pool_space) {
             return Err(SinglePoolError::WrongRentAmount.into());
         }
@@ -681,7 +681,7 @@ impl Processor {
         // create the pool stake account. user has already transferred in rent plus at
         // least the minimum
         let minimum_pool_balance = minimum_pool_balance()?;
-        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+        let stake_space = StakeStateV2::size_of();
         let stake_rent_plus_initial = rent
             .minimum_balance(stake_space)
             .saturating_add(minimum_pool_balance);
@@ -1411,7 +1411,7 @@ impl Processor {
         let stake_authority_signers = &[&stake_authority_seeds[..]];
 
         // create the pool on-ramp account. user has already transferred in rent
-        let stake_space = std::mem::size_of::<stake::state::StakeStateV2>();
+        let stake_space = StakeStateV2::size_of();
         let stake_rent = rent.minimum_balance(stake_space);
 
         if pool_onramp_info.lamports() < stake_rent {
