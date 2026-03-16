@@ -1,6 +1,10 @@
 {
   "name": "@solana/spl-single-pool",
   "version": "1.0.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/solana-program/single-pool"
+  },
   "main": "dist/cjs/index.js",
   "module": "dist/mjs/index.js",
   "exports": {
