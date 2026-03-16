@@ -28,6 +28,11 @@ pub struct SinglePool {
     pub vote_account_address: Pubkey,
 }
 impl SinglePool {
+    /// Onchain serialized size of `SinglePool`
+    pub const fn size_of() -> usize {
+        33
+    }
+
     /// Create a `SinglePool` struct from its account info
     pub fn from_account_info(
         account_info: &AccountInfo,
@@ -53,5 +58,15 @@ impl SinglePool {
         }
 
         Ok(pool)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use {super::*, solana_borsh::v1::get_packed_len};
+
+    #[test]
+    fn single_pool_size_of() {
+        assert_eq!(SinglePool::size_of(), get_packed_len::<SinglePool>());
     }
 }
