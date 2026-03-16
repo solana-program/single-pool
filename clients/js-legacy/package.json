@@ -3,7 +3,8 @@
   "version": "1.0.2",
   "repository": {
     "type": "git",
-    "url": "https://github.com/solana-program/single-pool"
+    "url": "https://github.com/solana-program/single-pool",
+    "directory": "clients/js-legacy"
   },
   "main": "dist/src/index.js",
   "module": "dist/src/index.mjs",
