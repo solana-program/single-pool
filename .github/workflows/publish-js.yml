@@ -58,7 +58,6 @@ jobs:
     needs: set_env
     uses: solana-program/actions/.github/workflows/publish-js.yml@main
     permissions:
-      contents: read
       id-token: write
     with:
       sbpf-program-packages: "program"
