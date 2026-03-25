@@ -2,11 +2,11 @@ import { getAddressCodec, Address } from '@solana/addresses';
 import {
   ReadonlySignerAccount,
   ReadonlyAccount,
-  IInstructionWithAccounts,
-  IInstructionWithData,
+  InstructionWithAccounts,
+  InstructionWithData,
   WritableAccount,
   WritableSignerAccount,
-  IInstruction,
+  Instruction,
   AccountRole,
 } from '@solana/instructions';
 
@@ -42,8 +42,8 @@ import {
   u64,
 } from './quarantine.js';
 
-type InitializePoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type InitializePoolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<VoteAccountAddress>,
       WritableAccount<PoolAddress>,
@@ -60,10 +60,10 @@ type InitializePoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type ReplenishPoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type ReplenishPoolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<VoteAccountAddress>,
       ReadonlyAccount<PoolAddress>,
@@ -76,10 +76,10 @@ type ReplenishPoolInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type DepositStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type DepositStakeInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
@@ -96,10 +96,10 @@ type DepositStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type WithdrawStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type WithdrawStakeInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolStakeAddress>,
@@ -114,10 +114,10 @@ type WithdrawStakeInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type CreateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type CreateTokenMetadataInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<PoolAddress>,
       ReadonlyAccount<PoolMintAddress>,
@@ -129,10 +129,10 @@ type CreateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
       ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type UpdateTokenMetadataInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<VoteAccountAddress>,
       ReadonlyAccount<PoolAddress>,
@@ -142,10 +142,10 @@ type UpdateTokenMetadataInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID
       ReadonlyAccount<typeof MPL_METADATA_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
-type InitializeOnRampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
-  IInstructionWithAccounts<
+type InitializeOnRampInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
     [
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolOnRampAddress>,
@@ -155,7 +155,7 @@ type InitializeOnRampInstruction = IInstruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
     ]
   > &
-  IInstructionWithData<Uint8Array>;
+  InstructionWithData<Uint8Array>;
 
 const enum SinglePoolInstructionType {
   InitializePool = 0,

@@ -1,6 +1,8 @@
 import { Address } from '@solana/addresses';
+import { pipe } from '@solana/functional';
 import {
   appendTransactionMessageInstruction,
+  appendTransactionMessageInstructions,
   createTransactionMessage,
   TransactionVersion,
   TransactionMessage,
@@ -84,8 +86,6 @@ export async function initializeTransaction(
   payer: Address,
   skipMetadata = false,
 ): Promise<TransactionMessage> {
-  let transaction = createTransactionMessage({ version: 0 });
-
   const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
   const [stake, mint, onramp, poolRent, stakeRent, mintRent, minimumDelegationObj] =
     await Promise.all([
@@ -101,59 +101,45 @@ export async function initializeTransaction(
   const minimumPoolBalance =
     minimumDelegationObj.value > lamportsPerSol ? minimumDelegationObj.value : lamportsPerSol;
 
-  transaction = appendTransactionMessageInstruction(
-    SystemInstruction.transfer({
-      from: payer,
-      to: pool,
-      lamports: poolRent,
-    }),
-    transaction,
+  const transaction = await pipe(
+    createTransactionMessage({ version: 0 }),
+    async (tx) =>
+      appendTransactionMessageInstructions(
+        [
+          SystemInstruction.transfer({
+            from: payer,
+            to: pool,
+            lamports: poolRent,
+          }),
+          SystemInstruction.transfer({
+            from: payer,
+            to: stake,
+            lamports: stakeRent + minimumPoolBalance,
+          }),
+          SystemInstruction.transfer({
+            from: payer,
+            to: onramp,
+            lamports: stakeRent,
+          }),
+          SystemInstruction.transfer({
+            from: payer,
+            to: mint,
+            lamports: mintRent,
+          }),
+          await initializePoolInstruction(voteAccount),
+          await initializeOnRampInstruction(pool),
+        ],
+        tx,
+      ),
+    async (tx) => {
+      if (!skipMetadata) {
+        const instruction = await createTokenMetadataInstruction(pool, payer);
+        return appendTransactionMessageInstructions([instruction], await tx);
+      } else {
+        return tx;
+      }
+    },
   );
-
-  transaction = appendTransactionMessageInstruction(
-    SystemInstruction.transfer({
-      from: payer,
-      to: stake,
-      lamports: stakeRent + minimumPoolBalance,
-    }),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    SystemInstruction.transfer({
-      from: payer,
-      to: onramp,
-      lamports: stakeRent,
-    }),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    SystemInstruction.transfer({
-      from: payer,
-      to: mint,
-      lamports: mintRent,
-    }),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    await initializePoolInstruction(voteAccount),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    await initializeOnRampInstruction(pool),
-    transaction,
-  );
-
-  if (!skipMetadata) {
-    transaction = appendTransactionMessageInstruction(
-      await createTokenMetadataInstruction(pool, payer),
-      transaction,
-    );
-  }
-
   return transaction;
 }
 
