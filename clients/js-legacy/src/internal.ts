@@ -1,9 +1,18 @@
+import { Address } from '@solana/addresses';
+import {
+  GetAccountInfoApi,
+  GetMinimumBalanceForRentExemptionApi,
+  GetStakeMinimumDelegationApi,
+} from '@solana/rpc-api';
+import { Rpc } from '@solana/rpc-spec';
 import { Connection, Transaction, TransactionInstruction, PublicKey } from '@solana/web3.js';
 import { Buffer } from 'buffer';
 
-export function rpc(connection: Connection) {
+export function rpc(
+  connection: Connection,
+): Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi> {
   return {
-    getAccountInfo(address: string) {
+    getAccountInfo(address: Address): any {
       return {
         async send() {
           const pubkey = new PublicKey(address);
@@ -11,14 +20,14 @@ export function rpc(connection: Connection) {
         },
       };
     },
-    getMinimumBalanceForRentExemption(size: bigint) {
+    getMinimumBalanceForRentExemption(size: bigint): any {
       return {
         async send() {
           return BigInt(await connection.getMinimumBalanceForRentExemption(Number(size)));
         },
       };
     },
-    getStakeMinimumDelegation() {
+    getStakeMinimumDelegation(): any {
       return {
         async send() {
           const minimumDelegation = await connection.getStakeMinimumDelegation();

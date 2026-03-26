@@ -38,6 +38,9 @@
     "@solana/addresses": "6.5.0",
     "@solana/functional": "6.5.0",
     "@solana/instructions": "6.5.0",
+    "@solana/instruction-plans": "6.5.0",
+    "@solana/rpc-api": "6.5.0",
+    "@solana/rpc-spec": "6.5.0",
     "@solana/transaction-messages": "6.5.0"
   }
 }

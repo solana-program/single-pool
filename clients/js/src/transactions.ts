@@ -1,9 +1,22 @@
 import { Address } from '@solana/addresses';
 import { pipe } from '@solana/functional';
 import {
+  InstructionPlan,
+  assertIsSingleTransactionPlan,
+  createTransactionPlanner,
+  parallelInstructionPlan,
+  sequentialInstructionPlan,
+} from '@solana/instruction-plans';
+import {
+  GetAccountInfoApi,
+  GetMinimumBalanceForRentExemptionApi,
+  GetStakeMinimumDelegationApi,
+} from '@solana/rpc-api';
+import { Rpc } from '@solana/rpc-spec';
+import {
   appendTransactionMessageInstruction,
-  appendTransactionMessageInstructions,
   createTransactionMessage,
+  setTransactionMessageFeePayer,
   TransactionVersion,
   TransactionMessage,
 } from '@solana/transaction-messages';
@@ -42,7 +55,7 @@ import {
 } from './quarantine.js';
 
 interface DepositParams {
-  rpc: any; // XXX Rpc<???>
+  rpc: Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
   pool: PoolAddress;
   userWallet: Address;
   userStakeAccount?: Address;
@@ -54,7 +67,7 @@ interface DepositParams {
 }
 
 interface WithdrawParams {
-  rpc: any; // XXX Rpc<???>
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
   pool: PoolAddress;
   userWallet: Address;
   userStakeAccount: Address;
@@ -80,67 +93,72 @@ export const SinglePoolProgram = {
   createAndDelegateUserStake: createAndDelegateUserStakeTransaction,
 };
 
-export async function initializeTransaction(
-  rpc: any, // XXX not exported: Rpc<???>,
+async function getInitializeInstructionPlan(
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>,
   voteAccount: VoteAccountAddress,
   payer: Address,
   skipMetadata = false,
-): Promise<TransactionMessage> {
+): Promise<InstructionPlan> {
   const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
-  const [stake, mint, onramp, poolRent, stakeRent, mintRent, minimumDelegationObj] =
-    await Promise.all([
-      findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, pool),
-      findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
-      findPoolOnRampAddress(SINGLE_POOL_PROGRAM_ID, pool),
-      rpc.getMinimumBalanceForRentExemption(SINGLE_POOL_ACCOUNT_SIZE).send(),
-      rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
-      rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
-      rpc.getStakeMinimumDelegation().send(),
-    ]);
+  const [
+    stake,
+    mint,
+    onramp,
+    poolRent,
+    stakeRent,
+    mintRent,
+    minimumDelegationObj,
+    initializePool,
+    initializeOnRamp,
+  ] = await Promise.all([
+    findPoolStakeAddress(SINGLE_POOL_PROGRAM_ID, pool),
+    findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
+    findPoolOnRampAddress(SINGLE_POOL_PROGRAM_ID, pool),
+    rpc.getMinimumBalanceForRentExemption(SINGLE_POOL_ACCOUNT_SIZE).send(),
+    rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
+    rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
+    rpc.getStakeMinimumDelegation().send(),
+    initializePoolInstruction(voteAccount),
+    initializeOnRampInstruction(pool),
+  ]);
   const lamportsPerSol = 1_000_000_000n;
   const minimumPoolBalance =
     minimumDelegationObj.value > lamportsPerSol ? minimumDelegationObj.value : lamportsPerSol;
 
-  const transaction = await pipe(
-    createTransactionMessage({ version: 0 }),
-    async (tx) =>
-      appendTransactionMessageInstructions(
-        [
-          SystemInstruction.transfer({
-            from: payer,
-            to: pool,
-            lamports: poolRent,
-          }),
-          SystemInstruction.transfer({
-            from: payer,
-            to: stake,
-            lamports: stakeRent + minimumPoolBalance,
-          }),
-          SystemInstruction.transfer({
-            from: payer,
-            to: onramp,
-            lamports: stakeRent,
-          }),
-          SystemInstruction.transfer({
-            from: payer,
-            to: mint,
-            lamports: mintRent,
-          }),
-          await initializePoolInstruction(voteAccount),
-          await initializeOnRampInstruction(pool),
-        ],
-        tx,
+  return sequentialInstructionPlan([
+    parallelInstructionPlan([
+      SystemInstruction.transfer({ from: payer, to: pool, lamports: poolRent }),
+      SystemInstruction.transfer({
+        from: payer,
+        to: stake,
+        lamports: stakeRent + minimumPoolBalance,
+      }),
+      SystemInstruction.transfer({ from: payer, to: onramp, lamports: stakeRent }),
+      SystemInstruction.transfer({ from: payer, to: mint, lamports: mintRent }),
+    ]),
+    initializePool,
+    initializeOnRamp,
+    ...(skipMetadata ? [] : [await createTokenMetadataInstruction(pool, payer)]),
+  ]);
+}
+
+export async function initializeTransaction(
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>,
+  voteAccount: VoteAccountAddress,
+  payer: Address,
+  skipMetadata = false,
+): Promise<TransactionMessage> {
+  const transactionPlanner = createTransactionPlanner({
+    createTransactionMessage: () =>
+      pipe(createTransactionMessage({ version: 0 }), (m) =>
+        setTransactionMessageFeePayer(payer, m),
       ),
-    async (tx) => {
-      if (!skipMetadata) {
-        const instruction = await createTokenMetadataInstruction(pool, payer);
-        return appendTransactionMessageInstructions([instruction], await tx);
-      } else {
-        return tx;
-      }
-    },
-  );
-  return transaction;
+  });
+
+  const instructionPlan = await getInitializeInstructionPlan(rpc, voteAccount, payer, skipMetadata);
+  const transactionPlan = await transactionPlanner(instructionPlan);
+  assertIsSingleTransactionPlan(transactionPlan);
+  return transactionPlan.message;
 }
 
 export async function replenishPoolTransaction(
@@ -307,7 +325,7 @@ export async function updateTokenMetadataTransaction(
 }
 
 export async function initializeOnRampTransaction(
-  rpc: any, // XXX not exported: Rpc<???>,
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>,
   pool: PoolAddress,
   payer: Address,
 ): Promise<TransactionMessage> {
@@ -337,7 +355,7 @@ export async function initializeOnRampTransaction(
 
 /** @deprecated */
 export async function createAndDelegateUserStakeTransaction(
-  rpc: any, // XXX not exported: Rpc<???>,
+  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>,
   voteAccount: VoteAccountAddress,
   userWallet: Address,
   stakeAmount: bigint,
