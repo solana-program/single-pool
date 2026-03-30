@@ -110,7 +110,7 @@ async fn reactivate_success(
             .process_transaction(transaction)
             .await
             .unwrap_err();
-        check_error(e, SinglePoolError::WrongStakeStake);
+        check_error(e, SinglePoolError::WrongStakeState);
     }
 
     // onramp is already inactive but it doesnt have lamports for delegation

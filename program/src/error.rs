@@ -62,8 +62,8 @@ pub enum SinglePoolError {
     #[error("SignatureMissing")]
     SignatureMissing,
     /// Stake account is not in the state expected by the program.
-    #[error("WrongStakeStake")]
-    WrongStakeStake,
+    #[error("WrongStakeState")]
+    WrongStakeState,
     /// Unsigned subtraction crossed the zero.
     #[error("ArithmeticOverflow")]
     ArithmeticOverflow,
@@ -136,7 +136,7 @@ impl ToStr for SinglePoolError {
                      (Generally this should not happen absent user error, but may if the minimum delegation increases \
                      beyond 1 sol.)",
             SinglePoolError::SignatureMissing => "Error: Required signature is missing.",
-            SinglePoolError::WrongStakeStake => "Error: Stake account is not in the state expected by the program.",
+            SinglePoolError::WrongStakeState => "Error: Stake account is not in the state expected by the program.",
             SinglePoolError::ArithmeticOverflow => "Error: Unsigned subtraction crossed the zero.",
             SinglePoolError::UnexpectedMathError =>
                 "Error: A calculation failed unexpectedly. \
