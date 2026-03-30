@@ -83,7 +83,7 @@ pub enum SinglePoolInstruction {
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
-    ///   2. `[]` Pool on-ramp account (not yet enforced)
+    ///   2. `[]` Pool on-ramp account
     ///   3. `[w]` Pool token mint
     ///   4. `[]` Pool stake authority
     ///   5. `[]` Pool mint authority
@@ -100,7 +100,7 @@ pub enum SinglePoolInstruction {
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
-    ///   2. `[]` Pool on-ramp account (not yet enforced)
+    ///   2. `[]` Pool on-ramp account
     ///   3. `[w]` Pool token mint
     ///   4. `[]` Pool stake authority
     ///   5. `[]` Pool mint authority
