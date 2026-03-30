@@ -471,7 +471,7 @@ async fn fail_bad_account(
         .unwrap_err();
 
     if deposit_source == BadDeposit::User {
-        check_error(e, SinglePoolError::WrongStakeStake);
+        check_error(e, SinglePoolError::WrongStakeState);
     } else {
         check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
     }
@@ -560,5 +560,5 @@ async fn fail_activation_mismatch(stake_version: StakeProgramVersion, pool_first
         .process_transaction(transaction)
         .await
         .unwrap_err();
-    check_error(e, SinglePoolError::WrongStakeStake);
+    check_error(e, SinglePoolError::WrongStakeState);
 }

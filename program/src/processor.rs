@@ -80,7 +80,7 @@ fn get_stake_state(stake_account_info: &AccountInfo) -> Result<(Meta, Stake), Pr
 
     match stake_state {
         StakeStateV2::Stake(meta, stake, _) => Ok((meta, stake)),
-        _ => Err(SinglePoolError::WrongStakeStake.into()),
+        _ => Err(SinglePoolError::WrongStakeState.into()),
     }
 }
 
@@ -1004,7 +1004,7 @@ impl Processor {
             || is_stake_active_without_history(&pool_stake_state, clock.epoch)
                 != is_stake_active_without_history(&user_stake_state, clock.epoch)
         {
-            return Err(SinglePoolError::WrongStakeStake.into());
+            return Err(SinglePoolError::WrongStakeState.into());
         }
 
         // merge the user stake account, which is preauthed to us, into the pool stake
