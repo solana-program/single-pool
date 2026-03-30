@@ -149,8 +149,9 @@ async fn success(
 )]
 #[tokio::test]
 async fn success_with_rewards(stake_version: StakeProgramVersion) {
-    let alice_deposit = TEST_STAKE_AMOUNT;
-    let bob_deposit = TEST_STAKE_AMOUNT * 3;
+    // sufficiently large stakes to capture ~all rewards, for easy ratio comparison
+    let alice_deposit = TEST_STAKE_AMOUNT * 10;
+    let bob_deposit = TEST_STAKE_AMOUNT * 30;
 
     let Some(program_test) = program_test(stake_version) else {
         return;
