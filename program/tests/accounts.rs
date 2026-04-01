@@ -15,7 +15,7 @@ use {
     solana_system_interface::program as system_program,
     spl_single_pool::{
         error::SinglePoolError,
-        find_pool_onramp_address, id,
+        id,
         instruction::{self, SinglePoolInstruction},
     },
     spl_token_interface as spl_token,
@@ -36,7 +36,6 @@ async fn build_instructions(
     context: &mut ProgramTestContext,
     accounts: &SinglePoolAccounts,
     test_mode: TestMode,
-    remove_onramp: bool,
 ) -> (Vec<Instruction>, usize) {
     let initialize_instructions = if test_mode == TestMode::Initialize {
         let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
@@ -86,7 +85,7 @@ async fn build_instructions(
         vec![]
     };
 
-    let mut deposit_instructions = instruction::deposit(
+    let deposit_instructions = instruction::deposit(
         &id(),
         &accounts.pool,
         &accounts.alice_stake.pubkey(),
@@ -95,7 +94,7 @@ async fn build_instructions(
         &accounts.alice.pubkey(),
     );
 
-    let mut withdraw_instructions = if test_mode == TestMode::Withdraw {
+    let withdraw_instructions = if test_mode == TestMode::Withdraw {
         let transaction = Transaction::new_signed_with_payer(
             &deposit_instructions,
             Some(&accounts.alice.pubkey()),
@@ -131,17 +130,6 @@ async fn build_instructions(
         vec![]
     };
 
-    if remove_onramp {
-        let instruction = match test_mode {
-            TestMode::Deposit => deposit_instructions.last_mut().unwrap(),
-            TestMode::Withdraw => withdraw_instructions.last_mut().unwrap(),
-            TestMode::Initialize => unreachable!(),
-        };
-
-        assert_eq!(instruction.accounts[2].pubkey, accounts.onramp_account);
-        instruction.accounts.remove(2);
-    }
-
     // ints hardcoded to guard against instructions moving with code changes
     // if these asserts fail, update them to match the new multi-instruction builders
     let (instructions, index, enum_tag) = match test_mode {
@@ -159,28 +147,17 @@ async fn build_instructions(
 // test that account addresses are checked properly
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [TestMode::Initialize, TestMode::Deposit, TestMode::Withdraw],
-    [false, true]
+    [TestMode::Initialize, TestMode::Deposit, TestMode::Withdraw]
 )]
 #[tokio::test]
-async fn fail_account_checks(
-    stake_version: StakeProgramVersion,
-    test_mode: TestMode,
-    remove_onramp: bool,
-) {
-    // initialize does not take the onramp account
-    if test_mode == TestMode::Initialize && remove_onramp {
-        return;
-    }
-
+async fn fail_account_checks(stake_version: StakeProgramVersion, test_mode: TestMode) {
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
     let mut context = program_test.start_with_context().await;
 
     let accounts = SinglePoolAccounts::default();
-    let (instructions, i) =
-        build_instructions(&mut context, &accounts, test_mode, remove_onramp).await;
+    let (instructions, i) = build_instructions(&mut context, &accounts, test_mode).await;
     let bad_pubkey = pubkey!("BAD1111111111111111111111111111111111111111");
 
     for j in 0..instructions[i].accounts.len() {
@@ -190,18 +167,6 @@ async fn fail_account_checks(
         // wallet address can be arbitrary
         if instruction_pubkey == accounts.alice.pubkey() {
             continue;
-        }
-
-        // while onramp is optional, an incorrect onramp misaligns all subsequent accounts
-        // this is not a problem for the program and causes the mint to fail to validate, but requires tweaking this test
-        if !remove_onramp && instruction_pubkey == accounts.pool {
-            if let Some(onramp_account) = instructions[i]
-                .accounts
-                .iter_mut()
-                .find(|account| account.pubkey == accounts.onramp_account)
-            {
-                onramp_account.pubkey = find_pool_onramp_address(&id(), &bad_pubkey);
-            }
         }
 
         instructions[i].accounts[j].pubkey = bad_pubkey;
@@ -226,7 +191,7 @@ async fn fail_account_checks(
         } else if instruction_pubkey == accounts.stake_account {
             check_error(e, SinglePoolError::InvalidPoolStakeAccount)
         } else if instruction_pubkey == accounts.onramp_account {
-            // NOTE add onramp error here when onramp is mandatory
+            check_error(e, SinglePoolError::InvalidPoolOnRampAccount)
         } else if instruction_pubkey == accounts.stake_authority {
             check_error(e, SinglePoolError::InvalidPoolStakeAuthority)
         } else if instruction_pubkey == accounts.mint_authority {
