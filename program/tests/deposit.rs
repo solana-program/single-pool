@@ -6,7 +6,10 @@ use {
     helpers::*,
     solana_program_test::*,
     solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
-    solana_stake_interface::state::{Authorized, Lockup, StakeStateV2},
+    solana_stake_interface::{
+        instruction as stake_instruction,
+        state::{Authorized, Lockup, StakeStateV2},
+    },
     solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
@@ -477,12 +480,40 @@ async fn fail_bad_account(
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum UserStakeState {
+    Initialized,
+    Activating,
+    Active,
+    Deactivating,
+    Deactive,
+}
+
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [false, true]
+    [false, true],
+    [UserStakeState::Initialized, UserStakeState::Activating, UserStakeState::Active,
+     UserStakeState::Deactivating, UserStakeState::Deactive]
 )]
 #[tokio::test]
-async fn fail_activation_mismatch(stake_version: StakeProgramVersion, pool_first: bool) {
+async fn fail_activation_mismatch(
+    stake_version: StakeProgramVersion,
+    pool_is_active: bool,
+    user_stake_state: UserStakeState,
+) {
+    // these deposits would succeed, this test checks failures
+    if (pool_is_active && user_stake_state == UserStakeState::Active)
+        || (!pool_is_active
+            && [
+                UserStakeState::Initialized,
+                UserStakeState::Activating,
+                UserStakeState::Deactive,
+            ]
+            .contains(&user_stake_state))
+    {
+        return;
+    }
+
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
@@ -508,38 +539,114 @@ async fn fail_activation_mismatch(stake_version: StakeProgramVersion, pool_first
     )
     .await;
 
-    if pool_first {
-        accounts.initialize(&mut context).await;
+    // if user stake is active or deactivating, create it immediately
+    if user_stake_state == UserStakeState::Active
+        || user_stake_state == UserStakeState::Deactivating
+    {
+        create_independent_stake_account(
+            &mut context.banks_client,
+            &context.payer,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.alice_stake,
+            &Authorized::auto(&accounts.alice.pubkey()),
+            &Lockup::default(),
+            minimum_pool_balance,
+        )
+        .await;
+
+        delegate_stake_account(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.alice_stake.pubkey(),
+            &accounts.alice,
+            &accounts.vote_account.pubkey(),
+        )
+        .await;
+    }
+
+    // create and delegate the pool
+    // we do not need to test a deactivated pool, replenish tests cover this
+    accounts.initialize(&mut context).await;
+
+    // if pool should be active, advance. this also activates the user stake if we created it
+    if pool_is_active {
         advance_epoch(&mut context).await;
     }
 
-    create_independent_stake_account(
-        &mut context.banks_client,
-        &context.payer,
-        &context.payer,
-        &context.last_blockhash,
-        &accounts.alice_stake,
-        &Authorized::auto(&accounts.alice.pubkey()),
-        &Lockup::default(),
-        minimum_pool_balance,
-    )
-    .await;
+    // now if user stake is initialized, activating, or deactive, create it
+    // we now have a user stake for all test cases
+    if user_stake_state == UserStakeState::Activating
+        || user_stake_state == UserStakeState::Deactive
+    {
+        create_independent_stake_account(
+            &mut context.banks_client,
+            &context.payer,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.alice_stake,
+            &Authorized::auto(&accounts.alice.pubkey()),
+            &Lockup::default(),
+            minimum_pool_balance,
+        )
+        .await;
 
-    delegate_stake_account(
-        &mut context.banks_client,
-        &context.payer,
-        &context.last_blockhash,
-        &accounts.alice_stake.pubkey(),
-        &accounts.alice,
-        &accounts.vote_account.pubkey(),
-    )
-    .await;
+        delegate_stake_account(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.alice_stake.pubkey(),
+            &accounts.alice,
+            &accounts.vote_account.pubkey(),
+        )
+        .await;
+    } else if user_stake_state == UserStakeState::Initialized {
+        let lamports =
+            get_stake_account_rent(&mut context.banks_client).await + minimum_pool_balance;
 
-    if !pool_first {
-        advance_epoch(&mut context).await;
-        accounts.initialize(&mut context).await;
+        let transaction = Transaction::new_signed_with_payer(
+            &stake_instruction::create_account(
+                &context.payer.pubkey(),
+                &accounts.alice_stake.pubkey(),
+                &Authorized::auto(&accounts.alice.pubkey()),
+                &Lockup::default(),
+                lamports,
+            ),
+            Some(&context.payer.pubkey()),
+            &[&context.payer, &accounts.alice_stake],
+            context.last_blockhash,
+        );
+
+        context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
     }
 
+    // cleverly, this creates the deactivating account (it was active) *and* the deactive account (it was activating)
+    if user_stake_state == UserStakeState::Deactivating
+        || user_stake_state == UserStakeState::Deactive
+    {
+        let transaction = Transaction::new_signed_with_payer(
+            &[stake_instruction::deactivate_stake(
+                &accounts.alice_stake.pubkey(),
+                &accounts.alice.pubkey(),
+            )],
+            Some(&context.payer.pubkey()),
+            &[&context.payer, &accounts.alice],
+            context.last_blockhash,
+        );
+
+        context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+    }
+
+    // all accounts are in their proper test state and this deposit should fail
     let instructions = instruction::deposit(
         &id(),
         &accounts.pool,

@@ -10,6 +10,7 @@ use {
         transaction::Transaction,
     },
     solana_stake_interface::{
+        instruction as stake_instruction,
         stake_flags::StakeFlags,
         stake_history::StakeHistory,
         state::{Delegation, Stake, StakeStateV2},
@@ -54,8 +55,25 @@ async fn reactivate_success(
 
     let accounts = SinglePoolAccounts::default();
     accounts
-        .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, None)
+        .initialize_for_deposit(&mut context, TEST_STAKE_AMOUNT, Some(TEST_STAKE_AMOUNT))
         .await;
+
+    let transaction = Transaction::new_signed_with_payer(
+        &[stake_instruction::deactivate_stake(
+            &accounts.bob_stake.pubkey(),
+            &accounts.bob.pubkey(),
+        )],
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &accounts.bob],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
     advance_epoch(&mut context).await;
 
     // deactivate the pool stake account
@@ -89,7 +107,7 @@ async fn reactivate_success(
             &AccountSharedData::from(stake_account),
         );
 
-        // make sure deposit fails
+        // active deposit into deactivated pool fails
         let instructions = instruction::deposit(
             &id(),
             &accounts.pool,
@@ -110,7 +128,30 @@ async fn reactivate_success(
             .process_transaction(transaction)
             .await
             .unwrap_err();
-        check_error(e, SinglePoolError::WrongStakeState);
+        check_error(e, SinglePoolError::ReplenishRequired);
+
+        // inactive deposit into deactivated pool fails
+        let instructions = instruction::deposit(
+            &id(),
+            &accounts.pool,
+            &accounts.bob_stake.pubkey(),
+            &accounts.bob_token,
+            &accounts.bob.pubkey(),
+            &accounts.bob.pubkey(),
+        );
+        let transaction = Transaction::new_signed_with_payer(
+            &instructions,
+            Some(&context.payer.pubkey()),
+            &[&context.payer, &accounts.bob],
+            context.last_blockhash,
+        );
+
+        let e = context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap_err();
+        check_error(e, SinglePoolError::ReplenishRequired);
     }
 
     // onramp is already inactive but it doesnt have lamports for delegation
