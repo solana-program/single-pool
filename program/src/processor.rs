@@ -19,7 +19,7 @@ use {
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
     solana_borsh::v1::try_from_slice_unchecked,
-    solana_clock::{Clock, Epoch},
+    solana_clock::Clock,
     solana_cpi::invoke_signed,
     solana_msg::msg,
     solana_native_token::LAMPORTS_PER_SOL,
@@ -1010,11 +1010,11 @@ impl Processor {
         //
         // this branch would also be hit for a pool in warmup/cooldown, but this should never happen,
         // because it would require cluster warmup/cooldown *and* a first-epoch pool or delinquent validator.
-        // a ReplenishRequired error in that case is misleading, but its still an error
+        // a `ReplenishRequired` error in that case is misleading, but it is still properly an error
         if !pool_is_active && !pool_is_activating {
             return Err(SinglePoolError::ReplenishRequired.into());
         } else if pool_is_active && pool_is_activating {
-            // this is impossible but assert it since we assume its impossibility later
+            // this is impossible, but assert since we assume `pool_is_active == !pool_is_activating` later
             unreachable!();
         };
 
@@ -1029,16 +1029,18 @@ impl Processor {
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
         msg!("Available stake pre merge {}", pre_pool_stake);
 
-        let (user_stake_meta, user_activation_epoch, user_deactivation_epoch) =
-            match deserialize_stake(user_stake_info) {
-                Ok(StakeStateV2::Stake(meta, stake, _)) => (
-                    meta,
-                    stake.delegation.activation_epoch,
-                    stake.delegation.deactivation_epoch,
+        let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
+            Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                meta,
+                stake.delegation.stake_activating_and_deactivating(
+                    clock.epoch,
+                    stake_history,
+                    PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                 ),
-                Ok(StakeStateV2::Initialized(meta)) => (meta, Epoch::MAX, Epoch::MAX),
-                _ => return Err(SinglePoolError::WrongStakeState.into()),
-            };
+            ),
+            Ok(StakeStateV2::Initialized(meta)) => (meta, StakeActivationStatus::default()),
+            _ => return Err(SinglePoolError::WrongStakeState.into()),
+        };
 
         // user must have set authority to pool and have no lockup for merge to succeed
         if user_stake_meta.authorized
@@ -1048,25 +1050,16 @@ impl Processor {
             return Err(SinglePoolError::WrongStakeState.into());
         }
 
-        // user can deposit active stake into an active pool or inactive stake into an activating pool.
-        // this is unstrict on a user deposit with warmup/cooldown, but the odds of that are very small.
-        // and if it happened, Merge would block it. we are just in the "helpful error message" business here
-        match pool_is_active {
-            // active <- active
-            true if user_activation_epoch < clock.epoch
-                && user_deactivation_epoch == Epoch::MAX => {}
-            // activating <- activating
-            false
-                if user_activation_epoch == clock.epoch
-                    && user_deactivation_epoch == Epoch::MAX => {}
-            // activating <- initialized
-            false
-                if user_activation_epoch == Epoch::MAX && user_deactivation_epoch == Epoch::MAX => {
-            }
-            // activating <- deactivated
-            false if user_deactivation_epoch < clock.epoch => (),
-            // all other transitions disallowed
-            _ => return Err(SinglePoolError::WrongStakeState.into()),
+        // user can deposit active stake into an active pool, or activating or inactive stake into an activating pool
+        if pool_is_active && is_stake_fully_active(&user_stake_status) {
+            // ok: active <- active
+        } else if pool_is_activating && is_stake_newly_activating(&user_stake_status) {
+            // ok: activating <- activating
+        } else if pool_is_activating && user_stake_status == StakeActivationStatus::default() {
+            // ok: activating <- inactive
+        } else {
+            // all other transitions are disallowed
+            return Err(SinglePoolError::WrongStakeState.into());
         }
 
         // merge the user stake account, which is preauthed to us, into the pool stake account

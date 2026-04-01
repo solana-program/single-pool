@@ -4,11 +4,13 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_clock::Clock,
     solana_program_test::*,
     solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
     solana_stake_interface::{
         instruction as stake_instruction,
-        state::{Authorized, Lockup, StakeStateV2},
+        stake_history::StakeHistory,
+        state::{Authorized, Lockup, StakeActivationStatus, StakeStateV2},
     },
     solana_system_interface::instruction as system_instruction,
     spl_associated_token_account_interface::address::get_associated_token_address,
@@ -496,24 +498,11 @@ enum UserStakeState {
      UserStakeState::Deactivating, UserStakeState::Deactive]
 )]
 #[tokio::test]
-async fn fail_activation_mismatch(
+async fn all_activation_states(
     stake_version: StakeProgramVersion,
-    pool_is_active: bool,
+    activate: bool,
     user_stake_state: UserStakeState,
 ) {
-    // these deposits would succeed, this test checks failures
-    if (pool_is_active && user_stake_state == UserStakeState::Active)
-        || (!pool_is_active
-            && [
-                UserStakeState::Initialized,
-                UserStakeState::Activating,
-                UserStakeState::Deactive,
-            ]
-            .contains(&user_stake_state))
-    {
-        return;
-    }
-
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
@@ -521,7 +510,7 @@ async fn fail_activation_mismatch(
 
     let accounts = SinglePoolAccounts::default();
 
-    let minimum_pool_balance = get_minimum_pool_balance(
+    let stake_amount = get_minimum_pool_balance(
         &mut context.banks_client,
         &context.payer,
         &context.last_blockhash,
@@ -539,6 +528,10 @@ async fn fail_activation_mismatch(
     )
     .await;
 
+    // warp immediately so our user stake does not have an activation epoch of 0
+    let second_normal_slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
+    context.warp_to_slot(second_normal_slot).unwrap();
+
     // if user stake is active or deactivating, create it immediately
     if user_stake_state == UserStakeState::Active
         || user_stake_state == UserStakeState::Deactivating
@@ -551,7 +544,7 @@ async fn fail_activation_mismatch(
             &accounts.alice_stake,
             &Authorized::auto(&accounts.alice.pubkey()),
             &Lockup::default(),
-            minimum_pool_balance,
+            stake_amount,
         )
         .await;
 
@@ -564,14 +557,16 @@ async fn fail_activation_mismatch(
             &accounts.vote_account.pubkey(),
         )
         .await;
+
+        advance_epoch(&mut context).await;
     }
 
     // create and delegate the pool
     // we do not need to test a deactivated pool, replenish tests cover this
     accounts.initialize(&mut context).await;
 
-    // if pool should be active, advance. this also activates the user stake if we created it
-    if pool_is_active {
+    // if pool should be active, advance
+    if activate {
         advance_epoch(&mut context).await;
     }
 
@@ -588,7 +583,7 @@ async fn fail_activation_mismatch(
             &accounts.alice_stake,
             &Authorized::auto(&accounts.alice.pubkey()),
             &Lockup::default(),
-            minimum_pool_balance,
+            stake_amount,
         )
         .await;
 
@@ -602,8 +597,7 @@ async fn fail_activation_mismatch(
         )
         .await;
     } else if user_stake_state == UserStakeState::Initialized {
-        let lamports =
-            get_stake_account_rent(&mut context.banks_client).await + minimum_pool_balance;
+        let lamports = get_stake_account_rent(&mut context.banks_client).await + stake_amount;
 
         let transaction = Transaction::new_signed_with_payer(
             &stake_instruction::create_account(
@@ -625,7 +619,7 @@ async fn fail_activation_mismatch(
             .unwrap();
     }
 
-    // cleverly, this creates the deactivating account (it was active) *and* the deactive account (it was activating)
+    // this creates the deactivating account (it was active) *and* the deactive account (it was activating)
     if user_stake_state == UserStakeState::Deactivating
         || user_stake_state == UserStakeState::Deactive
     {
@@ -646,7 +640,50 @@ async fn fail_activation_mismatch(
             .unwrap();
     }
 
-    // all accounts are in their proper test state and this deposit should fail
+    // the above is an unpleasant machine. sanity check both accounts
+    let activating = StakeActivationStatus::with_effective_and_activating(0, stake_amount);
+    let active = StakeActivationStatus::with_effective(stake_amount);
+    let deactivating = StakeActivationStatus::with_deactivating(stake_amount);
+    let deactive = StakeActivationStatus::default();
+
+    let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+    let stake_history = context
+        .banks_client
+        .get_sysvar::<StakeHistory>()
+        .await
+        .unwrap();
+
+    let pool_triple = get_stake_account(&mut context.banks_client, &accounts.stake_account)
+        .await
+        .1
+        .unwrap()
+        .delegation
+        .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0));
+
+    if activate {
+        assert_eq!(pool_triple, active);
+    } else {
+        assert_eq!(pool_triple, activating);
+    }
+
+    let user_triple = get_stake_account(&mut context.banks_client, &accounts.alice_stake.pubkey())
+        .await
+        .1
+        .map(|stake| {
+            stake
+                .delegation
+                .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0))
+        });
+
+    match user_stake_state {
+        UserStakeState::Initialized => assert!(user_triple.is_none()),
+        UserStakeState::Activating => assert_eq!(user_triple.unwrap(), activating),
+        UserStakeState::Active => assert_eq!(user_triple.unwrap(), active),
+        UserStakeState::Deactivating => assert_eq!(user_triple.unwrap(), deactivating),
+        UserStakeState::Deactive => assert_eq!(user_triple.unwrap(), deactive),
+    }
+
+    // finally we can run the deposit
     let instructions = instruction::deposit(
         &id(),
         &accounts.pool,
@@ -662,10 +699,26 @@ async fn fail_activation_mismatch(
         context.last_blockhash,
     );
 
-    let e = context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap_err();
-    check_error(e, SinglePoolError::WrongStakeState);
+    if (activate && user_stake_state == UserStakeState::Active)
+        || (!activate
+            && [
+                UserStakeState::Initialized,
+                UserStakeState::Activating,
+                UserStakeState::Deactive,
+            ]
+            .contains(&user_stake_state))
+    {
+        context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap();
+    } else {
+        let e = context
+            .banks_client
+            .process_transaction(transaction)
+            .await
+            .unwrap_err();
+        check_error(e, SinglePoolError::WrongStakeState);
+    }
 }
