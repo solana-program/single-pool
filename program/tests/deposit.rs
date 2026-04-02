@@ -5,14 +5,16 @@ mod helpers;
 use {
     helpers::*,
     solana_clock::Clock,
+    solana_keypair::Keypair,
     solana_program_test::*,
-    solana_sdk::{signature::Signer, signer::keypair::Keypair, transaction::Transaction},
+    solana_signer::Signer,
     solana_stake_interface::{
         instruction as stake_instruction,
         stake_history::StakeHistory,
         state::{Authorized, Lockup, StakeActivationStatus, StakeStateV2},
     },
     solana_system_interface::instruction as system_instruction,
+    solana_transaction::Transaction,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,

@@ -2,15 +2,14 @@
 
 use {
     borsh::BorshDeserialize,
+    solana_borsh::v1::try_from_slice_unchecked,
+    solana_hash::Hash,
+    solana_keypair::Keypair,
+    solana_program_pack::Pack,
     solana_program_test::BanksClient,
-    solana_sdk::{
-        borsh1::try_from_slice_unchecked,
-        hash::Hash,
-        program_pack::Pack,
-        pubkey::Pubkey,
-        signature::{Keypair, Signer},
-        transaction::Transaction,
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
+    solana_transaction::Transaction,
     spl_associated_token_account_interface::instruction::create_associated_token_account,
     spl_single_pool::inline_mpl_token_metadata::pda::find_metadata_account,
     spl_token_interface::{

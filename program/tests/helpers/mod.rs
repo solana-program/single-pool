@@ -3,21 +3,21 @@
 #![allow(clippy::uninlined_format_args)]
 
 use {
+    solana_account::Account as SolanaAccount,
     solana_clock::Clock,
+    solana_hash::Hash,
+    solana_keypair::Keypair,
+    solana_program_error::ProgramError,
     solana_program_test::*,
-    solana_sdk::{
-        account::Account as SolanaAccount,
-        hash::Hash,
-        program_error::ProgramError,
-        pubkey::Pubkey,
-        signature::{Keypair, Signer},
-        transaction::{Transaction, TransactionError},
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
     solana_stake_interface::{
         program as stake_program,
         state::{Authorized, Lockup},
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
+    solana_transaction::Transaction,
+    solana_transaction_error::TransactionError,
     solana_vote_interface::{
         instruction as vote_instruction,
         state::{VoteInit, VoteStateV4},

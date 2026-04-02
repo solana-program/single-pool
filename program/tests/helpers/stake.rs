@@ -4,19 +4,18 @@
 use {
     crate::get_account,
     bincode::deserialize,
+    solana_hash::Hash,
+    solana_keypair::Keypair,
+    solana_native_token::LAMPORTS_PER_SOL,
     solana_program_test::BanksClient,
-    solana_sdk::{
-        hash::Hash,
-        native_token::LAMPORTS_PER_SOL,
-        pubkey::Pubkey,
-        signature::{Keypair, Signer},
-        transaction::Transaction,
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
     solana_stake_interface::{
         instruction as stake_instruction, program as stake_program,
         state::{Authorized, Lockup, Meta, Stake, StakeStateV2},
     },
     solana_system_interface::instruction as system_instruction,
+    solana_transaction::Transaction,
     std::convert::TryInto,
 };
 
