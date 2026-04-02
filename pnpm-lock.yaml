@@ -14,8 +14,8 @@ importers:
         specifier: 6.6.0
         version: 6.6.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/functional':
-        specifier: 6.5.0
-        version: 6.5.0(typescript@5.9.3)
+        specifier: 6.6.0
+        version: 6.6.0(typescript@5.9.3)
       '@solana/instruction-plans':
         specifier: 6.5.0
         version: 6.5.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
