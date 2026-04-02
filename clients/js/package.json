@@ -41,6 +41,6 @@
     "@solana/instruction-plans": "6.5.0",
     "@solana/rpc-api": "6.5.0",
     "@solana/rpc-spec": "6.5.0",
-    "@solana/transaction-messages": "6.5.0"
+    "@solana/transaction-messages": "6.6.0"
   }
 }
