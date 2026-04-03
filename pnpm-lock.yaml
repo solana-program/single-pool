@@ -14,8 +14,8 @@ importers:
         specifier: 6.6.0
         version: 6.6.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/functional':
-        specifier: 6.6.0
-        version: 6.6.0(typescript@5.9.3)
+        specifier: 6.7.0
+        version: 6.7.0(typescript@5.9.3)
       '@solana/instruction-plans':
         specifier: 6.5.0
         version: 6.5.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
@@ -830,6 +830,15 @@ packages:
 
   '@solana/functional@6.6.0':
     resolution: {integrity: sha512-Cmyr/fg3G5cbCJPQ2yB4qVJAUYghCRoQ0vjl1z88TV40S64h0xUCm8tiaMyJZeEjL2nKHzfCXhgbtnlpliRHmg==}
+    engines: {node: '>=20.18.0'}
+    peerDependencies:
+      typescript: ^5.0.0
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@solana/functional@6.7.0':
+    resolution: {integrity: sha512-RcR+RRJKH43Ko98ru+LKDkjtcs3sHGz26HWL2IyPujni8RH3VsK2hg7HiLqO8Y4R53yzwsn2iZ3D+q8SkYbTpg==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
@@ -2962,6 +2971,10 @@ snapshots:
       typescript: 5.9.3
 
   '@solana/functional@6.6.0(typescript@5.9.3)':
+    optionalDependencies:
+      typescript: 5.9.3
+
+  '@solana/functional@6.7.0(typescript@5.9.3)':
     optionalDependencies:
       typescript: 5.9.3
 
