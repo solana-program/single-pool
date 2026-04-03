@@ -355,8 +355,8 @@ fn check_account_owner(
 /// 1 sol to avoid minting tokens for these lamports (locking them in the pool) since
 /// they will *become* locked after the BPF Stake 5.0.0 upgrade.
 ///
-/// We also track any future (currently unplanned) minimum delegation increase,
-/// to ensure a new pool is always valid for `DelegateStake`.
+/// We also track any future (currently unplanned) minimum delegation increase, to ensure
+/// a new pool is always valid for `DelegateStake`.
 fn minimum_pool_balance() -> Result<u64, ProgramError> {
     Ok(std::cmp::max(
         stake::tools::get_minimum_delegation()?,
