@@ -13,14 +13,14 @@ use {
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
-    [0, 100_000],
+    [0, 1],
     [false, true]
 )]
 #[tokio::test]
 async fn success(
     stake_version: StakeProgramVersion,
     activate: bool,
-    extra_lamports_in_destination: u64,
+    extra_lamports_in_pool: u64,
     other_user_deposits: bool,
 ) {
     let Some(program_test) = program_test(stake_version) else {
@@ -52,13 +52,13 @@ async fn success(
         .await
         .lamports;
 
-    if extra_lamports_in_destination > 0 {
+    if extra_lamports_in_pool > 0 {
         transfer(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
             &accounts.stake_account,
-            extra_lamports_in_destination,
+            extra_lamports_in_pool,
         )
         .await;
     }
@@ -125,10 +125,10 @@ async fn success(
     // pool retains minstake
     assert_eq!(pool_stake_after, other_user_deposits + minimum_pool_balance);
 
-    // pool lamports otherwise unchanged. unexpected transfers affect nothing
+    // pool lamports otherwise unchanged
     assert_eq!(
         pool_lamports_after,
-        pool_lamports_before - expected_deposit + extra_lamports_in_destination
+        pool_lamports_before - expected_deposit + extra_lamports_in_pool,
     );
 
     // alice has no tokens

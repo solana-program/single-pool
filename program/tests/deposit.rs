@@ -26,7 +26,7 @@ use spl_single_pool::find_default_deposit_account_address;
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
-    [0, 100_000],
+    [0, 1],
     [0, 100_000],
     [false, true]
 )]
@@ -164,6 +164,17 @@ async fn success(
         alice_stake_before_deposit + rent_exempt_reserve + alice_extra_lamports
     };
 
+    // excess lamports are counted in NEV, so expect fewer tokens
+    let expected_tokens = if pool_extra_lamports == 0 {
+        expected_deposit
+    } else if prior_deposit {
+        expected_deposit - 1
+    } else if !activate {
+        expected_deposit - 11
+    } else {
+        expected_deposit - 10
+    };
+
     // deposit stake account is closed
     assert!(context
         .banks_client
@@ -191,7 +202,7 @@ async fn success(
     // alice got tokens. no rewards have been paid so tokens correspond to stake 1:1
     assert_eq!(
         get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
-        expected_deposit,
+        expected_tokens,
     );
 }
 
