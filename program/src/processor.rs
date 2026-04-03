@@ -19,7 +19,7 @@ use {
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
     solana_borsh::v1::try_from_slice_unchecked,
-    solana_clock::{Clock, Epoch},
+    solana_clock::Clock,
     solana_cpi::invoke_signed,
     solana_msg::msg,
     solana_native_token::LAMPORTS_PER_SOL,
@@ -76,10 +76,8 @@ fn calculate_withdraw_amount(
 
 /// Deserialize the stake state from `AccountInfo`
 fn get_stake_state(stake_account_info: &AccountInfo) -> Result<(Meta, Stake), ProgramError> {
-    let stake_state = try_from_slice_unchecked::<StakeStateV2>(&stake_account_info.data.borrow())?;
-
-    match stake_state {
-        StakeStateV2::Stake(meta, stake, _) => Ok((meta, stake)),
+    match deserialize_stake(stake_account_info) {
+        Ok(StakeStateV2::Stake(meta, stake, _)) => Ok((meta, stake)),
         _ => Err(SinglePoolError::WrongStakeState.into()),
     }
 }
@@ -89,10 +87,11 @@ fn get_stake_amount(stake_account_info: &AccountInfo) -> Result<u64, ProgramErro
     Ok(get_stake_state(stake_account_info)?.1.delegation.stake)
 }
 
-/// Determine if stake is active
-fn is_stake_active_without_history(stake: &Stake, current_epoch: Epoch) -> bool {
-    stake.delegation.activation_epoch < current_epoch
-        && stake.delegation.deactivation_epoch == Epoch::MAX
+/// Wrapper so if we ever change stake deserialization we have it in one place
+fn deserialize_stake(stake_account_info: &AccountInfo) -> Result<StakeStateV2, ProgramError> {
+    Ok(try_from_slice_unchecked::<StakeStateV2>(
+        &stake_account_info.data.borrow(),
+    )?)
 }
 
 /// Determine if stake is fully active with history
@@ -102,6 +101,15 @@ fn is_stake_fully_active(stake_activation_status: &StakeActivationStatus) -> boo
             activating: 0,
             deactivating: 0,
         } if *effective > 0)
+}
+
+/// Determine if stake is newly activating with history
+fn is_stake_newly_activating(stake_activation_status: &StakeActivationStatus) -> bool {
+    matches!(stake_activation_status, StakeActivationStatus {
+            effective: 0,
+            activating,
+            deactivating: 0,
+        } if *activating > 0)
 }
 
 /// Check pool account address for the validator vote account
@@ -785,7 +793,7 @@ impl Processor {
         // get on-ramp and its status. we have to match because unlike the main account it could be Initialized
         // if it doesnt exist, it must first be created with InitializePoolOnRamp
         let (option_onramp_status, onramp_deactivation_epoch) =
-            match try_from_slice_unchecked::<StakeStateV2>(&pool_onramp_info.data.borrow()) {
+            match deserialize_stake(pool_onramp_info) {
                 Ok(StakeStateV2::Initialized(_)) => (None, u64::MAX),
                 Ok(StakeStateV2::Stake(_, stake, _)) => (
                     Some(stake.delegation.stake_activating_and_deactivating(
@@ -945,6 +953,8 @@ impl Processor {
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
+        let stake_history = &StakeHistorySysvar(clock.epoch);
+
         SinglePool::from_account_info(pool_info, program_id)?;
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
@@ -977,6 +987,37 @@ impl Processor {
         let minimum_pool_balance = minimum_pool_balance()?;
 
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+
+        let (pool_is_active, pool_is_activating) = {
+            let pool_stake_status = pool_stake_state
+                .delegation
+                .stake_activating_and_deactivating(
+                    clock.epoch,
+                    stake_history,
+                    PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                );
+
+            (
+                is_stake_fully_active(&pool_stake_status),
+                is_stake_newly_activating(&pool_stake_status),
+            )
+        };
+
+        // if pool is inactive or deactivating, it does not accept deposits.
+        // a user must call `ReplenishPool` to reactivate it. this condition is exceptional:
+        // in practice, it can only happen if the vote account is delinquent. under normal operation,
+        // a new pool is activating for one epoch then active forevermore
+        //
+        // this branch would also be hit for a pool in warmup/cooldown, but this should never happen,
+        // because it would require cluster warmup/cooldown *and* a first-epoch pool or delinquent validator.
+        // a `ReplenishRequired` error in that case is misleading, but it is still properly an error
+        if !pool_is_active && !pool_is_activating {
+            return Err(SinglePoolError::ReplenishRequired.into());
+        } else if pool_is_active && pool_is_activating {
+            // this is impossible, but assert since we assume `pool_is_active == !pool_is_activating` later
+            unreachable!();
+        };
+
         let pre_pool_stake = pool_stake_state
             .delegation
             .stake
@@ -988,20 +1029,40 @@ impl Processor {
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
         msg!("Available stake pre merge {}", pre_pool_stake);
 
-        // user can deposit active stake into an active pool or inactive stake into an
-        // activating pool
-        let (user_stake_meta, user_stake_state) = get_stake_state(user_stake_info)?;
+        let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
+            Ok(StakeStateV2::Stake(meta, stake, _)) => (
+                meta,
+                stake.delegation.stake_activating_and_deactivating(
+                    clock.epoch,
+                    stake_history,
+                    PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                ),
+            ),
+            Ok(StakeStateV2::Initialized(meta)) => (meta, StakeActivationStatus::default()),
+            _ => return Err(SinglePoolError::WrongStakeState.into()),
+        };
+
+        // user must have set authority to pool and have no lockup for merge to succeed
         if user_stake_meta.authorized
             != stake::state::Authorized::auto(pool_stake_authority_info.key)
-            || is_stake_active_without_history(&pool_stake_state, clock.epoch)
-                != is_stake_active_without_history(&user_stake_state, clock.epoch)
+            || user_stake_meta.lockup.is_in_force(clock, None)
         {
             return Err(SinglePoolError::WrongStakeState.into());
         }
 
-        // merge the user stake account, which is preauthed to us, into the pool stake
-        // account this merge succeeding implicitly validates authority/lockup
-        // of the user stake account
+        // user can deposit active stake into an active pool, or activating or inactive stake into an activating pool
+        if pool_is_active && is_stake_fully_active(&user_stake_status) {
+            // ok: active <- active
+        } else if pool_is_activating && is_stake_newly_activating(&user_stake_status) {
+            // ok: activating <- activating
+        } else if pool_is_activating && user_stake_status == StakeActivationStatus::default() {
+            // ok: activating <- inactive
+        } else {
+            // all other transitions are disallowed
+            return Err(SinglePoolError::WrongStakeState.into());
+        }
+
+        // merge the user stake account, which is preauthed to us, into the pool stake account
         Self::stake_merge(
             pool_info.key,
             user_stake_info.clone(),
@@ -1044,7 +1105,7 @@ impl Processor {
             pool_mint.supply
         };
 
-        // deposit amount is determined off stake because we return excess rent
+        // deposit amount is determined off stake added because we return excess lamports
         let new_pool_tokens = calculate_deposit_amount(token_supply, pre_pool_stake, stake_added)
             .ok_or(SinglePoolError::UnexpectedMathError)?;
 
@@ -1127,6 +1188,13 @@ impl Processor {
 
         let minimum_pool_balance = minimum_pool_balance()?;
 
+        // we deliberately do NOT validate the activation status of the pool account.
+        // neither snow nor rain nor warmup/cooldown nor validator delinquency prevents a user withdrawal
+        //
+        // NOTE this is fine for stake v4 but subtly wrong for stake v5 *if* the pool account was deactivated.
+        // stake v5 declines to (meaninglessly) adjust delegations of deactivated sources.
+        // this will (again) be correct with #581, which shifts to NEV accounting on lamports rather than stake.
+        // we should plan another SVSP release before stake v5 activation
         let pre_pool_stake =
             get_stake_amount(pool_stake_info)?.saturating_sub(minimum_pool_balance);
         msg!("Available stake pre split {}", pre_pool_stake);

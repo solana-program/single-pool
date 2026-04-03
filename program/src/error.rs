@@ -101,6 +101,10 @@ pub enum SinglePoolError {
     /// before you can perform this operation.
     #[error("OnRampDoesntExist")]
     OnRampDoesntExist,
+    /// The present operation requires a `ReplenishPool` call, either because the pool stake account
+    /// is in an exceptional state, or because the on-ramp account should be refreshed.
+    #[error("ReplenishRequired")]
+    ReplenishRequired,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -155,6 +159,9 @@ impl ToStr for SinglePoolError {
             SinglePoolError::OnRampDoesntExist =>
                 "The onramp account for this pool does not exist; you must call `InitializePoolOnRamp` \
                      before you can perform this operation.",
+            SinglePoolError::ReplenishRequired =>
+                "Error: The present operation requires a `ReplenishPool` call, either because the pool stake account \
+                    is in an exceptional state, or because the on-ramp account should be refreshed.",
         }
     }
 }

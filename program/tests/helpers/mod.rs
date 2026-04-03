@@ -3,6 +3,7 @@
 #![allow(clippy::uninlined_format_args)]
 
 use {
+    solana_clock::Clock,
     solana_program_test::*,
     solana_sdk::{
         account::Account as SolanaAccount,
@@ -252,8 +253,12 @@ impl SinglePoolAccounts {
     // and token accounts note this leaves the pool in an activating state.
     // caller can advance to next epoch if they please
     pub async fn initialize(&self, context: &mut ProgramTestContext) -> u64 {
-        let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
-        context.warp_to_slot(slot).unwrap();
+        let second_normal_slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
+
+        let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+        if clock.slot < second_normal_slot {
+            context.warp_to_slot(second_normal_slot).unwrap();
+        }
 
         create_vote(
             &mut context.banks_client,
