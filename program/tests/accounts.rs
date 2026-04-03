@@ -267,6 +267,9 @@ fn make_basic_instruction(
         SinglePoolInstruction::InitializePoolOnRamp => {
             instruction::initialize_pool_onramp(&id(), &accounts.pool)
         }
+        SinglePoolInstruction::DepositSol { .. } => {
+            unimplemented!()
+        }
     }
 }
 
@@ -316,6 +319,7 @@ fn consistent_account_order() {
             },
         ),
         make_basic_instruction(&accounts, SinglePoolInstruction::InitializePoolOnRamp),
+        // TODO SinglePoolInstruction::DepositSol
     ];
 
     for instruction in instructions {

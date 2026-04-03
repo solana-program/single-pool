@@ -169,6 +169,12 @@ pub enum SinglePoolInstruction {
     ///   4. `[]` System program
     ///   5. `[]` Stake program
     InitializePoolOnRamp,
+
+    /// (reserved for future use)
+    DepositSol {
+        /// Amount of sol to deposit
+        lamports: u64,
+    },
 }
 
 /// Creates all necessary instructions to initialize the stake pool.
