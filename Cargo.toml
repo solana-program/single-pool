@@ -3,7 +3,7 @@ resolver = "2"
 members = ["clients/cli", "program"]
 
 [workspace.metadata.cli]
-solana = "3.0.9"
+solana = "3.1.11"
 
 [workspace.metadata.spellcheck]
 config = "scripts/spellcheck.toml"
