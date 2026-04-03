@@ -72,7 +72,7 @@ pub fn program_test(stake_version: StakeProgramVersion) -> Option<ProgramTest> {
     let mut program_test = ProgramTest::default();
     let stake_program = stake_version.basename()?;
 
-    program_test.add_upgradeable_program_to_genesis(stake_program, &stake_program::id());
+    program_test.add_program(stake_program, stake_program::id(), None);
     program_test.add_program("mpl_token_metadata", inline_mpl_token_metadata::id(), None);
     program_test.add_program("spl_single_pool", id(), None);
     program_test.prefer_bpf(true);

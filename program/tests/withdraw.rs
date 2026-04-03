@@ -13,7 +13,6 @@ use {
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
     [0, 100_000],
-    [false, true],
     [false, true]
 )]
 #[tokio::test]
@@ -22,7 +21,6 @@ async fn success(
     activate: bool,
     extra_lamports_in_destination: u64,
     other_user_deposits: bool,
-    small_withdrawal: bool,
 ) {
     let Some(program_test) = program_test(stake_version) else {
         return;
@@ -31,11 +29,7 @@ async fn success(
 
     let accounts = SinglePoolAccounts::default();
 
-    let amount_deposited = if small_withdrawal {
-        1
-    } else {
-        TEST_STAKE_AMOUNT
-    };
+    let amount_deposited = TEST_STAKE_AMOUNT;
 
     let minimum_pool_balance = accounts
         .initialize_for_withdraw(

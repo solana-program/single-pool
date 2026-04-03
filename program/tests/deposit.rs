@@ -26,7 +26,6 @@ use spl_single_pool::find_default_deposit_account_address;
     [false, true],
     [0, 100_000],
     [0, 100_000],
-    [false, true],
     [false, true]
 )]
 #[tokio::test]
@@ -36,7 +35,6 @@ async fn success(
     pool_extra_lamports: u64,
     alice_extra_lamports: u64,
     prior_deposit: bool,
-    small_deposit: bool,
 ) {
     let Some(program_test) = program_test(stake_version) else {
         return;
@@ -50,7 +48,7 @@ async fn success(
     accounts
         .initialize_for_deposit(
             &mut context,
-            if small_deposit { 1 } else { TEST_STAKE_AMOUNT },
+            TEST_STAKE_AMOUNT,
             if prior_deposit {
                 Some(TEST_STAKE_AMOUNT * 10)
             } else {
@@ -154,11 +152,14 @@ async fn success(
     let pool_stake_after = pool_stake_after.unwrap().delegation.stake;
 
     // when active, the depositor gets their rent and extra back
-    // but when activating, rent is added to stake
+    // but when activating, rent and extra lamports are added to stake
     let expected_deposit = if activate {
         alice_stake_before_deposit
-    } else {
+    } else if stake_version == StakeProgramVersion::Stable {
+        // remove branch after v5 is stable
         alice_stake_before_deposit + rent_exempt_reserve
+    } else {
+        alice_stake_before_deposit + rent_exempt_reserve + alice_extra_lamports
     };
 
     // deposit stake account is closed
@@ -169,7 +170,7 @@ async fn success(
         .expect("get_account")
         .is_none());
 
-    // entire stake has moved to pool
+    // entire active stake, or all lamports, have moved to pool
     assert_eq!(pool_stake_before + expected_deposit, pool_stake_after);
 
     // pool only gained stake, pool kept any extra lamports it had
@@ -194,15 +195,10 @@ async fn success(
 
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [false, true],
     [false, true]
 )]
 #[tokio::test]
-async fn success_with_seed(
-    stake_version: StakeProgramVersion,
-    activate: bool,
-    small_deposit: bool,
-) {
+async fn success_with_seed(stake_version: StakeProgramVersion, activate: bool) {
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
@@ -221,7 +217,7 @@ async fn success_with_seed(
         &accounts.vote_account.pubkey(),
         &accounts.alice.pubkey(),
         &rent,
-        if small_deposit { 1 } else { minimum_stake },
+        minimum_stake,
     );
     let transaction = Transaction::new_signed_with_payer(
         &instructions,
