@@ -5,14 +5,15 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_instruction::Instruction,
+    solana_program_error::ProgramError,
     solana_program_test::*,
     solana_pubkey::pubkey,
-    solana_sdk::{
-        instruction::Instruction, program_error::ProgramError, pubkey::Pubkey, signature::Signer,
-        transaction::Transaction,
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
     solana_stake_interface::program as stake_program,
     solana_system_interface::program as system_program,
+    solana_transaction::Transaction,
     spl_single_pool::{
         error::SinglePoolError,
         id,

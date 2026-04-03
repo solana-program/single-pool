@@ -4,7 +4,8 @@ mod helpers;
 use {
     helpers::*,
     solana_program_test::*,
-    solana_sdk::{signature::Signer, transaction::Transaction},
+    solana_signer::Signer,
+    solana_transaction::Transaction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_case,
 };

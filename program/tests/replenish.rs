@@ -4,17 +4,18 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_account::AccountSharedData,
+    solana_clock::Clock,
     solana_program_test::*,
-    solana_sdk::{
-        account::AccountSharedData, pubkey::Pubkey, signature::Signer, sysvar::clock::Clock,
-        transaction::Transaction,
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
     solana_stake_interface::{
         instruction as stake_instruction,
         stake_flags::StakeFlags,
         stake_history::StakeHistory,
         state::{Delegation, Stake, StakeStateV2},
     },
+    solana_transaction::Transaction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,
 };

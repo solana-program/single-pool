@@ -4,11 +4,12 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_instruction_error::InstructionError,
     solana_program_test::*,
-    solana_sdk::{
-        instruction::InstructionError, pubkey::Pubkey, signature::Signer, transaction::Transaction,
-    },
+    solana_pubkey::Pubkey,
+    solana_signer::Signer,
     solana_system_interface::error::SystemError,
+    solana_transaction::Transaction,
     spl_single_pool::{id, instruction},
 };
 
