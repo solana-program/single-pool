@@ -11,10 +11,11 @@ use {
         },
         instruction::SinglePoolInstruction,
         state::{SinglePool, SinglePoolAccountType},
-        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, POOL_MINT_AUTHORITY_PREFIX,
-        POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX, POOL_ONRAMP_PREFIX, POOL_PREFIX,
-        POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
-        VOTE_STATE_AUTHORIZED_WITHDRAWER_START, VOTE_STATE_DISCRIMINATOR_END,
+        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, PHANTOM_TOKEN_AMOUNT,
+        POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX,
+        POOL_ONRAMP_PREFIX, POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX,
+        VOTE_STATE_AUTHORIZED_WITHDRAWER_END, VOTE_STATE_AUTHORIZED_WITHDRAWER_START,
+        VOTE_STATE_DISCRIMINATOR_END,
     },
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
@@ -263,6 +264,19 @@ fn check_vote_account(vote_account_info: &AccountInfo) -> Result<(), ProgramErro
         0 => Err(SinglePoolError::LegacyVoteAccount.into()),
         _ => Err(SinglePoolError::UnparseableVoteAccount.into()),
     }
+}
+
+/// Check pool mint address and return notional token supply.
+/// Phantom tokens exist to represent pool-locked stake in calculations.
+fn check_pool_mint_with_supply(
+    program_id: &Pubkey,
+    pool_address: &Pubkey,
+    pool_mint_info: &AccountInfo,
+) -> Result<u64, ProgramError> {
+    check_pool_mint_address(program_id, pool_address, pool_mint_info.key)?;
+    let pool_mint_data = pool_mint_info.try_borrow_data()?;
+    let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
+    Ok(pool_mint.supply.saturating_add(PHANTOM_TOKEN_AMOUNT))
 }
 
 /// Check MPL metadata account address for the pool mint
@@ -962,7 +976,7 @@ impl Processor {
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
         check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
+        let token_supply = check_pool_mint_with_supply(program_id, pool_info.key, pool_mint_info)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -1086,12 +1100,6 @@ impl Processor {
             return Err(SinglePoolError::UnexpectedMathError.into());
         }
 
-        let token_supply = {
-            let pool_mint_data = pool_mint_info.try_borrow_data()?;
-            let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
-            pool_mint.supply.saturating_add(LAMPORTS_PER_SOL)
-        };
-
         // deposit amount is determined off stake added because we return excess lamports
         let new_pool_tokens = calculate_deposit_amount(token_supply, pre_pool_stake, stake_added)
             .ok_or(SinglePoolError::UnexpectedMathError)?;
@@ -1151,7 +1159,7 @@ impl Processor {
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
         check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
+        let token_supply = check_pool_mint_with_supply(program_id, pool_info.key, pool_mint_info)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -1182,12 +1190,6 @@ impl Processor {
         // we should plan another SVSP release before stake v5 activation
         let pre_pool_stake = get_stake_amount(pool_stake_info)?;
         msg!("Available stake pre split {}", pre_pool_stake);
-
-        let token_supply = {
-            let pool_mint_data = pool_mint_info.try_borrow_data()?;
-            let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
-            pool_mint.supply.saturating_add(LAMPORTS_PER_SOL)
-        };
 
         // withdraw amount is determined off stake just like deposit amount
         let withdraw_stake = calculate_withdraw_amount(token_supply, pre_pool_stake, token_amount)
