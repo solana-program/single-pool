@@ -26,8 +26,8 @@ importers:
         specifier: 6.7.0
         version: 6.7.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/rpc-spec':
-        specifier: 6.6.0
-        version: 6.6.0(typescript@5.9.3)
+        specifier: 6.7.0
+        version: 6.7.0(typescript@5.9.3)
       '@solana/transaction-messages':
         specifier: 6.7.0
         version: 6.7.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
@@ -69,8 +69,8 @@ importers:
         specifier: 6.7.0
         version: 6.7.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/rpc-spec':
-        specifier: 6.6.0
-        version: 6.6.0(typescript@5.9.3)
+        specifier: 6.7.0
+        version: 6.7.0(typescript@5.9.3)
       '@solana/spl-single-pool':
         specifier: workspace:*
         version: link:../js
@@ -877,26 +877,8 @@ packages:
       typescript:
         optional: true
 
-  '@solana/rpc-spec-types@6.6.0':
-    resolution: {integrity: sha512-HVL8S3C/4oc/O8cdeCjLhA3rtxw86ole5OqOo7ZrJUFjaO9vNjLDzHF2pj8p9tcOg1we6GH3JzvbcLHRU9EtYw==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
   '@solana/rpc-spec-types@6.7.0':
     resolution: {integrity: sha512-ohameGNJmtjZm7bIIGSaRIRI2G6Ikx77MfCyi9egxZo+CSS6X8WYQyqibVFjq/5RuFz9KnQp6+o2wOn3UL78sg==}
-    engines: {node: '>=20.18.0'}
-    peerDependencies:
-      typescript: ^5.0.0
-    peerDependenciesMeta:
-      typescript:
-        optional: true
-
-  '@solana/rpc-spec@6.6.0':
-    resolution: {integrity: sha512-QMxy5R3OQArxq0PxBJVDrUk/jzWP6g9lwxkU+HH7cfsEXfNGZ5WuZ+LTHyikeaQM2PvRLwUPvAo+soHn+v8G6Q==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: ^5.0.0
@@ -2937,18 +2919,7 @@ snapshots:
     optionalDependencies:
       typescript: 5.9.3
 
-  '@solana/rpc-spec-types@6.6.0(typescript@5.9.3)':
-    optionalDependencies:
-      typescript: 5.9.3
-
   '@solana/rpc-spec-types@6.7.0(typescript@5.9.3)':
-    optionalDependencies:
-      typescript: 5.9.3
-
-  '@solana/rpc-spec@6.6.0(typescript@5.9.3)':
-    dependencies:
-      '@solana/errors': 6.6.0(typescript@5.9.3)
-      '@solana/rpc-spec-types': 6.6.0(typescript@5.9.3)
     optionalDependencies:
       typescript: 5.9.3
 
