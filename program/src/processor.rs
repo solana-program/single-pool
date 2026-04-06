@@ -11,10 +11,11 @@ use {
         },
         instruction::SinglePoolInstruction,
         state::{SinglePool, SinglePoolAccountType},
-        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, POOL_MINT_AUTHORITY_PREFIX,
-        POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX, POOL_ONRAMP_PREFIX, POOL_PREFIX,
-        POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
-        VOTE_STATE_AUTHORIZED_WITHDRAWER_START, VOTE_STATE_DISCRIMINATOR_END,
+        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, PHANTOM_TOKEN_AMOUNT,
+        POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX,
+        POOL_ONRAMP_PREFIX, POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX,
+        VOTE_STATE_AUTHORIZED_WITHDRAWER_END, VOTE_STATE_AUTHORIZED_WITHDRAWER_START,
+        VOTE_STATE_DISCRIMINATOR_END,
     },
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
@@ -265,6 +266,19 @@ fn check_vote_account(vote_account_info: &AccountInfo) -> Result<(), ProgramErro
     }
 }
 
+/// Check pool mint address and return notional token supply.
+/// Phantom tokens exist to represent pool-locked stake in calculations.
+fn check_pool_mint_with_supply(
+    program_id: &Pubkey,
+    pool_address: &Pubkey,
+    pool_mint_info: &AccountInfo,
+) -> Result<u64, ProgramError> {
+    check_pool_mint_address(program_id, pool_address, pool_mint_info.key)?;
+    let pool_mint_data = pool_mint_info.try_borrow_data()?;
+    let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
+    Ok(pool_mint.supply.saturating_add(PHANTOM_TOKEN_AMOUNT))
+}
+
 /// Check MPL metadata account address for the pool mint
 fn check_mpl_metadata_account_address(
     metadata_address: &Pubkey,
@@ -353,7 +367,10 @@ fn check_account_owner(
 
 /// Minimum balance of delegated stake required to create a pool. We require at least
 /// 1 sol to avoid minting tokens for these lamports (locking them in the pool) since
-/// they would *become* locked after `stake_raise_minimum_delegation_to_1_sol` is active.
+/// they will *become* locked after the BPF Stake 5.0.0 upgrade.
+///
+/// We also track any future (currently unplanned) minimum delegation increase, to ensure
+/// a new pool is always valid for `DelegateStake`.
 fn minimum_pool_balance() -> Result<u64, ProgramError> {
     Ok(std::cmp::max(
         stake::tools::get_minimum_delegation()?,
@@ -959,7 +976,7 @@ impl Processor {
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
         check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
+        let token_supply = check_pool_mint_with_supply(program_id, pool_info.key, pool_mint_info)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -980,11 +997,6 @@ impl Processor {
         if pool_onramp_info.key == user_stake_info.key {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
-
-        let rent = Rent::get()?;
-        let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
-
-        let minimum_pool_balance = minimum_pool_balance()?;
 
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
 
@@ -1018,15 +1030,8 @@ impl Processor {
             unreachable!();
         };
 
-        let pre_pool_stake = pool_stake_state
-            .delegation
-            .stake
-            .saturating_sub(minimum_pool_balance);
-        let pre_pool_excess_lamports = pool_stake_info
-            .lamports()
-            .checked_sub(pool_stake_state.delegation.stake)
-            .and_then(|amount| amount.checked_sub(pool_rent_exempt_reserve))
-            .ok_or(SinglePoolError::ArithmeticOverflow)?;
+        let pre_pool_stake = pool_stake_state.delegation.stake;
+        let pre_pool_lamports = pool_stake_info.lamports();
         msg!("Available stake pre merge {}", pre_pool_stake);
 
         let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
@@ -1074,10 +1079,7 @@ impl Processor {
         )?;
 
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
-        let post_pool_stake = pool_stake_state
-            .delegation
-            .stake
-            .saturating_sub(minimum_pool_balance);
+        let post_pool_stake = pool_stake_state.delegation.stake;
         let post_pool_lamports = pool_stake_info.lamports();
         msg!("Available stake post merge {}", post_pool_stake);
 
@@ -1089,21 +1091,14 @@ impl Processor {
         // if there were excess lamports in the user-provided account, we return them
         // this includes their rent-exempt reserve if the pool is fully active
         let user_excess_lamports = post_pool_lamports
-            .checked_sub(pool_stake_state.delegation.stake)
-            .and_then(|amount| amount.checked_sub(pool_rent_exempt_reserve))
-            .and_then(|amount| amount.checked_sub(pre_pool_excess_lamports))
+            .checked_sub(pre_pool_lamports)
+            .and_then(|amount| amount.checked_sub(stake_added))
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
         // sanity check: the user stake account is empty
         if user_stake_info.lamports() != 0 {
             return Err(SinglePoolError::UnexpectedMathError.into());
         }
-
-        let token_supply = {
-            let pool_mint_data = pool_mint_info.try_borrow_data()?;
-            let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
-            pool_mint.supply
-        };
 
         // deposit amount is determined off stake added because we return excess lamports
         let new_pool_tokens = calculate_deposit_amount(token_supply, pre_pool_stake, stake_added)
@@ -1164,7 +1159,7 @@ impl Processor {
 
         check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
         check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
-        check_pool_mint_address(program_id, pool_info.key, pool_mint_info.key)?;
+        let token_supply = check_pool_mint_with_supply(program_id, pool_info.key, pool_mint_info)?;
         let stake_authority_bump_seed = check_pool_stake_authority_address(
             program_id,
             pool_info.key,
@@ -1186,8 +1181,6 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
-        let minimum_pool_balance = minimum_pool_balance()?;
-
         // we deliberately do NOT validate the activation status of the pool account.
         // neither snow nor rain nor warmup/cooldown nor validator delinquency prevents a user withdrawal
         //
@@ -1195,15 +1188,8 @@ impl Processor {
         // stake v5 declines to (meaninglessly) adjust delegations of deactivated sources.
         // this will (again) be correct with #581, which shifts to NEV accounting on lamports rather than stake.
         // we should plan another SVSP release before stake v5 activation
-        let pre_pool_stake =
-            get_stake_amount(pool_stake_info)?.saturating_sub(minimum_pool_balance);
+        let pre_pool_stake = get_stake_amount(pool_stake_info)?;
         msg!("Available stake pre split {}", pre_pool_stake);
-
-        let token_supply = {
-            let pool_mint_data = pool_mint_info.try_borrow_data()?;
-            let pool_mint = Mint::unpack_from_slice(&pool_mint_data)?;
-            pool_mint.supply
-        };
 
         // withdraw amount is determined off stake just like deposit amount
         let withdraw_stake = calculate_withdraw_amount(token_supply, pre_pool_stake, token_amount)
@@ -1249,8 +1235,7 @@ impl Processor {
             clock_info.clone(),
         )?;
 
-        let post_pool_stake =
-            get_stake_amount(pool_stake_info)?.saturating_sub(minimum_pool_balance);
+        let post_pool_stake = get_stake_amount(pool_stake_info)?;
         msg!("Available stake post split {}", post_pool_stake);
 
         Ok(())

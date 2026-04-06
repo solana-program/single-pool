@@ -11,7 +11,9 @@ pub mod state;
 #[cfg(not(feature = "no-entrypoint"))]
 pub mod entrypoint;
 
-use {solana_pubkey::Pubkey, solana_stake_interface as stake};
+use {
+    solana_native_token::LAMPORTS_PER_SOL, solana_pubkey::Pubkey, solana_stake_interface as stake,
+};
 
 solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
@@ -23,6 +25,7 @@ const POOL_MINT_AUTHORITY_PREFIX: &[u8] = b"mint_authority";
 const POOL_STAKE_AUTHORITY_PREFIX: &[u8] = b"stake_authority";
 const POOL_MPL_AUTHORITY_PREFIX: &[u8] = b"mpl_authority";
 
+const PHANTOM_TOKEN_AMOUNT: u64 = LAMPORTS_PER_SOL;
 const MINT_DECIMALS: u8 = 9;
 const PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH: Option<u64> = Some(0);
 

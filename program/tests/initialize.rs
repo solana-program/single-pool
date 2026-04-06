@@ -4,6 +4,7 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_native_token::LAMPORTS_PER_SOL,
     solana_program_pack::Pack,
     solana_program_test::*,
     solana_signer::Signer,
@@ -13,6 +14,35 @@ use {
     spl_token_interface::state::Mint,
     test_case::test_matrix,
 };
+
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
+#[tokio::test]
+async fn minimum_pool_balance(stake_version: StakeProgramVersion) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let accounts = SinglePoolAccounts::default();
+    let minimum_pool_balance = accounts.initialize(&mut context).await;
+
+    // this test is a canary intended to fail if stake program minimum delegation ever increases.
+    // we "back" the 1b lamport minimum pool balance with LAMPORTS_PER_SOL notional pool tokens.
+    // we *must not* use `minimum_pool_balance()` for tokens because it could adversely change
+    // the economics of pre-existing pools. allowing new pools with >1b starting delegation
+    // to have 1b notional tokens is unpleasant, but less frightening, because at least one token
+    // will have always meant the same thing for the life of such a pool
+    //
+    // we arent planning on raising minimum delegation again but this test is a messenger
+    // from the past altering you that, if such a thing happens, we may want to do Something
+    assert_eq!(
+        minimum_pool_balance, LAMPORTS_PER_SOL,
+        "Stake Program minimum delegation has changed, token accounting may need to change \
+         with it. Please consult the comment for more details.",
+    );
+}
 
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
