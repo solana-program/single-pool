@@ -1523,6 +1523,10 @@ impl Processor {
                 msg!("Instruction: InitializePoolOnRamp");
                 Self::process_initialize_pool_onramp(program_id, accounts)
             }
+            SinglePoolInstruction::DepositSol { lamports: _ } => {
+                msg!("Instruction: DepositSol (NOT IMPLEMENTED)");
+                Err(ProgramError::InvalidInstructionData)
+            }
         }
     }
 }
