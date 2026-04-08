@@ -64,19 +64,19 @@ fn calculate_deposit_amount(
     pre_pool_nev: u64,
     user_deposit_amount: u64,
 ) -> Option<u64> {
-    if pre_pool_nev > 0 && pre_token_supply > 0 {
+    if pre_pool_nev == 0 || pre_token_supply == 0 {
+        Some(user_deposit_amount)
+    } else {
         u64::try_from(
             (user_deposit_amount as u128)
                 .checked_mul(pre_token_supply as u128)?
                 .checked_div(pre_pool_nev as u128)?,
         )
         .ok()
-    } else {
-        Some(user_deposit_amount)
     }
 }
 
-/// Calculate pool stake to return, given outstanding token supply, pool NEV, and tokens to redeem
+/// Calculate pool value to return, given outstanding token supply, pool NEV, and tokens to redeem
 fn calculate_withdraw_amount(
     pre_token_supply: u64,
     pre_pool_nev: u64,
@@ -84,10 +84,10 @@ fn calculate_withdraw_amount(
 ) -> Option<u64> {
     let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_nev as u128)?;
     let denominator = pre_token_supply as u128;
-    if numerator > denominator && denominator > 0 {
-        u64::try_from(numerator.checked_div(denominator)?).ok()
-    } else {
+    if numerator < denominator || denominator == 0 {
         Some(0)
+    } else {
+        u64::try_from(numerator.checked_div(denominator)?).ok()
     }
 }
 
