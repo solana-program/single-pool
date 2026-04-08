@@ -731,3 +731,75 @@ async fn all_activation_states(
         check_error(e, SinglePoolError::WrongStakeState);
     }
 }
+
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [false, true]
+)]
+#[tokio::test]
+async fn onramp_value_accounted(stake_version: StakeProgramVersion, activate: bool) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let stake_amount = get_minimum_pool_balance(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+    )
+    .await;
+
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_deposit(&mut context, stake_amount, None)
+        .await;
+
+    let expected_additional_tokens = if activate {
+        advance_epoch(&mut context).await;
+        0
+    } else {
+        let rent = context.banks_client.get_rent().await.unwrap();
+        rent.minimum_balance(StakeStateV2::size_of()) / 2
+    };
+
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.onramp_account,
+        stake_amount,
+    )
+    .await;
+
+    // stake_amount == minimum_pool_balance
+    // thus pool starts with SA and onramp has been given SA so a SA deposit yields SA/2.
+    // since there are SA notional tokens backed by 2SA stake.
+    // (plus half rent if pool is activating)
+
+    let instructions = instruction::deposit(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        &accounts.alice.pubkey(),
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &accounts.alice],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    assert_eq!(
+        get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
+        stake_amount / 2 + expected_additional_tokens
+    );
+}

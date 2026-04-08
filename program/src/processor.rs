@@ -53,8 +53,8 @@ fn pool_net_asset_value(
     // NEV is all lamports in both accounts less rent
     pool_stake_info
         .lamports()
-        .saturating_sub(pool_rent_exempt_reserve)
         .saturating_add(pool_onramp_info.lamports())
+        .saturating_sub(pool_rent_exempt_reserve)
         .saturating_sub(onramp_rent_exempt_reserve)
 }
 
