@@ -107,7 +107,7 @@ pub enum SinglePoolError {
     #[error("ReplenishRequired")]
     ReplenishRequired,
     /// Withdrawal would render the pool stake account impossible to redelegate.
-    /// This can only occur if the Stake Program minimum delegation increases above 1sol.
+    /// This can only occur if the Stake Program minimum delegation increases above 1 sol.
     #[error("WithdrawalViolatesPoolRequirements")]
     WithdrawalViolatesPoolRequirements,
 }
