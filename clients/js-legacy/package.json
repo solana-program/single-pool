@@ -32,7 +32,7 @@
     "./dist/types"
   ],
   "devDependencies": {
-    "@types/node": "^25.5.2",
+    "@types/node": "^25.6.0",
     "@ava/typescript": "^6.0.0",
     "@typescript-eslint/eslint-plugin": "^8.58.1",
     "ava": "^7.0.0",
