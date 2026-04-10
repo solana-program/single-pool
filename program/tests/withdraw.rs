@@ -3,10 +3,12 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_program_pack::Pack,
     solana_program_test::*,
     solana_signer::Signer,
     solana_transaction::Transaction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
+    spl_token_interface::state::Mint,
     test_case::{test_case, test_matrix},
 };
 
@@ -357,4 +359,143 @@ async fn success_withdraw_from_inactive(stake_version: StakeProgramVersion) {
         alice_lamports_after,
         TEST_STAKE_AMOUNT + get_stake_account_rent(&mut context.banks_client).await
     );
+}
+
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
+#[tokio::test]
+async fn fail_disallowed_withdraw(stake_version: StakeProgramVersion) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
+        .await;
+
+    let minimum_delegation = get_minimum_delegation(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+    )
+    .await;
+
+    // actually 0 withdraw fails
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        0,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    let e = context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap_err();
+    check_error(e, SinglePoolError::WithdrawalTooSmall);
+
+    // sub-minimum delegation withdraw fails
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        minimum_delegation - 1,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    let e = context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap_err();
+    check_error(e, SinglePoolError::WithdrawalTooSmall);
+
+    // pump NEV higher. token is worth more but mostly backed by liquid sol
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.stake_account,
+        TEST_STAKE_AMOUNT * 10,
+    )
+    .await;
+
+    // withdrawal that cannot be delivered as stake fails
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        TEST_STAKE_AMOUNT,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    let e = context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap_err();
+    check_error(e, SinglePoolError::WithdrawalViolatesPoolRequirements);
+
+    // slash the pool percentage that one token represents
+    let mut mint_account = get_account(&mut context.banks_client, &accounts.mint).await;
+    let mut mint_data = Mint::unpack_from_slice(&mint_account.data).unwrap();
+    mint_data.supply *= 100;
+    Mint::pack(mint_data, &mut mint_account.data).unwrap();
+    context.set_account(&accounts.mint, &mint_account.into());
+
+    // the minimum withdrawal from a non-inactve pool can only round to 0 if a pool has >1 billion sol
+    force_deactivate_stake_account(&mut context, &accounts.stake_account).await;
+
+    // withdrawal that rounds to 0 fails
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        1,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    let e = context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap_err();
+    check_error(e, SinglePoolError::WithdrawalTooSmall);
 }

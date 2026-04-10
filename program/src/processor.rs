@@ -1240,7 +1240,7 @@ impl Processor {
             calculate_withdraw_amount(token_supply, pre_total_nev, token_amount)
                 .ok_or(SinglePoolError::UnexpectedMathError)?;
 
-        // self-explanatory
+        // self-explanatory. we catch 0 deposit above so we only hit this if we rounded to 0
         if stake_to_withdraw == 0 {
             return Err(SinglePoolError::WithdrawalTooSmall.into());
         }
