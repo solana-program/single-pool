@@ -291,3 +291,70 @@ async fn fail_withdraw_to_onramp() {
         .unwrap_err();
     check_error(e, SinglePoolError::InvalidPoolStakeAccountUsage);
 }
+
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
+#[tokio::test]
+async fn success_withdraw_from_inactive(stake_version: StakeProgramVersion) {
+    // this test would fail on bpf stake v1-4 because of a bug in Split
+    // when this assert fails, it means v5 is stable. delete this entire block
+    if stake_version == StakeProgramVersion::Stable {
+        assert!(stake_version
+            .basename()
+            .unwrap()
+            .starts_with("solana_stake_program-v4"));
+
+        return;
+    }
+
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
+        .await;
+
+    force_deactivate_stake_account(&mut context, &accounts.stake_account).await;
+
+    let (_, pool_stake_before, _) =
+        get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
+
+    // this proves we arent using delegation for math
+    assert_eq!(
+        pool_stake_before.unwrap().delegation.stake,
+        MANGLED_DELEGATION
+    );
+
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    let (_, _, alice_lamports_after) =
+        get_stake_account(&mut context.banks_client, &accounts.alice_stake.pubkey()).await;
+    assert_eq!(
+        alice_lamports_after,
+        TEST_STAKE_AMOUNT + get_stake_account_rent(&mut context.banks_client).await
+    );
+}
