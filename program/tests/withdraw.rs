@@ -472,7 +472,7 @@ async fn fail_disallowed_withdraw(stake_version: StakeProgramVersion) {
     Mint::pack(mint_data, &mut mint_account.data).unwrap();
     context.set_account(&accounts.mint, &mint_account.into());
 
-    // the minimum withdrawal from a non-inactve pool can only round to 0 if a pool has >1 billion sol
+    // the minimum withdrawal from a non-inactive pool can only round to 0 if a pool has >1 billion sol
     force_deactivate_stake_account(&mut context, &accounts.stake_account).await;
 
     // withdrawal that rounds to 0 fails
