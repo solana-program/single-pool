@@ -26,7 +26,6 @@ use spl_single_pool::find_default_deposit_account_address;
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
-    [0, 1],
     [0, 100_000],
     [false, true]
 )]
@@ -34,7 +33,6 @@ use spl_single_pool::find_default_deposit_account_address;
 async fn success(
     stake_version: StakeProgramVersion,
     activate: bool,
-    pool_extra_lamports: u64,
     alice_extra_lamports: u64,
     prior_deposit: bool,
 ) {
@@ -84,17 +82,6 @@ async fn success(
             .process_transaction(transaction)
             .await
             .unwrap();
-    }
-
-    if pool_extra_lamports > 0 {
-        transfer(
-            &mut context.banks_client,
-            &context.payer,
-            &context.last_blockhash,
-            &accounts.stake_account,
-            pool_extra_lamports,
-        )
-        .await;
     }
 
     if alice_extra_lamports > 0 {
@@ -164,17 +151,6 @@ async fn success(
         alice_stake_before_deposit + rent_exempt_reserve + alice_extra_lamports
     };
 
-    // excess lamports are counted in NEV, so expect fewer tokens
-    let expected_tokens = if pool_extra_lamports == 0 {
-        expected_deposit
-    } else if prior_deposit {
-        expected_deposit - 1
-    } else if !activate {
-        expected_deposit - 11
-    } else {
-        expected_deposit - 10
-    };
-
     // deposit stake account is closed
     assert!(context
         .banks_client
@@ -186,11 +162,11 @@ async fn success(
     // entire active stake, or all lamports, have moved to pool
     assert_eq!(pool_stake_before + expected_deposit, pool_stake_after);
 
-    // pool only gained stake, pool kept any extra lamports it had
+    // pool gained appropriate stake
     assert_eq!(pool_lamports_after, pool_lamports_before + expected_deposit);
     assert_eq!(
         pool_lamports_after,
-        pool_stake_before + expected_deposit + rent_exempt_reserve + pool_extra_lamports,
+        pool_stake_before + expected_deposit + rent_exempt_reserve,
     );
 
     // alice got her rent and extra back if active, or just extra back otherwise
@@ -202,7 +178,7 @@ async fn success(
     // alice got tokens. no rewards have been paid so tokens correspond to stake 1:1
     assert_eq!(
         get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
-        expected_tokens,
+        expected_deposit,
     );
 }
 
@@ -737,7 +713,7 @@ async fn all_activation_states(
     [false, true]
 )]
 #[tokio::test]
-async fn onramp_value_accounted(stake_version: StakeProgramVersion, activate: bool) {
+async fn success_additional_value(stake_version: StakeProgramVersion, activate: bool) {
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
@@ -755,14 +731,42 @@ async fn onramp_value_accounted(stake_version: StakeProgramVersion, activate: bo
         .initialize_for_deposit(&mut context, stake_amount, None)
         .await;
 
+    let stake_rent = context
+        .banks_client
+        .get_rent()
+        .await
+        .unwrap()
+        .minimum_balance(StakeStateV2::size_of());
+
+    // add onramp stake
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.onramp_account,
+        stake_amount,
+    )
+    .await;
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+
     let expected_additional_tokens = if activate {
         advance_epoch(&mut context).await;
         0
     } else {
-        let rent = context.banks_client.get_rent().await.unwrap();
-        rent.minimum_balance(StakeStateV2::size_of()) / 2
+        stake_rent / 4
     };
 
+    // add pool lamports
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.stake_account,
+        stake_amount,
+    )
+    .await;
+
+    // add onramp lamports
     transfer(
         &mut context.banks_client,
         &context.payer,
@@ -773,9 +777,9 @@ async fn onramp_value_accounted(stake_version: StakeProgramVersion, activate: bo
     .await;
 
     // stake_amount == minimum_pool_balance
-    // thus pool starts with SA and onramp has been given SA so a SA deposit yields SA/2.
-    // since there are SA notional tokens backed by 2SA stake.
-    // (plus half rent if pool is activating)
+    // pool starts with SA and we add another 3SA so a SA deposit yields SA/4 tokens
+    // (plus rent/4 if pool is activating)
+    // since there are SA notional tokens backed by 2SA stake and 2A extra lamports
 
     let instructions = instruction::deposit(
         &id(),
@@ -798,8 +802,25 @@ async fn onramp_value_accounted(stake_version: StakeProgramVersion, activate: bo
         .await
         .unwrap();
 
+    // got the tokens we expect
     assert_eq!(
         get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
-        stake_amount / 2 + expected_additional_tokens
+        stake_amount / 4 + expected_additional_tokens
     );
+
+    // pool lamports have not been removed
+    let pool_lamports = get_account(&mut context.banks_client, &accounts.stake_account)
+        .await
+        .lamports;
+
+    assert_eq!(
+        pool_lamports,
+        stake_amount * 3 + if activate { stake_rent } else { stake_rent * 2 },
+    );
+
+    let onramp_lamports = get_account(&mut context.banks_client, &accounts.onramp_account)
+        .await
+        .lamports;
+
+    assert_eq!(onramp_lamports, stake_amount * 2 + stake_rent);
 }

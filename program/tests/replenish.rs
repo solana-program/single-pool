@@ -7,7 +7,6 @@ use {
     solana_account::AccountSharedData,
     solana_clock::Clock,
     solana_program_test::*,
-    solana_pubkey::Pubkey,
     solana_signer::Signer,
     solana_stake_interface::{
         instruction as stake_instruction,
@@ -19,24 +18,6 @@ use {
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,
 };
-
-async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
-    let instruction = instruction::replenish_pool(&id(), vote_account);
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&context.payer.pubkey()),
-        &[&context.payer],
-        context.last_blockhash,
-    );
-
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
-
-    refresh_blockhash(context).await;
-}
 
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],

@@ -457,6 +457,24 @@ pub async fn transfer(
     banks_client.process_transaction(transaction).await.unwrap();
 }
 
+pub async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
+    let instruction = instruction::replenish_pool(&id(), vote_account);
+    let transaction = Transaction::new_signed_with_payer(
+        &[instruction],
+        Some(&context.payer.pubkey()),
+        &[&context.payer],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    refresh_blockhash(context).await;
+}
+
 pub fn check_error<T: Clone + std::fmt::Debug>(got: BanksClientError, expected: T)
 where
     ProgramError: TryFrom<T>,
