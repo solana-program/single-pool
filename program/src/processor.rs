@@ -1198,6 +1198,10 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
+        if token_amount == 0 {
+            return Err(SinglePoolError::WithdrawalTooSmall.into());
+        }
+
         let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
         // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
@@ -1241,19 +1245,26 @@ impl Processor {
             return Err(SinglePoolError::WithdrawalTooSmall.into());
         }
 
+        // the pool must *always* meet minimum delegation, even if it is inactive.
+        // this error is currently impossible to hit and exists to protect pools if minimum delegation rises above 1sol
+        if withdrawable_value.saturating_sub(stake_to_withdraw) < minimum_delegation {
+            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
+        }
+
+        // this is impossible but we guard explicitly because it would put the pool in an unrecoverable state
+        if stake_to_withdraw == pool_stake_info.lamports() {
+            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
+        }
+
         // if the destination would be in any non-inactive state it must meet minimum delegation
         if !pool_is_fully_inactive && stake_to_withdraw < minimum_delegation {
             return Err(SinglePoolError::WithdrawalTooSmall.into());
         }
 
         // if we do not have enough value to service this withdrawal, the user must wait a `ReplenishPool` cycle.
-        // this does *not* mean the value isnt in the pool, merely that it is not duly splittable
+        // this does *not* mean the value isnt in the pool, merely that it is not duly splittable.
+        // this check should always come last to avoid returning it if the withdrawal is actually invalid
         if stake_to_withdraw > withdrawable_value {
-            return Err(SinglePoolError::WithdrawalTooLarge.into());
-        }
-
-        // this is theoretically impossible but we guard because it would put the pool in an unrecoverable state
-        if stake_to_withdraw == pool_stake_info.lamports() {
             return Err(SinglePoolError::WithdrawalTooLarge.into());
         }
 

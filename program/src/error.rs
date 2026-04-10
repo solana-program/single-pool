@@ -54,8 +54,9 @@ pub enum SinglePoolError {
 
     // 10
     /// Not enough stake to cover the provided quantity of pool tokens.
-    /// (Generally this should not happen absent user error, but may if the
-    /// minimum delegation increases beyond 1 sol.)
+    /// This typically means the value exists in the pool as activating stake,
+    /// and an epoch is required for it to become available. Otherwise, it means
+    /// active stake in the on-ramp must be moved via `ReplenishPool`.
     #[error("WithdrawalTooLarge")]
     WithdrawalTooLarge,
     /// Required signature is missing.
@@ -105,6 +106,10 @@ pub enum SinglePoolError {
     /// is in an exceptional state, or because the on-ramp account should be refreshed.
     #[error("ReplenishRequired")]
     ReplenishRequired,
+    /// Withdrawal would render the pool stake account impossible to redelegate.
+    /// This can only occur if the Stake Program minimum delegation increases above 1sol.
+    #[error("WithdrawalViolatesPoolRequirements")]
+    WithdrawalViolatesPoolRequirements,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -137,8 +142,9 @@ impl ToStr for SinglePoolError {
                 "Error: Not enough pool tokens provided to withdraw stake worth one lamport.",
             SinglePoolError::WithdrawalTooLarge =>
                 "Error: Not enough stake to cover the provided quantity of pool tokens. \
-                     (Generally this should not happen absent user error, but may if the minimum delegation increases \
-                     beyond 1 sol.)",
+                    This typically means the value exists in the pool as activating stake, \
+                    and an epoch is required for it to become available. Otherwise, it means \
+                    active stake in the onramp must be moved via `ReplenishPool`.",
             SinglePoolError::SignatureMissing => "Error: Required signature is missing.",
             SinglePoolError::WrongStakeState => "Error: Stake account is not in the state expected by the program.",
             SinglePoolError::ArithmeticOverflow => "Error: Unsigned subtraction crossed the zero.",
@@ -157,11 +163,14 @@ impl ToStr for SinglePoolError {
             SinglePoolError::InvalidPoolOnRampAccount =>
                 "Error: Provided pool onramp account does not match address derived from the pool account.",
             SinglePoolError::OnRampDoesntExist =>
-                "The onramp account for this pool does not exist; you must call `InitializePoolOnRamp` \
+                "Error: The onramp account for this pool does not exist; you must call `InitializePoolOnRamp` \
                      before you can perform this operation.",
             SinglePoolError::ReplenishRequired =>
                 "Error: The present operation requires a `ReplenishPool` call, either because the pool stake account \
                     is in an exceptional state, or because the on-ramp account should be refreshed.",
+            SinglePoolError::WithdrawalViolatesPoolRequirements =>
+                "Error: Withdrawal would render the pool stake account impossible to redelegate. \
+                    This can only occur if the Stake Program minimum delegation increases above 1 sol.",
         }
     }
 }
