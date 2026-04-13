@@ -20,8 +20,8 @@ importers:
         specifier: 6.7.0
         version: 6.7.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
       '@solana/instructions':
-        specifier: 6.7.0
-        version: 6.7.0(typescript@5.9.3)
+        specifier: 6.8.0
+        version: 6.8.0(typescript@5.9.3)
       '@solana/rpc-api':
         specifier: 6.8.0
         version: 6.8.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)
