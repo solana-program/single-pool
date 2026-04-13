@@ -29,12 +29,13 @@ fn process_instruction(
 security_txt! {
     // Required fields
     name: "SPL Single-Validator Stake Pool",
-    project_url: "https://spl.solana.com/single-pool",
-    contacts: "link:https://github.com/solana-labs/solana-program-library/security/advisories/new,mailto:security@anza.xyz,discord:https://discord.gg/solana",
-    policy: "https://github.com/solana-labs/solana-program-library/blob/master/SECURITY.md",
+    project_url: "https://www.solana-program.com/docs/single-pool",
+    contacts: "link:https://github.com/solana-program/single-pool/security/advisories/new,email:security@anza.xyz,discord:https://discord.gg/solana",
+    policy: "https://github.com/solana-program/single-pool/blob/main/SECURITY.md",
 
     // Optional Fields
     preferred_languages: "en",
     source_code: "https://github.com/solana-program/single-pool/tree/main/program",
-    auditors: "https://spl.solana.com/single-pool#security-audits"
+    source_release: concat!("program@v", env!("CARGO_PKG_VERSION")),
+    auditors: "https://www.solana-program.com/docs/single-pool#security-audits"
 }
