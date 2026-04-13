@@ -39,7 +39,7 @@
     "@solana/functional": "6.7.0",
     "@solana/instructions": "6.7.0",
     "@solana/instruction-plans": "6.7.0",
-    "@solana/rpc-api": "6.7.0",
+    "@solana/rpc-api": "6.8.0",
     "@solana/rpc-spec": "6.7.0",
     "@solana/transaction-messages": "6.7.0"
   }
