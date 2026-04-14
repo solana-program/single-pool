@@ -40,33 +40,49 @@ use {
     spl_token_interface::{self as spl_token, state::Mint},
 };
 
-/// Calculate pool tokens to mint, given outstanding token supply, pool active
-/// stake, and deposit active stake
+/// Determine the canonical value of the pool from its staked and stake-able lamports
+fn pool_net_asset_value(
+    pool_stake_info: &AccountInfo,
+    pool_onramp_info: &AccountInfo,
+    rent: &Rent,
+) -> u64 {
+    // these numbers should typically be equal, but might differ during StakeState upgrades
+    let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
+    let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
+
+    // NEV is all lamports in both accounts less rent
+    pool_stake_info
+        .lamports()
+        .saturating_add(pool_onramp_info.lamports())
+        .saturating_sub(pool_rent_exempt_reserve)
+        .saturating_sub(onramp_rent_exempt_reserve)
+}
+
+/// Calculate pool tokens to mint, given outstanding token supply, pool NEV, and deposit amount
 fn calculate_deposit_amount(
     pre_token_supply: u64,
-    pre_pool_stake: u64,
-    user_stake_to_deposit: u64,
+    pre_pool_nev: u64,
+    user_deposit_amount: u64,
 ) -> Option<u64> {
-    if pre_pool_stake == 0 || pre_token_supply == 0 {
-        Some(user_stake_to_deposit)
+    if pre_pool_nev == 0 || pre_token_supply == 0 {
+        Some(user_deposit_amount)
     } else {
         u64::try_from(
-            (user_stake_to_deposit as u128)
+            (user_deposit_amount as u128)
                 .checked_mul(pre_token_supply as u128)?
-                .checked_div(pre_pool_stake as u128)?,
+                .checked_div(pre_pool_nev as u128)?,
         )
         .ok()
     }
 }
 
-/// Calculate pool stake to return, given outstanding token supply, pool active
-/// stake, and tokens to redeem
+/// Calculate pool value to return, given outstanding token supply, pool NEV, and tokens to redeem
 fn calculate_withdraw_amount(
     pre_token_supply: u64,
-    pre_pool_stake: u64,
+    pre_pool_nev: u64,
     user_tokens_to_burn: u64,
 ) -> Option<u64> {
-    let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_stake as u128)?;
+    let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_nev as u128)?;
     let denominator = pre_token_supply as u128;
     if numerator < denominator || denominator == 0 {
         Some(0)
@@ -774,8 +790,8 @@ impl Processor {
         let stake_config_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
+        let rent = Rent::get()?;
         let stake_history = &StakeHistorySysvar(clock.epoch);
-        let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
         check_vote_account(vote_account_info)?;
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
@@ -791,8 +807,9 @@ impl Processor {
         )?;
         check_stake_program(stake_program_info.key)?;
 
+        let minimum_delegation = stake::tools::get_minimum_delegation()?;
+
         // we expect these numbers to be equal but get them separately in case of future changes
-        let rent = Rent::get()?;
         let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
         let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
 
@@ -970,6 +987,7 @@ impl Processor {
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
+        let rent = &Rent::get()?;
         let stake_history = &StakeHistorySysvar(clock.epoch);
 
         SinglePool::from_account_info(pool_info, program_id)?;
@@ -998,9 +1016,8 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
-        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
-
-        let (pool_is_active, pool_is_activating) = {
+        let (pre_pool_stake, pool_is_active, pool_is_activating) = {
+            let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
             let pool_stake_status = pool_stake_state
                 .delegation
                 .stake_activating_and_deactivating(
@@ -1010,6 +1027,7 @@ impl Processor {
                 );
 
             (
+                pool_stake_state.delegation.stake,
                 is_stake_fully_active(&pool_stake_status),
                 is_stake_newly_activating(&pool_stake_status),
             )
@@ -1030,10 +1048,10 @@ impl Processor {
             unreachable!();
         };
 
-        let pre_pool_stake = pool_stake_state.delegation.stake;
-        let pre_pool_lamports = pool_stake_info.lamports();
-        msg!("Available stake pre merge {}", pre_pool_stake);
+        // tokens for deposit are determined off the total stakeable value of both pool-owned accounts
+        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
 
+        let pre_user_lamports = user_stake_info.lamports();
         let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
             Ok(StakeStateV2::Stake(meta, stake, _)) => (
                 meta,
@@ -1078,21 +1096,15 @@ impl Processor {
             stake_history_info.clone(),
         )?;
 
-        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
-        let post_pool_stake = pool_stake_state.delegation.stake;
-        let post_pool_lamports = pool_stake_info.lamports();
-        msg!("Available stake post merge {}", post_pool_stake);
-
-        // stake lamports added, as a stake difference
-        let stake_added = post_pool_stake
+        // determine new stake lamports added by merge
+        let post_pool_stake = get_stake_amount(pool_stake_info)?;
+        let new_stake_added = post_pool_stake
             .checked_sub(pre_pool_stake)
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
-        // if there were excess lamports in the user-provided account, we return them
-        // this includes their rent-exempt reserve if the pool is fully active
-        let user_excess_lamports = post_pool_lamports
-            .checked_sub(pre_pool_lamports)
-            .and_then(|amount| amount.checked_sub(stake_added))
+        // return user lamports that were not added to stake
+        let user_excess_lamports = pre_user_lamports
+            .checked_sub(new_stake_added)
             .ok_or(SinglePoolError::ArithmeticOverflow)?;
 
         // sanity check: the user stake account is empty
@@ -1101,8 +1113,9 @@ impl Processor {
         }
 
         // deposit amount is determined off stake added because we return excess lamports
-        let new_pool_tokens = calculate_deposit_amount(token_supply, pre_pool_stake, stake_added)
-            .ok_or(SinglePoolError::UnexpectedMathError)?;
+        let new_pool_tokens =
+            calculate_deposit_amount(token_supply, pre_total_nev, new_stake_added)
+                .ok_or(SinglePoolError::UnexpectedMathError)?;
 
         if new_pool_tokens == 0 {
             return Err(SinglePoolError::DepositTooSmall.into());
@@ -1152,8 +1165,12 @@ impl Processor {
         let user_stake_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
+        let clock = &Clock::from_account_info(clock_info)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
+
+        let rent = &Rent::get()?;
+        let stake_history = &StakeHistorySysvar(clock.epoch);
 
         SinglePool::from_account_info(pool_info, program_id)?;
 
@@ -1181,26 +1198,73 @@ impl Processor {
             return Err(SinglePoolError::InvalidPoolStakeAccountUsage.into());
         }
 
-        // we deliberately do NOT validate the activation status of the pool account.
-        // neither snow nor rain nor warmup/cooldown nor validator delinquency prevents a user withdrawal
-        //
-        // NOTE this is fine for stake v4 but subtly wrong for stake v5 *if* the pool account was deactivated.
-        // stake v5 declines to (meaninglessly) adjust delegations of deactivated sources.
-        // this will (again) be correct with #581, which shifts to NEV accounting on lamports rather than stake.
-        // we should plan another SVSP release before stake v5 activation
-        let pre_pool_stake = get_stake_amount(pool_stake_info)?;
-        msg!("Available stake pre split {}", pre_pool_stake);
-
-        // withdraw amount is determined off stake just like deposit amount
-        let withdraw_stake = calculate_withdraw_amount(token_supply, pre_pool_stake, token_amount)
-            .ok_or(SinglePoolError::UnexpectedMathError)?;
-
-        if withdraw_stake == 0 {
+        if token_amount == 0 {
             return Err(SinglePoolError::WithdrawalTooSmall.into());
         }
 
-        // the second case should never be true, but its best to be sure
-        if withdraw_stake > pre_pool_stake || withdraw_stake == pool_stake_info.lamports() {
+        let minimum_delegation = stake::tools::get_minimum_delegation()?;
+
+        // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
+        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
+
+        // note we deliberately do NOT validate the activation status of the pool account.
+        // neither warmup/cooldown nor validator delinquency prevent a user withdrawal.
+        // however, because we calculate NEV from all lamports in both pool accounts,
+        // but can only split stake from the main account (unless inactive), we must determine whether this is possible
+        let (withdrawable_value, pool_is_fully_inactive) = {
+            let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+            let pool_stake_status = pool_stake_state
+                .delegation
+                .stake_activating_and_deactivating(
+                    clock.epoch,
+                    stake_history,
+                    PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                );
+
+            // if fully inactive, we split on lamports; otherwise, on all delegation.
+            // the stake program works off delegation in this way *even* for a partially deactivated stake
+            if pool_stake_status == StakeActivationStatus::default() {
+                (
+                    pool_stake_info
+                        .lamports()
+                        .saturating_sub(rent.minimum_balance(pool_stake_info.data_len())),
+                    true,
+                )
+            } else {
+                (pool_stake_state.delegation.stake, false)
+            }
+        };
+
+        // withdraw amount is determined off pool NEV just like deposit amount
+        let stake_to_withdraw =
+            calculate_withdraw_amount(token_supply, pre_total_nev, token_amount)
+                .ok_or(SinglePoolError::UnexpectedMathError)?;
+
+        // self-explanatory. we catch 0 deposit above so we only hit this if we rounded to 0
+        if stake_to_withdraw == 0 {
+            return Err(SinglePoolError::WithdrawalTooSmall.into());
+        }
+
+        // the pool must *always* meet minimum delegation, even if it is inactive.
+        // this error is currently impossible to hit and exists to protect pools if minimum delegation rises above 1sol
+        if withdrawable_value.saturating_sub(stake_to_withdraw) < minimum_delegation {
+            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
+        }
+
+        // this is impossible but we guard explicitly because it would put the pool in an unrecoverable state
+        if stake_to_withdraw == pool_stake_info.lamports() {
+            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
+        }
+
+        // if the destination would be in any non-inactive state it must meet minimum delegation
+        if !pool_is_fully_inactive && stake_to_withdraw < minimum_delegation {
+            return Err(SinglePoolError::WithdrawalTooSmall.into());
+        }
+
+        // if we do not have enough value to service this withdrawal, the user must wait a `ReplenishPool` cycle.
+        // this does *not* mean the value isnt in the pool, merely that it is not duly splittable.
+        // this check should always come last to avoid returning it if the withdrawal is actually invalid
+        if stake_to_withdraw > withdrawable_value {
             return Err(SinglePoolError::WithdrawalTooLarge.into());
         }
 
@@ -1221,7 +1285,7 @@ impl Processor {
             pool_stake_info.clone(),
             pool_stake_authority_info.clone(),
             stake_authority_bump_seed,
-            withdraw_stake,
+            stake_to_withdraw,
             user_stake_info.clone(),
         )?;
 
@@ -1234,9 +1298,6 @@ impl Processor {
             user_stake_authority,
             clock_info.clone(),
         )?;
-
-        let post_pool_stake = get_stake_amount(pool_stake_info)?;
-        msg!("Available stake post split {}", post_pool_stake);
 
         Ok(())
     }
@@ -1547,7 +1608,7 @@ mod tests {
         test_case::test_case,
     };
 
-    // approximately 6%/yr assuking 146 epochs
+    // approximately 6%/yr assuming 146 epochs
     const INFLATION_BASE_RATE: f64 = 0.0004;
 
     #[derive(Clone, Debug, Default)]

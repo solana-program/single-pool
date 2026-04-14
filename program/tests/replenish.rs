@@ -4,39 +4,16 @@ mod helpers;
 
 use {
     helpers::*,
-    solana_account::AccountSharedData,
     solana_clock::Clock,
     solana_program_test::*,
-    solana_pubkey::Pubkey,
     solana_signer::Signer,
     solana_stake_interface::{
-        instruction as stake_instruction,
-        stake_flags::StakeFlags,
-        stake_history::StakeHistory,
-        state::{Delegation, Stake, StakeStateV2},
+        instruction as stake_instruction, stake_history::StakeHistory, state::StakeStateV2,
     },
     solana_transaction::Transaction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,
 };
-
-async fn replenish(context: &mut ProgramTestContext, vote_account: &Pubkey) {
-    let instruction = instruction::replenish_pool(&id(), vote_account);
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&context.payer.pubkey()),
-        &[&context.payer],
-        context.last_blockhash,
-    );
-
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
-
-    refresh_blockhash(context).await;
-}
 
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
@@ -77,36 +54,9 @@ async fn reactivate_success(
 
     advance_epoch(&mut context).await;
 
-    // deactivate the pool stake account
     if reactivate_pool {
-        let (meta, stake, _) =
-            get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
-        let delegation = Delegation {
-            activation_epoch: 0,
-            deactivation_epoch: 0,
-            ..stake.unwrap().delegation
-        };
-        let mut account_data = vec![0; std::mem::size_of::<StakeStateV2>()];
-        bincode::serialize_into(
-            &mut account_data[..],
-            &StakeStateV2::Stake(
-                meta,
-                Stake {
-                    delegation,
-                    ..stake.unwrap()
-                },
-                StakeFlags::empty(),
-            ),
-        )
-        .unwrap();
-
-        let mut stake_account =
-            get_account(&mut context.banks_client, &accounts.stake_account).await;
-        stake_account.data = account_data;
-        context.set_account(
-            &accounts.stake_account,
-            &AccountSharedData::from(stake_account),
-        );
+        // deactivate the pool stake account
+        force_deactivate_stake_account(&mut context, &accounts.stake_account).await;
 
         // active deposit into deactivated pool fails
         let instructions = instruction::deposit(
