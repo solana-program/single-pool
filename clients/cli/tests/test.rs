@@ -308,6 +308,8 @@ async fn deposit(raise_minimum_delegation: bool) {
         "-C".to_string(),
         env.config_file_path,
         stake_account.to_string(),
+        "--vote-account".to_string(),
+        env.vote_account.to_string(),
     ];
 
     let status = Command::new(SVSP_CLI).args(&args).status().unwrap();
