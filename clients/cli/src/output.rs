@@ -291,37 +291,3 @@ impl Display for WithdrawOutput {
         Ok(())
     }
 }
-
-#[serde_as]
-#[derive(Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct CreateStakeOutput {
-    #[serde_as(as = "DisplayFromStr")]
-    pub pool_address: Pubkey,
-    #[serde_as(as = "DisplayFromStr")]
-    pub stake_account_address: Pubkey,
-    #[serde_as(as = "Option<DisplayFromStr>")]
-    pub signature: Option<Signature>,
-}
-
-impl QuietDisplay for CreateStakeOutput {}
-impl VerboseDisplay for CreateStakeOutput {}
-
-impl Display for CreateStakeOutput {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        writeln!(f)?;
-        writeln_name_value(f, "Pool address:", &self.pool_address.to_string())?;
-        writeln_name_value(
-            f,
-            "Stake account address:",
-            &self.stake_account_address.to_string(),
-        )?;
-
-        if let Some(signature) = self.signature {
-            writeln!(f)?;
-            writeln_name_value(f, "Signature:", &signature.to_string())?;
-        }
-
-        Ok(())
-    }
-}

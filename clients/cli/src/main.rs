@@ -27,9 +27,6 @@ use {
     std::{rc::Rc, sync::Arc},
 };
 
-#[allow(deprecated)]
-use spl_single_pool::find_default_deposit_account_address;
-
 mod config;
 use config::*;
 
@@ -92,9 +89,6 @@ impl Command {
             }
             Command::Withdraw(command_config) => {
                 command_withdraw(config, command_config, matches, wallet_manager).await
-            }
-            Command::CreateDefaultStake(command_config) => {
-                command_create_stake(config, command_config).await
             }
             Command::Display(command_config) => command_display(config, command_config).await,
         }
@@ -218,6 +212,7 @@ async fn command_deposit(
 ) -> CommandResult {
     let payer = config.fee_payer()?;
     let owner = config.default_signer()?;
+    let stake_account_address = command_config.stake_account_address;
     let stake_authority = command_config
         .stake_withdraw_authority
         .and_then(|source| {
@@ -242,23 +237,6 @@ async fn command_deposit(
             .vote_account_address
             .map(|address| find_pool_address(&spl_single_pool::id(), &address))
     });
-
-    // from there we can determine the stake account address
-    let stake_account_address = if let Some(stake_account_address) =
-        command_config.stake_account_address
-    {
-        stake_account_address
-    } else if let Some(pool_address) = provided_pool_address {
-        assert!(command_config.default_stake_account);
-        eprintln_display(
-            config,
-            "WARNING: This flag is DEPRECATED and will be removed in a future release.".to_string(),
-        );
-        #[allow(deprecated)]
-        find_default_deposit_account_address(&pool_address, &stake_authority.pubkey())
-    } else {
-        unreachable!()
-    };
 
     // now we validate the stake account and definitively resolve the pool address
     let (pool_address, user_stake_active) = if let Some((meta, stake)) =
@@ -691,86 +669,6 @@ async fn command_update_metadata(
         config,
         "UpdateTokenMetadata".to_string(),
         SignatureOutput { signature },
-    ))
-}
-
-// create default stake account
-async fn command_create_stake(config: &Config, command_config: CreateStakeCli) -> CommandResult {
-    eprintln_display(
-        config,
-        "WARNING: This command is DEPRECATED and will be removed in a future release.".to_string(),
-    );
-
-    let payer = config.fee_payer()?;
-    let owner = config.default_signer()?;
-    let stake_authority_address = command_config
-        .stake_authority_address
-        .unwrap_or_else(|| owner.pubkey());
-
-    let pool_address = pool_address_from_args(
-        command_config.pool_address,
-        command_config.vote_account_address,
-    );
-
-    #[allow(deprecated)]
-    let stake_account_address =
-        find_default_deposit_account_address(&pool_address, &stake_authority_address);
-
-    println_display(
-        config,
-        format!("Creating default stake account for pool {}\n", pool_address),
-    );
-
-    let vote_account_address = if let Some(vote_account_address) =
-        command_config.vote_account_address
-    {
-        vote_account_address
-    } else if let Ok(vote_account_address) = get_vote_address_from_pool(config, pool_address).await
-    {
-        vote_account_address
-    } else {
-        return Err(format!(
-            "Cannot determine vote account address from provided pool address {}",
-            pool_address,
-        )
-        .into());
-    };
-
-    if command_config.vote_account_address.is_some()
-        && pool_is_initialized(config, pool_address).await.is_err()
-    {
-        eprintln_display(
-            config,
-            format!("warning: Pool {} has not been initialized", pool_address),
-        );
-    }
-
-    #[allow(deprecated)]
-    let instructions = spl_single_pool::instruction::create_and_delegate_user_stake(
-        &spl_single_pool::id(),
-        &vote_account_address,
-        &stake_authority_address,
-        &quarantine::get_rent(config).await?,
-        command_config.lamports,
-    );
-
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&payer.pubkey()),
-        &vec![payer],
-        config.program_client.get_latest_blockhash().await?,
-    );
-
-    let signature = process_transaction(config, transaction).await?;
-
-    Ok(format_output(
-        config,
-        "CreateDefaultStake".to_string(),
-        CreateStakeOutput {
-            pool_address,
-            stake_account_address,
-            signature,
-        },
     ))
 }
 

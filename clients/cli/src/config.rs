@@ -22,15 +22,6 @@ pub fn println_display(config: &Config, message: String) {
     }
 }
 
-pub fn eprintln_display(config: &Config, message: String) {
-    match config.output_format {
-        OutputFormat::Display | OutputFormat::DisplayVerbose => {
-            eprintln!("{}", message);
-        }
-        _ => {}
-    }
-}
-
 pub struct Config {
     pub rpc_client: Arc<RpcClient>,
     pub program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,

@@ -291,33 +291,15 @@ async fn replenish_pool(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[test_case(false, false; "one_lamp::normal_stake")]
-#[test_case(true, false; "one_sol::normal_stake")]
-#[test_case(false, true; "one_lamp::default_stake")]
-#[test_case(true, true; "one_sol::default_stake")]
+#[test_case(false; "one_lamp")]
+#[test_case(true; "one_sol")]
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
+async fn deposit(raise_minimum_delegation: bool) {
     let env = setup(raise_minimum_delegation, true).await;
 
-    let stake_account = if use_default {
-        let status = Command::new(SVSP_CLI)
-            .args([
-                "create-default-stake",
-                "-C",
-                &env.config_file_path,
-                "--vote-account",
-                &env.vote_account.to_string(),
-                &LAMPORTS_PER_SOL.to_string(),
-            ])
-            .status()
-            .unwrap();
-        assert!(status.success());
-
-        Pubkey::default()
-    } else {
-        create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await
-    };
+    let stake_account =
+        create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await;
 
     wait_for_next_epoch(&env.rpc_client).await;
 
@@ -325,17 +307,8 @@ async fn deposit(raise_minimum_delegation: bool, use_default: bool) {
         "deposit".to_string(),
         "-C".to_string(),
         env.config_file_path,
+        stake_account.to_string(),
     ];
-
-    if use_default {
-        args.extend([
-            "--vote-account".to_string(),
-            env.vote_account.to_string(),
-            "--default-stake-account".to_string(),
-        ]);
-    } else {
-        args.push(stake_account.to_string());
-    };
 
     let status = Command::new(SVSP_CLI).args(&args).status().unwrap();
     assert!(status.success());
