@@ -76,10 +76,8 @@ pub enum Command {
     Manage(ManageCli),
 
     /// Deposit delegated stake into a pool in exchange for pool tokens, closing
-    /// out the original stake account. Provide either a stake account
-    /// address, or a pool or vote account address along with the
-    /// --default-stake-account flag to use an account created with
-    /// create-stake.
+    /// out the original stake account. Provide either pool or vote account address,
+    /// as well as a stake account to merge into the pool.
     Deposit(DepositCli),
 
     /// Withdraw stake into a new stake account, burning tokens in exchange.
@@ -153,7 +151,6 @@ pub struct ReplenishCli {
 }
 
 #[derive(Clone, Debug, Args)]
-#[clap(group(ArgGroup::new("stake-source").required(true).args(&["stake-account-address", "default-stake-account"])))]
 #[clap(group(pool_source_group().required(false)))]
 pub struct DepositCli {
     /// The stake account to deposit from. Must be in the same activation state
