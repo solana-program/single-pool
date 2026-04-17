@@ -76,8 +76,7 @@ pub enum Command {
     Manage(ManageCli),
 
     /// Deposit delegated stake into a pool in exchange for pool tokens, closing
-    /// out the original stake account. Provide either pool or vote account address,
-    /// as well as a stake account to merge into the pool.
+    /// out the original stake account. Pool address is inferred from stake account.
     Deposit(DepositCli),
 
     /// Withdraw stake into a new stake account, burning tokens in exchange.
@@ -158,12 +157,11 @@ pub struct DepositCli {
     #[clap(value_parser = |p: &str| parse_address(p, "stake_account_address"))]
     pub stake_account_address: Pubkey,
 
-    /// The pool to deposit into. Optional when stake account is provided
+    /// The pool to deposit into. Optional for validation
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,
 
-    /// The vote account corresponding to the pool to deposit into. Optional
-    /// when stake account or pool is provided
+    /// The vote account corresponding to the pool to deposit into. Optional for validation
     #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
     pub vote_account_address: Option<Pubkey>,
 
