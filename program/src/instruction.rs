@@ -54,7 +54,7 @@ pub enum SinglePoolInstruction {
     ///     - Delegate the on-ramp if it has excess lamports to activate.
     ///
     ///   Combined, these operations allow harvesting and delegating MEV rewards
-    ///   and will eventually allow depositing liquid sol for pool tokens.
+    ///   and also enable depositing liquid sol for pool tokens via `DepositSol`.
     ///
     ///   This instruction is idempotent and gracefully skips operations that
     ///   would fail or have no effect, up to no-op. This allows it to be
@@ -166,7 +166,27 @@ pub enum SinglePoolInstruction {
     ///   5. `[]` Stake program
     InitializePoolOnRamp,
 
-    /// (reserved for future use)
+    ///   Deposit liquid sol into the pool. The output is a "pool" token
+    ///   representing fractional ownership of the pool stake. Inputs are
+    ///   converted to the current ratio, less a fee of `DEPOSIT_SOL_FEE_BPS`.
+    ///   This instruction invokes `ReplenishPool` to immediately delegate
+    ///   any newly added sol if possible.
+    ///
+    ///   0. `[]` Validator vote account
+    ///   1. `[]` Pool account
+    ///   2. `[w]` Pool stake account
+    ///   3. `[w]` Pool on-ramp account
+    ///   4. `[w]` Pool token mint
+    ///   5. `[]` Pool stake authority
+    ///   6. `[]` Pool mint authority
+    ///   7. `[w, s]` User system account to deposit from
+    ///   8. `[w]` User account to receive pool tokens
+    ///   9. `[]` Clock sysvar
+    ///  10. `[]` Stake history sysvar
+    ///  11. `[]` Stake config sysvar
+    ///  12. `[]` System program
+    ///  13. `[]` Token program
+    ///  14. `[]` Stake program
     DepositSol {
         /// Amount of sol to deposit
         lamports: u64,
@@ -334,6 +354,78 @@ pub fn deposit_stake(
         AccountMeta::new_readonly(stake_history::id(), false),
         AccountMeta::new_readonly(spl_token::id(), false),
         AccountMeta::new_readonly(stake::program::id(), false),
+    ];
+
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
+    }
+}
+
+/// Creates the necessary instructions to deposit liquid sol.
+/// `escrow_deposit_account` should be the pubkey of an unused keypair.
+/// This avoids passing a wallet signature into an opaque program,
+/// a best practice for safety given its untrammeled authority.
+/// The escrow account does not have to meet rent exemption because it is
+/// opened and closed in the span of one transaction.
+pub fn deposit_liquid(
+    program_id: &Pubkey,
+    vote_account_address: &Pubkey,
+    user_wallet: &Pubkey,
+    escrow_deposit_account: &Pubkey,
+    user_token_account: &Pubkey,
+    lamports: u64,
+) -> Vec<Instruction> {
+    vec![
+        system_instruction::transfer(user_wallet, escrow_deposit_account, lamports),
+        deposit_sol(
+            program_id,
+            vote_account_address,
+            escrow_deposit_account,
+            user_token_account,
+            lamports,
+        ),
+    ]
+}
+
+/// Creates a `DepositSol` instruction.
+/// It is recommended as a matter of hygiene to use the `deposit_liquid()` helper,
+/// to isolate user wallet signing authority from the program.
+pub fn deposit_sol(
+    program_id: &Pubkey,
+    vote_account_address: &Pubkey,
+    user_deposit_account: &Pubkey,
+    user_token_account: &Pubkey,
+    lamports: u64,
+) -> Instruction {
+    let pool_address = find_pool_address(program_id, vote_account_address);
+
+    let data = borsh::to_vec(&SinglePoolInstruction::DepositSol { lamports }).unwrap();
+    let accounts = vec![
+        AccountMeta::new_readonly(*vote_account_address, false),
+        AccountMeta::new_readonly(pool_address, false),
+        AccountMeta::new(find_pool_stake_address(program_id, &pool_address), false),
+        AccountMeta::new(find_pool_onramp_address(program_id, &pool_address), false),
+        AccountMeta::new(find_pool_mint_address(program_id, &pool_address), false),
+        AccountMeta::new_readonly(
+            find_pool_stake_authority_address(program_id, &pool_address),
+            false,
+        ),
+        AccountMeta::new_readonly(
+            find_pool_mint_authority_address(program_id, &pool_address),
+            false,
+        ),
+        AccountMeta::new(*user_deposit_account, true),
+        AccountMeta::new(*user_token_account, false),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+        AccountMeta::new_readonly(stake_history::id(), false),
+        #[allow(deprecated)]
+        AccountMeta::new_readonly(stake::config::id(), false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(spl_token::id(), false),
+        AccountMeta::new_readonly(stake::program::id(), false),
+        AccountMeta::new_readonly(*program_id, false),
     ];
 
     Instruction {

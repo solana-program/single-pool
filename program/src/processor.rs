@@ -9,19 +9,19 @@ use {
             pda::find_metadata_account,
             state::DataV2,
         },
-        instruction::SinglePoolInstruction,
+        instruction::{self as svsp_instruction, SinglePoolInstruction},
         state::{SinglePool, SinglePoolAccountType},
-        MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH, PHANTOM_TOKEN_AMOUNT,
-        POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX, POOL_MPL_AUTHORITY_PREFIX,
-        POOL_ONRAMP_PREFIX, POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX, POOL_STAKE_PREFIX,
-        VOTE_STATE_AUTHORIZED_WITHDRAWER_END, VOTE_STATE_AUTHORIZED_WITHDRAWER_START,
-        VOTE_STATE_DISCRIMINATOR_END,
+        DEPOSIT_SOL_FEE_BPS, MAX_BPS, MINT_DECIMALS, PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+        PHANTOM_TOKEN_AMOUNT, POOL_MINT_AUTHORITY_PREFIX, POOL_MINT_PREFIX,
+        POOL_MPL_AUTHORITY_PREFIX, POOL_ONRAMP_PREFIX, POOL_PREFIX, POOL_STAKE_AUTHORITY_PREFIX,
+        POOL_STAKE_PREFIX, VOTE_STATE_AUTHORIZED_WITHDRAWER_END,
+        VOTE_STATE_AUTHORIZED_WITHDRAWER_START, VOTE_STATE_DISCRIMINATOR_END,
     },
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
     solana_borsh::v1::try_from_slice_unchecked,
     solana_clock::Clock,
-    solana_cpi::invoke_signed,
+    solana_cpi::{invoke, invoke_signed},
     solana_msg::msg,
     solana_native_token::LAMPORTS_PER_SOL,
     solana_program_entrypoint::ProgramResult,
@@ -1562,6 +1562,160 @@ impl Processor {
         Ok(())
     }
 
+    fn process_deposit_sol(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        deposit_amount: u64,
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let vote_account_info = next_account_info(account_info_iter)?;
+        let pool_info = next_account_info(account_info_iter)?;
+        let pool_stake_info = next_account_info(account_info_iter)?;
+        let pool_onramp_info = next_account_info(account_info_iter)?;
+        let pool_mint_info = next_account_info(account_info_iter)?;
+        let pool_stake_authority_info = next_account_info(account_info_iter)?;
+        let pool_mint_authority_info = next_account_info(account_info_iter)?;
+        let user_lamport_account_info = next_account_info(account_info_iter)?;
+        let user_token_account_info = next_account_info(account_info_iter)?;
+        let clock_info = next_account_info(account_info_iter)?;
+        let clock = &Clock::from_account_info(clock_info)?;
+        let stake_history_info = next_account_info(account_info_iter)?;
+        let stake_config_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+        let token_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        let rent = Rent::get()?;
+        let stake_history = &StakeHistorySysvar(clock.epoch);
+
+        check_vote_account(vote_account_info)?;
+        check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
+
+        SinglePool::from_account_info(pool_info, program_id)?;
+
+        check_pool_stake_address(program_id, pool_info.key, pool_stake_info.key)?;
+        check_pool_onramp_address(program_id, pool_info.key, pool_onramp_info.key)?;
+        let token_supply = check_pool_mint_with_supply(program_id, pool_info.key, pool_mint_info)?;
+        check_pool_stake_authority_address(
+            program_id,
+            pool_info.key,
+            pool_stake_authority_info.key,
+        )?;
+        let mint_authority_bump_seed = check_pool_mint_authority_address(
+            program_id,
+            pool_info.key,
+            pool_mint_authority_info.key,
+        )?;
+        check_system_program(system_program_info.key)?;
+        check_token_program(token_program_info.key)?;
+        check_stake_program(stake_program_info.key)?;
+
+        if deposit_amount == 0 {
+            return Err(SinglePoolError::DepositTooSmall.into());
+        }
+
+        // we require the pool to be fully active for this instruction to minimize complexity
+        {
+            let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+            let pool_stake_status = pool_stake_state
+                .delegation
+                .stake_activating_and_deactivating(
+                    clock.epoch,
+                    stake_history,
+                    PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                );
+
+            if !is_stake_fully_active(&pool_stake_status) {
+                return Err(SinglePoolError::WrongStakeState.into());
+            }
+        };
+
+        // we require onramp to exist, though we dont care what state its in
+        match deserialize_stake(pool_onramp_info) {
+            Ok(StakeStateV2::Initialized(_)) | Ok(StakeStateV2::Stake(_, _, _)) => (),
+            _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
+        }
+
+        // deposit source must be a system account for transfer to succeed
+        if !user_lamport_account_info.is_signer
+            || user_lamport_account_info.owner != &system_program::id()
+            || user_lamport_account_info.lamports() < deposit_amount
+        {
+            return Err(SinglePoolError::InvalidDepositSolSource.into());
+        }
+
+        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, &rent);
+        let pre_onramp_lamports = pool_onramp_info.lamports();
+
+        // transfer sol to pool onramp
+        invoke(
+            &system_instruction::transfer(
+                user_lamport_account_info.key,
+                pool_onramp_info.key,
+                deposit_amount,
+            ),
+            &[user_lamport_account_info.clone(), pool_onramp_info.clone()],
+        )?;
+
+        // sanity, should be impossible
+        if pool_onramp_info.lamports() != pre_onramp_lamports.saturating_add(deposit_amount) {
+            return Err(SinglePoolError::UnexpectedMathError.into());
+        }
+
+        let new_pool_tokens = {
+            let raw_tokens = calculate_deposit_amount(token_supply, pre_total_nev, deposit_amount)
+                .ok_or(SinglePoolError::UnexpectedMathError)?;
+
+            // we round division down and reject deposits too small to generate a fee
+            // this is to avoid pathological cases where eg someone deposits 2 lamps and pays 50%
+            let deposit_sol_fee = raw_tokens
+                .checked_mul(DEPOSIT_SOL_FEE_BPS)
+                .and_then(|n| n.checked_div(MAX_BPS))
+                .ok_or(SinglePoolError::UnexpectedMathError)?;
+
+            // because we abort on no fee, we know new_pool_tokens gt 0
+            if deposit_sol_fee == 0 {
+                return Err(SinglePoolError::DepositTooSmall.into());
+            }
+
+            raw_tokens.saturating_sub(deposit_sol_fee)
+        };
+
+        // sanity, should be impossible per above
+        if new_pool_tokens == 0 {
+            return Err(SinglePoolError::UnexpectedMathError.into());
+        }
+
+        // mint tokens to the user corresponding to their sol deposit
+        Self::token_mint_to(
+            pool_info.key,
+            token_program_info.clone(),
+            pool_mint_info.clone(),
+            user_token_account_info.clone(),
+            pool_mint_authority_info.clone(),
+            mint_authority_bump_seed,
+            new_pool_tokens,
+        )?;
+
+        // replenish to delegate the deposit. this safely returns Ok if onramp doesnt meet minimum delegation
+        invoke(
+            &svsp_instruction::replenish_pool(program_id, vote_account_info.key),
+            &[
+                vote_account_info.clone(),
+                pool_info.clone(),
+                pool_stake_info.clone(),
+                pool_onramp_info.clone(),
+                pool_stake_authority_info.clone(),
+                clock_info.clone(),
+                stake_history_info.clone(),
+                stake_config_info.clone(),
+                stake_program_info.clone(),
+            ],
+        )?;
+
+        Ok(())
+    }
+
     /// Processes [Instruction](enum.Instruction.html).
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = SinglePoolInstruction::try_from_slice(input)?;
@@ -1602,9 +1756,9 @@ impl Processor {
                 msg!("Instruction: InitializePoolOnRamp");
                 Self::process_initialize_pool_onramp(program_id, accounts)
             }
-            SinglePoolInstruction::DepositSol { lamports: _ } => {
-                msg!("Instruction: DepositSol (NOT IMPLEMENTED)");
-                Err(ProgramError::InvalidInstructionData)
+            SinglePoolInstruction::DepositSol { lamports } => {
+                msg!("Instruction: DepositSol");
+                Self::process_deposit_sol(program_id, accounts, lamports)
             }
         }
     }

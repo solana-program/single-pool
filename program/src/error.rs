@@ -110,6 +110,9 @@ pub enum SinglePoolError {
     /// This can only occur if the Stake Program minimum delegation increases above 1 sol.
     #[error("WithdrawalViolatesPoolRequirements")]
     WithdrawalViolatesPoolRequirements,
+    /// The user-owned lamport source cannot be validated for `DepositSol`.
+    #[error("InvalidDepositSolSource")]
+    InvalidDepositSolSource,
 }
 impl From<SinglePoolError> for ProgramError {
     fn from(e: SinglePoolError) -> Self {
@@ -171,6 +174,8 @@ impl ToStr for SinglePoolError {
             SinglePoolError::WithdrawalViolatesPoolRequirements =>
                 "Error: Withdrawal would render the pool stake account impossible to redelegate. \
                     This can only occur if the Stake Program minimum delegation increases above 1 sol.",
+            SinglePoolError::InvalidDepositSolSource =>
+                "Error: The user-owned lamport source cannot be validated for `DepositSol`.",
         }
     }
 }
