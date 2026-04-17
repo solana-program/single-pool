@@ -303,7 +303,7 @@ async fn deposit(raise_minimum_delegation: bool) {
 
     wait_for_next_epoch(&env.rpc_client).await;
 
-    let mut args = vec![
+    let args = vec![
         "deposit".to_string(),
         "-C".to_string(),
         env.config_file_path,
