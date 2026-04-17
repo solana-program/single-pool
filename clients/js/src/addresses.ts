@@ -1,13 +1,6 @@
-import {
-  address,
-  getAddressCodec,
-  getProgramDerivedAddress,
-  createAddressWithSeed,
-  Address,
-} from '@solana/addresses';
+import { address, getAddressCodec, getProgramDerivedAddress, Address } from '@solana/addresses';
 
 import { MPL_METADATA_PROGRAM_ID } from './internal.js';
-import { STAKE_PROGRAM_ID } from './quarantine.js';
 
 export const SINGLE_POOL_PROGRAM_ID = address('SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE');
 
@@ -100,23 +93,6 @@ async function findPda(programId: Address, baseAddress: Address, prefix: string)
   });
 
   return pda;
-}
-
-/** @deprecated */
-export async function findDefaultDepositAccountAddress(
-  poolAddress: PoolAddress,
-  userWallet: Address,
-) {
-  return createAddressWithSeed({
-    baseAddress: userWallet,
-    seed: defaultDepositAccountSeed(poolAddress),
-    programAddress: STAKE_PROGRAM_ID,
-  });
-}
-
-/** @deprecated */
-export function defaultDepositAccountSeed(poolAddress: PoolAddress): string {
-  return 'svsp' + poolAddress.slice(0, 28);
 }
 
 export async function findMplMetadataAddress(poolMintAddress: PoolMintAddress) {

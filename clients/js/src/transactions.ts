@@ -28,8 +28,6 @@ import {
   findPoolStakeAddress,
   findPoolMintAddress,
   findPoolOnRampAddress,
-  defaultDepositAccountSeed,
-  findDefaultDepositAccountAddress,
   findPoolMintAuthorityAddress,
   findPoolStakeAuthorityAddress,
   SINGLE_POOL_PROGRAM_ID,
@@ -58,9 +56,7 @@ interface DepositParams {
   rpc: Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
   pool: PoolAddress;
   userWallet: Address;
-  userStakeAccount?: Address;
-  /** @deprecated */
-  depositFromDefaultAccount?: boolean;
+  userStakeAccount: Address;
   userTokenAccount?: Address;
   userLamportAccount?: Address;
   userWithdrawAuthority?: Address;
@@ -90,7 +86,6 @@ export const SinglePoolProgram = {
   createTokenMetadata: createTokenMetadataTransaction,
   updateTokenMetadata: updateTokenMetadataTransaction,
   initializeOnRamp: initializeOnRampTransaction,
-  createAndDelegateUserStake: createAndDelegateUserStakeTransaction,
 };
 
 async function getInitializeInstructionPlan(
@@ -174,18 +169,7 @@ export async function replenishPoolTransaction(
 }
 
 export async function depositTransaction(params: DepositParams) {
-  const { rpc, pool, userWallet } = params;
-
-  // note this is just xnor
-  if (!params.userStakeAccount == !params.depositFromDefaultAccount) {
-    throw 'must either provide userStakeAccount or true depositFromDefaultAccount';
-  }
-
-  const userStakeAccount = (
-    params.depositFromDefaultAccount
-      ? await findDefaultDepositAccountAddress(pool, userWallet)
-      : params.userStakeAccount
-  ) as Address;
+  const { rpc, pool, userWallet, userStakeAccount } = params;
 
   let transaction = { instructions: [] as any, version: 'legacy' as TransactionVersion };
 
@@ -347,55 +331,6 @@ export async function initializeOnRampTransaction(
 
   transaction = appendTransactionMessageInstruction(
     await initializeOnRampInstruction(pool),
-    transaction,
-  );
-
-  return transaction;
-}
-
-/** @deprecated */
-export async function createAndDelegateUserStakeTransaction(
-  rpc: Rpc<GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>,
-  voteAccount: VoteAccountAddress,
-  userWallet: Address,
-  stakeAmount: bigint,
-): Promise<TransactionMessage> {
-  let transaction = { instructions: [] as any, version: 'legacy' as TransactionVersion };
-
-  const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
-  const [stakeAccount, stakeRent] = await Promise.all([
-    findDefaultDepositAccountAddress(pool, userWallet),
-    await rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
-  ]);
-
-  transaction = appendTransactionMessageInstruction(
-    SystemInstruction.createAccountWithSeed({
-      base: userWallet,
-      from: userWallet,
-      lamports: stakeAmount + stakeRent,
-      newAccount: stakeAccount,
-      programAddress: STAKE_PROGRAM_ID,
-      seed: defaultDepositAccountSeed(pool),
-      space: STAKE_ACCOUNT_SIZE,
-    }),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    StakeInstruction.initialize({
-      stakeAccount,
-      staker: userWallet,
-      withdrawer: userWallet,
-    }),
-    transaction,
-  );
-
-  transaction = appendTransactionMessageInstruction(
-    StakeInstruction.delegate({
-      stakeAccount,
-      authorized: userWallet,
-      voteAccount,
-    }),
     transaction,
   );
 
