@@ -14,7 +14,6 @@ import {
 import { Buffer } from 'buffer';
 import {
   getVoteAccountAddressForPool,
-  findDefaultDepositAccountAddress,
   MPL_METADATA_PROGRAM_ID,
   findPoolAddress,
   findPoolStakeAddress,
@@ -260,55 +259,6 @@ test('deposit', async (t) => {
   t.true(true);
 });
 
-test('deposit from default', async (t) => {
-  const context = await startWithContext();
-  const client = context.banksClient;
-  const payer = context.payer;
-  const connection = new BanksConnection(client, payer);
-
-  const voteAccountAddress = new PublicKey(voteAccount.pubkey);
-  const poolAddress = await findPoolAddress(SinglePoolProgram.programId, voteAccountAddress);
-  const poolStakeAddress = await findPoolStakeAddress(SinglePoolProgram.programId, poolAddress);
-
-  // create default account
-  const minimumDelegation = (await connection.getStakeMinimumDelegation()).value;
-  let transaction = await SinglePoolProgram.createAndDelegateUserStake(
-    connection,
-    voteAccountAddress,
-    payer.publicKey,
-    minimumDelegation,
-  );
-  await processTransaction(context, transaction);
-
-  // initialize pool
-  transaction = await SinglePoolProgram.initialize(connection, voteAccountAddress, payer.publicKey);
-  await processTransaction(context, transaction);
-
-  const slot = await client.getSlot();
-  context.warpToSlot(slot + SLOTS_PER_EPOCH);
-
-  // deposit
-  transaction = await SinglePoolProgram.deposit({
-    connection,
-    pool: poolAddress,
-    userWallet: payer.publicKey,
-    depositFromDefaultAccount: true,
-  });
-  /* bankrun is still on 1.18 so this fails. update later
-  await processTransaction(context, transaction);
-
-  const stakeRent = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
-  const poolStakeAccount = await client.getAccount(poolStakeAddress);
-  t.is(
-    poolStakeAccount.lamports,
-    LAMPORTS_PER_SOL + minimumDelegation + stakeRent,
-    'stake has been deposited',
-  );
-  */
-
-  t.true(true);
-});
-
 test('withdraw', async (t) => {
   const context = await startWithContext();
   const client = context.banksClient;
@@ -460,17 +410,4 @@ test('get vote account address', async (t) => {
 
   const chainVoteAccount = await getVoteAccountAddressForPool(connection, poolAddress);
   t.true(chainVoteAccount.equals(voteAccountAddress), 'got correct vote account');
-});
-
-test('default account address', async (t) => {
-  const voteAccountAddress = new PublicKey(voteAccount.pubkey);
-  const owner = new PublicKey('GtaYCtXWCrciizttN5mx9P38niTQPGWpfu6DnSgAr3Cj');
-  const expectedDefault = new PublicKey('BbfrNeJrd82cSFsULXT9zG8SvLLB8WsTc1gQsDFy3Sed');
-
-  const actualDefault = await findDefaultDepositAccountAddress(
-    await findPoolAddress(SinglePoolProgram.programId, voteAccountAddress),
-    owner,
-  );
-
-  t.true(actualDefault.equals(expectedDefault), 'got correct default account address');
 });

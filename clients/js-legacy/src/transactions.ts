@@ -9,8 +9,7 @@ interface DepositParams {
   connection: Connection;
   pool: PublicKey;
   userWallet: PublicKey;
-  userStakeAccount?: PublicKey;
-  depositFromDefaultAccount?: boolean;
+  userStakeAccount: PublicKey;
   userTokenAccount?: PublicKey;
   userLamportAccount?: PublicKey;
   userWithdrawAuthority?: PublicKey;
@@ -102,22 +101,6 @@ export class SinglePoolProgram {
       rpc(connection),
       pool.toBase58() as PoolAddress,
       payer.toBase58() as Address,
-    );
-
-    return modernTransactionToLegacy(modernTransaction);
-  }
-
-  static async createAndDelegateUserStake(
-    connection: Connection,
-    voteAccount: PublicKey,
-    userWallet: PublicKey,
-    stakeAmount: number | bigint,
-  ) {
-    const modernTransaction = await PoolProgramModern.createAndDelegateUserStake(
-      rpc(connection),
-      voteAccount.toBase58() as VoteAccountAddress,
-      userWallet.toBase58() as Address,
-      BigInt(stakeAmount),
     );
 
     return modernTransactionToLegacy(modernTransaction);
