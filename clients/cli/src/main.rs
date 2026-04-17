@@ -227,11 +227,10 @@ async fn command_deposit(
 
     let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
 
-    // the cli invocation for this is conceptually simple, but a bit tricky
-    // the user can provide pool or vote and let the cli infer the stake account
-    // address but they can also provide pool or vote with the stake account, as
-    // a safety check first we want to get the pool address if they provided a
-    // pool or vote address
+    // we originally accepted this because there was the notion of a "canonical"
+    // stake account keyed off each wallet/pool combination. now we just derive
+    // the pool address from the stake account delegation, but we still allow
+    // the pool or vote address to be supplied for optional validation
     let provided_pool_address = command_config.pool_address.or_else(|| {
         command_config
             .vote_account_address
