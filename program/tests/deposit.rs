@@ -20,9 +20,6 @@ use {
     test_case::test_matrix,
 };
 
-#[allow(deprecated)]
-use spl_single_pool::find_default_deposit_account_address;
-
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [false, true],
@@ -173,113 +170,6 @@ async fn success(
     assert_eq!(
         wallet_lamports_after_deposit,
         USER_STARTING_LAMPORTS - expected_deposit,
-    );
-
-    // alice got tokens. no rewards have been paid so tokens correspond to stake 1:1
-    assert_eq!(
-        get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
-        expected_deposit,
-    );
-}
-
-#[test_matrix(
-    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [false, true]
-)]
-#[tokio::test]
-async fn success_with_seed(stake_version: StakeProgramVersion, activate: bool) {
-    let Some(program_test) = program_test(stake_version) else {
-        return;
-    };
-    let mut context = program_test.start_with_context().await;
-
-    let accounts = SinglePoolAccounts::default();
-    let rent = context.banks_client.get_rent().await.unwrap();
-    let minimum_stake = accounts.initialize(&mut context).await;
-    #[allow(deprecated)]
-    let alice_default_stake =
-        find_default_deposit_account_address(&accounts.pool, &accounts.alice.pubkey());
-
-    #[allow(deprecated)]
-    let instructions = instruction::create_and_delegate_user_stake(
-        &id(),
-        &accounts.vote_account.pubkey(),
-        &accounts.alice.pubkey(),
-        &rent,
-        minimum_stake,
-    );
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&context.payer.pubkey()),
-        &[&context.payer, &accounts.alice],
-        context.last_blockhash,
-    );
-
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
-
-    if activate {
-        advance_epoch(&mut context).await;
-    }
-
-    let (_, alice_stake_before_deposit, stake_lamports) =
-        get_stake_account(&mut context.banks_client, &alice_default_stake).await;
-    let alice_stake_before_deposit = alice_stake_before_deposit.unwrap().delegation.stake;
-
-    let instructions = instruction::deposit(
-        &id(),
-        &accounts.pool,
-        &alice_default_stake,
-        &accounts.alice_token,
-        &accounts.alice.pubkey(),
-        &accounts.alice.pubkey(),
-    );
-    let transaction = Transaction::new_signed_with_payer(
-        &instructions,
-        Some(&context.payer.pubkey()),
-        &[&context.payer, &accounts.alice],
-        context.last_blockhash,
-    );
-
-    context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap();
-
-    let wallet_lamports_after_deposit =
-        get_account(&mut context.banks_client, &accounts.alice.pubkey())
-            .await
-            .lamports;
-
-    let (_, pool_stake_after, _) =
-        get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
-    let pool_stake_after = pool_stake_after.unwrap().delegation.stake;
-
-    let expected_deposit = if activate {
-        alice_stake_before_deposit
-    } else {
-        stake_lamports
-    };
-
-    // deposit stake account is closed
-    assert!(context
-        .banks_client
-        .get_account(alice_default_stake)
-        .await
-        .expect("get_account")
-        .is_none());
-
-    // stake moved to pool
-    assert_eq!(minimum_stake + expected_deposit, pool_stake_after);
-
-    // alice got her rent back if active, or everything otherwise
-    assert_eq!(
-        wallet_lamports_after_deposit,
-        USER_STARTING_LAMPORTS - expected_deposit
     );
 
     // alice got tokens. no rewards have been paid so tokens correspond to stake 1:1
