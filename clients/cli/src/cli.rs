@@ -76,21 +76,13 @@ pub enum Command {
     Manage(ManageCli),
 
     /// Deposit delegated stake into a pool in exchange for pool tokens, closing
-    /// out the original stake account. Provide either a stake account
-    /// address, or a pool or vote account address along with the
-    /// --default-stake-account flag to use an account created with
-    /// create-stake.
+    /// out the original stake account. Pool address is inferred from stake account.
     Deposit(DepositCli),
 
     /// Withdraw stake into a new stake account, burning tokens in exchange.
     /// Provide either pool or vote account address, plus either an amount of
     /// tokens to burn or the ALL keyword to burn all.
     Withdraw(WithdrawCli),
-
-    /// WARNING: This command is DEPRECATED and will be removed in a future release.
-    /// Create and delegate a new stake account to a given validator, using a
-    /// default address linked to the intended depository pool
-    CreateDefaultStake(CreateStakeCli),
 
     /// Display info for one or all single-validator stake pool(s)
     Display(DisplayCli),
@@ -158,31 +150,18 @@ pub struct ReplenishCli {
 }
 
 #[derive(Clone, Debug, Args)]
-#[clap(group(ArgGroup::new("stake-source").required(true).args(&["stake-account-address", "default-stake-account"])))]
 #[clap(group(pool_source_group().required(false)))]
 pub struct DepositCli {
     /// The stake account to deposit from. Must be in the same activation state
     /// as the pool's stake account
     #[clap(value_parser = |p: &str| parse_address(p, "stake_account_address"))]
-    pub stake_account_address: Option<Pubkey>,
+    pub stake_account_address: Pubkey,
 
-    /// WARNING: This flag is DEPRECATED and will be removed in a future release.
-    /// Instead of using a stake account by address, use the user's default
-    /// account for a specified pool
-    #[clap(
-        short,
-        long,
-        conflicts_with = "stake-account-address",
-        requires = "pool-source"
-    )]
-    pub default_stake_account: bool,
-
-    /// The pool to deposit into. Optional when stake account is provided
+    /// The pool to deposit into. Optional for validation
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,
 
-    /// The vote account corresponding to the pool to deposit into. Optional
-    /// when stake account or pool is provided
+    /// The vote account corresponding to the pool to deposit into. Optional for validation
     #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
     pub vote_account_address: Option<Pubkey>,
 

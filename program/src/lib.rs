@@ -11,9 +11,7 @@ pub mod state;
 #[cfg(not(feature = "no-entrypoint"))]
 pub mod entrypoint;
 
-use {
-    solana_native_token::LAMPORTS_PER_SOL, solana_pubkey::Pubkey, solana_stake_interface as stake,
-};
+use {solana_native_token::LAMPORTS_PER_SOL, solana_pubkey::Pubkey};
 
 solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
@@ -79,18 +77,6 @@ fn find_pool_mpl_authority_address_and_bump(
     )
 }
 
-fn find_default_deposit_account_address_and_seed(
-    pool_address: &Pubkey,
-    user_wallet_address: &Pubkey,
-) -> (Pubkey, String) {
-    let pool_address_str = pool_address.to_string();
-    let seed = format!("svsp{}", &pool_address_str[0..28]);
-    let address =
-        Pubkey::create_with_seed(user_wallet_address, &seed, &stake::program::id()).unwrap();
-
-    (address, seed)
-}
-
 /// Find the canonical pool address for a given vote account.
 pub fn find_pool_address(program_id: &Pubkey, vote_account_address: &Pubkey) -> Pubkey {
     find_pool_address_and_bump(program_id, vote_account_address).0
@@ -124,20 +110,4 @@ pub fn find_pool_mint_authority_address(program_id: &Pubkey, pool_address: &Pubk
 /// Find the canonical MPL authority address for a given pool account.
 pub fn find_pool_mpl_authority_address(program_id: &Pubkey, pool_address: &Pubkey) -> Pubkey {
     find_pool_mpl_authority_address_and_bump(program_id, pool_address).0
-}
-
-/// Find the address of the default intermediate account that holds activating
-/// user stake before deposit.
-#[deprecated(
-    since = "3.0.0",
-    note = "Default deposit helpers will be removed in a future release; these were \
-    intended to support a wallet flow that never materialized. To set up a new stake \
-    account for deposit, use `instruction::create_account_and_delegate_stake` from \
-    `solana-stake-interface` using any normal keypair."
-)]
-pub fn find_default_deposit_account_address(
-    pool_address: &Pubkey,
-    user_wallet_address: &Pubkey,
-) -> Pubkey {
-    find_default_deposit_account_address_and_seed(pool_address, user_wallet_address).0
 }

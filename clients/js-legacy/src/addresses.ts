@@ -9,7 +9,6 @@ import {
   findPoolStakeAuthorityAddress as findStakeAuthorityModern,
   findPoolMintAuthorityAddress as findMintAuthorityModern,
   findPoolMplAuthorityAddress as findMplAuthorityModern,
-  findDefaultDepositAccountAddress as findDefaultDepositModern,
 } from '@solana/spl-single-pool';
 
 export async function findPoolAddress(programId: PublicKey, voteAccountAddress: PublicKey) {
@@ -62,19 +61,6 @@ export async function findPoolMplAuthorityAddress(programId: PublicKey, poolAddr
     await findMplAuthorityModern(
       programId.toBase58() as Address,
       poolAddress.toBase58() as PoolAddress,
-    ),
-  );
-}
-
-/** @deprecated */
-export async function findDefaultDepositAccountAddress(
-  poolAddress: PublicKey,
-  userWallet: PublicKey,
-) {
-  return new PublicKey(
-    await findDefaultDepositModern(
-      poolAddress.toBase58() as PoolAddress,
-      userWallet.toBase58() as Address,
     ),
   );
 }
