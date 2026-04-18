@@ -10456,7 +10456,7 @@ dependencies = [
 
 [[package]]
 name = "spl-single-pool"
-version = "4.0.1"
+version = "5.0.0"
 dependencies = [
  "approx",
  "arrayref",
