@@ -32,22 +32,22 @@
     "./dist/types"
   ],
   "devDependencies": {
-    "@types/node": "^25.6.0",
     "@ava/typescript": "^6.0.0",
+    "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^8.58.2",
     "ava": "^7.0.0",
     "eslint": "^8.57.0",
-    "solana-bankrun": "^0.4.0",
+    "litesvm": "0.3.3",
     "tsup": "^8.5.1",
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@solana/web3.js": "^1.98.4",
     "@solana/addresses": "6.8.0",
     "@solana/prettier-config-solana": "^0.0.6",
     "@solana/rpc-api": "6.8.0",
     "@solana/rpc-spec": "6.8.0",
     "@solana/spl-single-pool": "workspace:*",
+    "@solana/web3.js": "^1.98.4",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
     "prettier": "^3.8.2"
