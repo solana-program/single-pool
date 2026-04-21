@@ -40,6 +40,7 @@ import {
   createTokenMetadataInstruction,
   updateTokenMetadataInstruction,
   initializeOnRampInstruction,
+  depositSolInstruction,
 } from './instructions.js';
 import {
   STAKE_PROGRAM_ID,
@@ -74,6 +75,14 @@ interface WithdrawParams {
   userTokenAuthority?: Address;
 }
 
+interface DepositSolParams {
+  rpc: Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
+  voteAccount: VoteAccountAddress;
+  userWallet: Address;
+  lamports: bigint;
+  userTokenAccount?: Address;
+}
+
 export const SINGLE_POOL_ACCOUNT_SIZE = 33n;
 
 export const SinglePoolProgram = {
@@ -86,6 +95,7 @@ export const SinglePoolProgram = {
   createTokenMetadata: createTokenMetadataTransaction,
   updateTokenMetadata: updateTokenMetadataTransaction,
   initializeOnRamp: initializeOnRampTransaction,
+  depositSol: depositSolTransaction,
 };
 
 async function getInitializeInstructionPlan(
@@ -331,6 +341,46 @@ export async function initializeOnRampTransaction(
 
   transaction = appendTransactionMessageInstruction(
     await initializeOnRampInstruction(pool),
+    transaction,
+  );
+
+  return transaction;
+}
+
+export async function depositSolTransaction(params: DepositSolParams) {
+  const { rpc, voteAccount, userWallet, lamports } = params;
+
+  let transaction = { instructions: [] as any, version: 'legacy' as TransactionVersion };
+
+  const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
+  const mint = await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool);
+
+  const userAssociatedTokenAccount = await getAssociatedTokenAddress(mint, userWallet);
+  const userTokenAccount = params.userTokenAccount || userAssociatedTokenAccount;
+
+  if (
+    userTokenAccount == userAssociatedTokenAccount &&
+    (await rpc.getAccountInfo(userAssociatedTokenAccount).send()) == null
+  ) {
+    transaction = appendTransactionMessageInstruction(
+      TokenInstruction.createAssociatedTokenAccount({
+        payer: userWallet,
+        associatedAccount: userAssociatedTokenAccount,
+        owner: userWallet,
+        mint,
+      }),
+      transaction,
+    );
+  }
+
+  // NOTE in our rust instruction builder, we transfer lamports to an escrow account.
+  // this allows us to give greater assurance to the end user that their signing
+  // authority cannot be misused by our benevolent, yet untrusted, program.
+  // unfortunately this is not possible in js middleware but dapps may wish to consider
+  // doing similar by injecting a system transfer between these two instructions
+
+  transaction = appendTransactionMessageInstruction(
+    await depositSolInstruction(voteAccount, userWallet, userTokenAccount, lamports),
     transaction,
   );
 

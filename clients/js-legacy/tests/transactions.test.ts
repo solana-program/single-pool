@@ -448,3 +448,36 @@ test('get vote account address', async (t) => {
   const chainVoteAccount = await getVoteAccountAddressForPool(connection, poolAddress);
   t.true(chainVoteAccount.equals(voteAccountAddress), 'got correct vote account');
 });
+
+test('deposit sol', async (t) => {
+  const context = await startWithContext();
+  const svm = context.svm;
+  const payer = context.payer;
+  const connection = new LiteConnection(svm, payer);
+
+  const voteAccountAddress = new PublicKey(voteAccount.pubkey);
+  const poolAddress = await findPoolAddress(SinglePoolProgram.programId, voteAccountAddress);
+  const onrampAddress = await findPoolOnRampAddress(SinglePoolProgram.programId, poolAddress);
+
+  // initialize pool
+  let transaction = await SinglePoolProgram.initialize(
+    connection,
+    voteAccountAddress,
+    payer.publicKey,
+  );
+  await processTransaction(context, transaction);
+  context.advanceEpoch();
+
+  // deposit sol
+  transaction = await SinglePoolProgram.depositSol({
+    connection,
+    voteAccount: voteAccountAddress,
+    userWallet: payer.publicKey,
+    lamports: LAMPORTS_PER_SOL,
+  });
+  await processTransaction(context, transaction);
+
+  const stakeRent = await connection.getMinimumBalanceForRentExemption(StakeProgram.space);
+  const onrampAccount = svm.getAccount(onrampAddress);
+  t.is(onrampAccount.lamports, LAMPORTS_PER_SOL + stakeRent, 'sol has been deposited');
+});

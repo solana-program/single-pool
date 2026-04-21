@@ -157,6 +157,28 @@ type InitializeOnRampInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
   > &
   InstructionWithData<Uint8Array>;
 
+type DepositSolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
+  InstructionWithAccounts<
+    [
+      ReadonlyAccount<VoteAccountAddress>,
+      ReadonlyAccount<PoolAddress>,
+      WritableAccount<PoolStakeAddress>,
+      WritableAccount<PoolOnRampAddress>,
+      WritableAccount<PoolMintAddress>,
+      ReadonlyAccount<PoolStakeAuthorityAddress>,
+      ReadonlyAccount<PoolMintAuthorityAddress>,
+      WritableSignerAccount<Address>, // user lamport
+      WritableAccount<Address>, // user token
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
+      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
+      ReadonlyAccount<typeof STAKE_CONFIG_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
+      ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+    ]
+  > &
+  InstructionWithData<Uint8Array>;
+
 const enum SinglePoolInstructionType {
   InitializePool = 0,
   ReplenishPool,
@@ -165,6 +187,7 @@ const enum SinglePoolInstructionType {
   CreateTokenMetadata,
   UpdateTokenMetadata,
   InitializeOnRamp,
+  DepositSol,
 }
 
 export const SinglePoolInstruction = {
@@ -175,6 +198,7 @@ export const SinglePoolInstruction = {
   createTokenMetadata: createTokenMetadataInstruction,
   updateTokenMetadata: updateTokenMetadataInstruction,
   initializeOnRamp: initializeOnRampInstruction,
+  depositSol: depositSolInstruction,
 };
 
 export async function initializePoolInstruction(
@@ -425,6 +449,47 @@ export async function initializeOnRampInstruction(
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: SYSVAR_RENT_ID, role: AccountRole.READONLY },
       { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+    ],
+    programAddress,
+  };
+}
+
+export async function depositSolInstruction(
+  voteAccount: VoteAccountAddress,
+  userLamportAccount: Address,
+  userTokenAccount: Address,
+  lamports: bigint,
+): Promise<DepositSolInstruction> {
+  const programAddress = SINGLE_POOL_PROGRAM_ID;
+  const pool = await findPoolAddress(programAddress, voteAccount);
+  const [stake, onramp, mint, stakeAuthority, mintAuthority] = await Promise.all([
+    findPoolStakeAddress(programAddress, pool),
+    findPoolOnRampAddress(programAddress, pool),
+    findPoolMintAddress(programAddress, pool),
+    findPoolStakeAuthorityAddress(programAddress, pool),
+    findPoolMintAuthorityAddress(programAddress, pool),
+  ]);
+
+  const data = new Uint8Array([SinglePoolInstructionType.DepositSol, ...u64(lamports)]);
+
+  return {
+    data,
+    accounts: [
+      { address: voteAccount, role: AccountRole.READONLY },
+      { address: pool, role: AccountRole.READONLY },
+      { address: stake, role: AccountRole.WRITABLE },
+      { address: onramp, role: AccountRole.WRITABLE },
+      { address: mint, role: AccountRole.WRITABLE },
+      { address: stakeAuthority, role: AccountRole.READONLY },
+      { address: mintAuthority, role: AccountRole.READONLY },
+      { address: userLamportAccount, role: AccountRole.WRITABLE_SIGNER },
+      { address: userTokenAccount, role: AccountRole.WRITABLE },
+      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
+      { address: STAKE_CONFIG_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
       { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
     ],
     programAddress,

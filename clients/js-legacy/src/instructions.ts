@@ -86,4 +86,19 @@ export class SinglePoolInstruction {
     );
     return modernInstructionToLegacy(instruction);
   }
+
+  static async depositSol(
+    voteAccount: PublicKey,
+    userWallet: PublicKey,
+    userTokenAccount: PublicKey,
+    lamports: number | bigint,
+  ): Promise<TransactionInstruction> {
+    const instruction = await PoolInstructionModern.depositSol(
+      voteAccount.toBase58() as VoteAccountAddress,
+      userWallet.toBase58() as Address,
+      userTokenAccount.toBase58() as Address,
+      BigInt(lamports),
+    );
+    return modernInstructionToLegacy(instruction);
+  }
 }
