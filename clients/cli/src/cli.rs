@@ -258,26 +258,6 @@ pub struct UpdateMetadataCli {
 }
 
 #[derive(Clone, Debug, Args)]
-#[clap(group(pool_source_group()))]
-pub struct CreateStakeCli {
-    /// Number of lamports to stake
-    pub lamports: u64,
-
-    /// The pool to create a stake account for
-    #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
-    pub pool_address: Option<Pubkey>,
-
-    /// The vote account corresponding to the pool to create stake for
-    #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
-    pub vote_account_address: Option<Pubkey>,
-
-    /// Authority to assign to the new stake account. Defaults to the pubkey of
-    /// the client keypair
-    #[clap(long = "stake-authority", value_parser = |p: &str| parse_address(p, "stake_authority_address"))]
-    pub stake_authority_address: Option<Pubkey>,
-}
-
-#[derive(Clone, Debug, Args)]
 #[clap(group(pool_source_group().arg("all")))]
 pub struct DisplayCli {
     /// The pool to display
