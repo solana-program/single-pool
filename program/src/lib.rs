@@ -15,6 +15,10 @@ use {solana_native_token::LAMPORTS_PER_SOL, solana_pubkey::Pubkey};
 
 solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
+/// Fee charged for the `DepositSol` instruction.
+pub const DEPOSIT_SOL_FEE_BPS: u64 = 100;
+const MAX_BPS: u64 = 10_000;
+
 const POOL_PREFIX: &[u8] = b"pool";
 const POOL_STAKE_PREFIX: &[u8] = b"stake";
 const POOL_ONRAMP_PREFIX: &[u8] = b"onramp";
@@ -26,9 +30,6 @@ const POOL_MPL_AUTHORITY_PREFIX: &[u8] = b"mpl_authority";
 const PHANTOM_TOKEN_AMOUNT: u64 = LAMPORTS_PER_SOL;
 const MINT_DECIMALS: u8 = 9;
 const PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH: Option<u64> = Some(0);
-
-const DEPOSIT_SOL_FEE_BPS: u64 = 100;
-const MAX_BPS: u64 = 10_000;
 
 const VOTE_STATE_DISCRIMINATOR_END: usize = 4;
 const VOTE_STATE_AUTHORIZED_WITHDRAWER_START: usize = 36;

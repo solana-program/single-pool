@@ -543,3 +543,23 @@ async fn create_onramp(raise_minimum_delegation: bool) {
         .unwrap();
     assert!(status.success());
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[serial]
+async fn deposit_sol() {
+    let env = setup(true, true).await;
+
+    wait_for_next_epoch(&env.rpc_client).await;
+
+    let args = vec![
+        "deposit-sol".to_string(),
+        "-C".to_string(),
+        env.config_file_path,
+        "--vote-account".to_string(),
+        env.vote_account.to_string(),
+        "100".to_string(),
+    ];
+
+    let status = Command::new(SVSP_CLI).args(&args).status().unwrap();
+    assert!(status.success());
+}

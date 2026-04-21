@@ -86,6 +86,10 @@ pub enum Command {
 
     /// Display info for one or all single-validator stake pool(s)
     Display(DisplayCli),
+
+    /// Deposit liquid sol into a pool in exchange for pool tokens, less a one percent
+    /// fee.
+    DepositSol(DepositSolCli),
 }
 
 #[derive(Clone, Debug, Parser)]
@@ -285,6 +289,30 @@ pub struct CreateOnRampCli {
     pub vote_account_address: Option<Pubkey>,
 }
 
+#[derive(Clone, Debug, Args)]
+#[clap(group(pool_source_group()))]
+pub struct DepositSolCli {
+    /// Lamports to deposit into pool
+    pub lamports: u64,
+
+    /// The pool to withdraw from
+    #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
+    pub pool_address: Option<Pubkey>,
+
+    /// The vote account corresponding to the pool to withdraw from
+    #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
+    pub vote_account_address: Option<Pubkey>,
+
+    /// The wallet to deposit lamports from. Defaults to the client
+    /// keypair
+    #[clap(long, id = "DEPOSIT_SOURCE_KEYPAIR", value_parser = SignerSourceParserBuilder::default().allow_all().build())]
+    pub from: Option<SignerSource>,
+
+    /// The token account to mint to. Defaults to the client keypair's
+    /// associated token account
+    #[clap(long = "token-account", value_parser = |p: &str| parse_address(p, "token_account_address"))]
+    pub token_account_address: Option<Pubkey>,
+}
 fn pool_source_group() -> ArgGroup<'static> {
     ArgGroup::new("pool-source")
         .required(true)
@@ -336,5 +364,14 @@ pub fn pool_address_from_args(maybe_pool: Option<Pubkey>, maybe_vote: Option<Pub
         find_pool_address(&spl_single_pool::id(), &vote_account_address)
     } else {
         unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // if this test fails, we changed the fee. fix the comment on Command::DepositSol
+    #[test]
+    fn test_deposit_sol_fee() {
+        assert_eq!(spl_single_pool::DEPOSIT_SOL_FEE_BPS, 100);
     }
 }
