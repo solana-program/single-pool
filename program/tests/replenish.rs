@@ -495,7 +495,7 @@ async fn fail_onramp_doesnt_exist(stake_version: StakeProgramVersion, activate: 
     // replenish should fail because the onramp is required
     let replenish_instruction = instruction::replenish_pool(&id(), &accounts.vote_account.pubkey());
     let transaction = Transaction::new_signed_with_payer(
-        &[replenish_instruction.clone()],
+        core::slice::from_ref(&replenish_instruction),
         Some(&context.payer.pubkey()),
         &[&context.payer],
         context.last_blockhash,

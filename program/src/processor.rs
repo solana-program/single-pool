@@ -677,13 +677,13 @@ impl Processor {
 
         invoke_signed(
             &system_instruction::allocate(pool_info.key, pool_space as u64),
-            &[pool_info.clone()],
+            core::slice::from_ref(pool_info),
             pool_signers,
         )?;
 
         invoke_signed(
             &system_instruction::assign(pool_info.key, program_id),
-            &[pool_info.clone()],
+            core::slice::from_ref(pool_info),
             pool_signers,
         )?;
 
@@ -697,13 +697,13 @@ impl Processor {
 
         invoke_signed(
             &system_instruction::allocate(pool_mint_info.key, mint_space as u64),
-            &[pool_mint_info.clone()],
+            core::slice::from_ref(pool_mint_info),
             mint_signers,
         )?;
 
         invoke_signed(
             &system_instruction::assign(pool_mint_info.key, token_program_info.key),
-            &[pool_mint_info.clone()],
+            core::slice::from_ref(pool_mint_info),
             mint_signers,
         )?;
 
@@ -715,7 +715,7 @@ impl Processor {
                 None,
                 MINT_DECIMALS,
             )?,
-            &[pool_mint_info.clone()],
+            core::slice::from_ref(pool_mint_info),
             mint_authority_signers,
         )?;
 
@@ -735,13 +735,13 @@ impl Processor {
 
         invoke_signed(
             &system_instruction::allocate(pool_stake_info.key, stake_space as u64),
-            &[pool_stake_info.clone()],
+            core::slice::from_ref(pool_stake_info),
             stake_signers,
         )?;
 
         invoke_signed(
             &system_instruction::assign(pool_stake_info.key, stake_program_info.key),
-            &[pool_stake_info.clone()],
+            core::slice::from_ref(pool_stake_info),
             stake_signers,
         )?;
 
@@ -1520,13 +1520,13 @@ impl Processor {
 
         invoke_signed(
             &system_instruction::allocate(pool_onramp_info.key, stake_space as u64),
-            &[pool_onramp_info.clone()],
+            core::slice::from_ref(pool_onramp_info),
             onramp_signers,
         )?;
 
         invoke_signed(
             &system_instruction::assign(pool_onramp_info.key, stake_program_info.key),
-            &[pool_onramp_info.clone()],
+            core::slice::from_ref(pool_onramp_info),
             onramp_signers,
         )?;
 
