@@ -19,9 +19,9 @@ use {
     solana_system_interface::{instruction as system_instruction, program as system_program},
     solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
     solana_transaction::Transaction,
-    solana_vote_program::{
-        vote_instruction::{self, CreateVoteAccountConfig},
-        vote_state::{VoteInit, VoteStateV4},
+    solana_vote_interface::{
+        instruction::{self as vote_instruction, CreateVoteAccountConfig},
+        state::{VoteInit, VoteStateV4},
     },
     spl_single_pool::{
         id,

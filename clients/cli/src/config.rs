@@ -7,7 +7,6 @@ use {
     solana_commitment_config::CommitmentConfig,
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
     solana_signer::Signer,
-    spl_token_client::client::{ProgramClient, ProgramRpcClient, ProgramRpcClientSendTransaction},
     std::{process::exit, rc::Rc, sync::Arc},
 };
 
@@ -24,7 +23,6 @@ pub fn println_display(config: &Config, message: String) {
 
 pub struct Config {
     pub rpc_client: Arc<RpcClient>,
-    pub program_client: Arc<dyn ProgramClient<ProgramRpcClientSendTransaction>>,
     pub default_signer: Option<Arc<dyn Signer>>,
     pub fee_payer: Option<Arc<dyn Signer>>,
     pub output_format: OutputFormat,
@@ -54,12 +52,6 @@ impl Config {
             CommitmentConfig::confirmed(),
         ));
 
-        // and program client
-        let program_client = Arc::new(ProgramRpcClient::new(
-            rpc_client.clone(),
-            ProgramRpcClientSendTransaction,
-        ));
-
         // resolve default signer
         let default_keypair = cli_config.keypair_path;
         let default_signer =
@@ -86,7 +78,6 @@ impl Config {
 
         Self {
             rpc_client,
-            program_client,
             default_signer,
             fee_payer,
             output_format,

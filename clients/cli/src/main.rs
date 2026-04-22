@@ -15,15 +15,17 @@ use {
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
     solana_signature::Signature,
     solana_signer::Signer,
-    solana_stake_interface as stake,
+    solana_stake_interface::{self as stake, state::StakeStateV2},
     solana_transaction::Transaction,
-    solana_vote_program::{self as vote_program, vote_state::VoteStateV4},
-    spl_associated_token_account_interface::instruction::create_associated_token_account,
+    solana_vote_interface::{program as vote_program, state::VoteStateV4},
+    spl_associated_token_account_interface::{
+        address::get_associated_token_address, instruction::create_associated_token_account,
+    },
     spl_single_pool::{
         self, find_pool_address, find_pool_mint_address, find_pool_onramp_address,
         find_pool_stake_address, instruction::SinglePoolInstruction, state::SinglePool,
     },
-    spl_token_client::token::Token,
+    spl_token_interface as spl_token,
     std::{rc::Rc, sync::Arc},
 };
 
@@ -129,12 +131,14 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
         .into());
     };
 
+    let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
+
     let mut instructions = spl_single_pool::instruction::initialize(
         &spl_single_pool::id(),
         &vote_account_address,
         &payer.pubkey(),
         &quarantine::get_rent(config).await?,
-        quarantine::get_minimum_pool_balance(config).await?,
+        minimum_pool_balance,
     );
 
     // get rid of the CreateMetadata instruction if desired, eg if mpl breaks compat
@@ -151,7 +155,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
         &instructions,
         Some(&payer.pubkey()),
         &vec![payer],
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -162,9 +166,12 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
         StakePoolOutput {
             pool_address,
             vote_account_address,
-            available_stake: 0,
-            excess_lamports: 0,
-            token_supply: 0,
+            net_asset_value: minimum_pool_balance,
+            undelegated_lamports: 0,
+            token_supply: quarantine::PHANTOM_TOKENS,
+            main_stake_dedelegated: false,
+            onramp_exists: true,
+            minimum_delegation: 0, // only used to warn to replenish
             signature,
         },
     ))
@@ -191,7 +198,7 @@ async fn command_replenish_pool(config: &Config, command_config: ReplenishCli) -
         &[instruction],
         Some(&payer.pubkey()),
         &vec![payer],
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -303,23 +310,18 @@ async fn command_deposit(
         return Err("Activation status mismatch; try again next epoch".into());
     }
 
-    let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
-    let token = Token::new(
-        config.program_client.clone(),
-        &spl_token::id(),
-        &pool_mint_address,
-        None,
-        payer.clone(),
-    );
-
     let mut instructions = vec![];
 
     // use token account provided, or get/create the associated account for the client keypair
+    let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
     let token_account_address = if let Some(account) = command_config.token_account_address {
         account
     } else {
-        let address = token.get_associated_token_address(&owner.pubkey());
-        if get_initialized_account(config, address).await?.is_none() {
+        let ata_address = get_associated_token_address(&owner.pubkey(), &pool_mint_address);
+        if quarantine::get_token_info(config, &ata_address, &pool_mint_address)
+            .await?
+            .is_none()
+        {
             instructions.push(create_associated_token_account(
                 &payer.pubkey(),
                 &owner.pubkey(),
@@ -327,13 +329,14 @@ async fn command_deposit(
                 &spl_token::id(),
             ));
         }
-        address
+        ata_address
     };
 
-    let previous_token_amount = match token.get_account_info(&token_account_address).await {
-        Ok(account) => account.base.amount,
-        Err(_) => 0,
-    };
+    let previous_token_amount =
+        quarantine::get_token_info(config, &token_account_address, &pool_mint_address)
+            .await?
+            .map(|token_account| token_account.amount)
+            .unwrap_or(0);
 
     instructions.extend(spl_single_pool::instruction::deposit(
         &spl_single_pool::id(),
@@ -355,7 +358,7 @@ async fn command_deposit(
         &instructions,
         Some(&payer.pubkey()),
         &signers,
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -364,11 +367,10 @@ async fn command_deposit(
         None
     } else {
         Some(
-            token
-                .get_account_info(&token_account_address)
+            quarantine::get_token_info(config, &token_account_address, &pool_mint_address)
                 .await?
-                .base
-                .amount
+                .map(|token_account| token_account.amount)
+                .unwrap_or(0)
                 - previous_token_amount,
         )
     };
@@ -417,24 +419,19 @@ async fn command_withdraw(
 
     pool_is_initialized(config, pool_address).await?;
 
-    // now all the mint and token info
     let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
-    let token = Token::new(
-        config.program_client.clone(),
-        &spl_token::id(),
-        &pool_mint_address,
-        None,
-        payer.clone(),
-    );
-
     let token_account_address = command_config
         .token_account_address
-        .unwrap_or_else(|| token.get_associated_token_address(&owner.pubkey()));
+        .unwrap_or_else(|| get_associated_token_address(&owner.pubkey(), &pool_mint_address));
 
-    let token_account = token.get_account_info(&token_account_address).await?;
+    let Some(token_account) =
+        quarantine::get_token_info(config, &token_account_address, &pool_mint_address).await?
+    else {
+        return Err(format!("Token account {} does not exist", token_account_address).into());
+    };
 
     let token_amount = match command_config.token_amount.sol_to_lamport() {
-        Amount::All => token_account.base.amount,
+        Amount::All => token_account.amount,
         Amount::Raw(amount) => amount,
         Amount::Decimal(_) => unreachable!(),
     };
@@ -451,21 +448,20 @@ async fn command_withdraw(
         return Err("Cannot withdraw zero tokens".into());
     }
 
-    if token_amount > token_account.base.amount {
+    if token_amount > token_account.amount {
         return Err(format!(
             "Withdraw amount {} exceeds tokens in account ({})",
-            token_amount, token_account.base.amount
+            token_amount, token_account.amount,
         )
         .into());
     }
 
-    // note a delegate authority is not allowed here because we must authorize the
-    // pool authority
-    if token_account.base.owner != token_authority.pubkey() {
+    // note a delegate authority is not allowed here because we must authorize the pool authority
+    if token_account.owner != token_authority.pubkey() {
         return Err(format!(
             "Invalid token authority: got {}, actual {}",
-            token_account.base.owner,
-            token_authority.pubkey()
+            token_account.owner,
+            token_authority.pubkey(),
         )
         .into());
     }
@@ -510,7 +506,7 @@ async fn command_withdraw(
         &instructions,
         Some(&payer.pubkey()),
         &signers,
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -573,7 +569,7 @@ async fn command_create_metadata(
         &[instruction],
         Some(&payer.pubkey()),
         &vec![payer],
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -618,11 +614,7 @@ async fn command_update_metadata(
     // we always need the vote account
     let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
 
-    if let Some(vote_account_data) = config
-        .program_client
-        .get_account(vote_account_address)
-        .await?
-    {
+    if let Ok(vote_account_data) = config.rpc_client.get_account(&vote_account_address).await {
         let vote_account =
             VoteStateV4::deserialize(&vote_account_data.data, &vote_account_address)?;
 
@@ -635,8 +627,7 @@ async fn command_update_metadata(
             .into());
         }
     } else {
-        // we know the pool exists so the vote account must exist
-        unreachable!();
+        return Err(format!("Vote account {} does not exist", vote_account_address).into());
     }
 
     let instruction = spl_single_pool::instruction::update_token_metadata(
@@ -659,7 +650,7 @@ async fn command_update_metadata(
         &[instruction],
         Some(&payer.pubkey()),
         &signers,
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -673,7 +664,13 @@ async fn command_update_metadata(
 
 // display stake pool(s)
 async fn command_display(config: &Config, command_config: DisplayCli) -> CommandResult {
-    let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
+    let stake_rent_exempt_reserve = config
+        .rpc_client
+        .get_minimum_balance_for_rent_exemption(StakeStateV2::size_of())
+        .await?;
+    let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
+    let minimum_delegation = config.rpc_client.get_stake_minimum_delegation().await?;
+
     let pool_and_vote_addresses = if command_config.all {
         // the filter isn't necessary now but makes the cli forward-compatible
         #[allow(deprecated)]
@@ -719,36 +716,65 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         );
     }
 
-    let stake_addresses = pool_and_vote_addresses
-        .iter()
-        .map(|(pool_address, _)| find_pool_stake_address(&spl_single_pool::id(), pool_address))
-        .collect::<Vec<_>>();
+    let stake_summaries = {
+        let stake_addresses = pool_and_vote_addresses
+            .iter()
+            .map(|(pool_address, _)| find_pool_stake_address(&spl_single_pool::id(), pool_address))
+            .collect::<Vec<_>>();
 
-    let available_balances =
-        quarantine::get_available_balances(config, &stake_addresses, minimum_pool_balance).await?;
+        quarantine::get_stake_summaries(
+            config,
+            &stake_addresses,
+            stake_rent_exempt_reserve,
+            current_epoch,
+        )
+        .await?
+    };
 
-    let mint_addresses = pool_and_vote_addresses
-        .iter()
-        .map(|(pool_address, _)| find_pool_mint_address(&spl_single_pool::id(), pool_address))
-        .collect::<Vec<_>>();
+    let onramp_summaries = {
+        let onramp_addresses = pool_and_vote_addresses
+            .iter()
+            .map(|(pool_address, _)| find_pool_onramp_address(&spl_single_pool::id(), pool_address))
+            .collect::<Vec<_>>();
 
-    let token_supplies = quarantine::get_token_supplies(config, &mint_addresses).await?;
+        quarantine::get_stake_summaries(
+            config,
+            &onramp_addresses,
+            stake_rent_exempt_reserve,
+            current_epoch,
+        )
+        .await?
+    };
+
+    let token_supplies = {
+        let mint_addresses = pool_and_vote_addresses
+            .iter()
+            .map(|(pool_address, _)| find_pool_mint_address(&spl_single_pool::id(), pool_address))
+            .collect::<Vec<_>>();
+
+        quarantine::get_token_supplies(config, &mint_addresses).await?
+    };
 
     let mut displays = vec![];
-    for (
-        ((pool_address, vote_account_address), (available_stake, excess_lamports)),
-        token_supply,
-    ) in pool_and_vote_addresses
-        .into_iter()
-        .zip(available_balances)
-        .zip(token_supplies)
+    for ((((pool_address, vote_account_address), stake_summary), onramp_summary), token_supply) in
+        pool_and_vote_addresses
+            .into_iter()
+            .zip(stake_summaries)
+            .zip(onramp_summaries)
+            .zip(token_supplies)
     {
+        let net_asset_value = stake_summary.nav(onramp_summary);
+        let undelegated_lamports = stake_summary.excess_lamports(onramp_summary);
+
         displays.push(StakePoolOutput {
             pool_address,
             vote_account_address,
-            available_stake,
-            excess_lamports,
+            net_asset_value,
+            undelegated_lamports,
             token_supply,
+            main_stake_dedelegated: stake_summary.dedelegated,
+            onramp_exists: onramp_summary.exists,
+            minimum_delegation,
             signature: None,
         });
     }
@@ -810,7 +836,7 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
         &instructions,
         Some(&payer.pubkey()),
         &vec![payer],
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -827,9 +853,10 @@ async fn get_initialized_account(
     pubkey: Pubkey,
 ) -> Result<Option<Account>, Error> {
     Ok(config
-        .program_client
-        .get_account(pubkey)
+        .rpc_client
+        .get_account_with_commitment(&pubkey, config.rpc_client.commitment())
         .await?
+        .value
         .filter(|account| !account.data.is_empty()))
 }
 
@@ -869,7 +896,15 @@ async fn process_transaction(
     if config.dry_run {
         let simulation_data = config.rpc_client.simulate_transaction(&transaction).await?;
 
-        if config.verbose() {
+        if simulation_data.value.err.is_none() && !config.verbose() {
+            println_display(config, "Simulation succeeded".to_string());
+        } else {
+            let status_str = if simulation_data.value.err.is_some() {
+                "FAILED"
+            } else {
+                "succeeded"
+            };
+
             if let Some(logs) = simulation_data.value.logs {
                 for log in logs {
                     println!("    {}", log);
@@ -877,11 +912,10 @@ async fn process_transaction(
             }
 
             println!(
-                "\nSimulation succeeded, consumed {} compute units",
-                simulation_data.value.units_consumed.unwrap()
+                "\nSimulation {}, consumed {} compute units",
+                status_str,
+                simulation_data.value.units_consumed.unwrap(),
             );
-        } else {
-            println_display(config, "Simulation succeeded".to_string());
         }
 
         Ok(None)
