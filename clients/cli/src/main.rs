@@ -890,7 +890,8 @@ async fn command_deposit_sol(
         .is_none()
     {
         return Err(format!(
-            "Pool {} onramp {} does not exist",
+            "Pool {} onramp {} does not exist; run `spl-single-pool manage create-on-ramp ...` \
+            to create it",
             pool_address, onramp_address
         )
         .into());

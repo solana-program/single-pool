@@ -295,11 +295,11 @@ pub struct DepositSolCli {
     /// Lamports to deposit into pool
     pub lamports: u64,
 
-    /// The pool to withdraw from
+    /// The pool to deposit into
     #[clap(short, long = "pool", value_parser = |p: &str| parse_address(p, "pool_address"))]
     pub pool_address: Option<Pubkey>,
 
-    /// The vote account corresponding to the pool to withdraw from
+    /// The vote account corresponding to the pool to deposit into
     #[clap(long = "vote-account", value_parser = |p: &str| parse_address(p, "vote_account_address"))]
     pub vote_account_address: Option<Pubkey>,
 
