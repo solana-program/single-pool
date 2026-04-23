@@ -17,7 +17,7 @@ solana_pubkey::declare_id!("SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE");
 
 /// Fee charged for the `DepositSol` instruction. This fee may be adjusted down in
 /// the future depending on how `DepositSol` is used in practice. Care should be
-/// taken if using this number for calculations in third-party libraries or dapps,
+/// taken if using this number for calculations in third-party libraries or programs,
 /// as it is not guaranteed to remain at this value.
 pub const DEPOSIT_SOL_FEE_BPS: u64 = 100;
 const MAX_BPS: u64 = 10_000;
