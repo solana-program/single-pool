@@ -225,7 +225,7 @@ impl StakePoolOutput {
                 "{} Onramp does not exist; use `spl-single-pool manage create-on-ramp` to create it",
                 style("/!\\").bold(),
             )?;
-        } else if self.undelegated_lamports > self.minimum_delegation {
+        } else if self.undelegated_lamports >= self.minimum_delegation {
             writeln!(
                 w,
                 "{} This pool has {} not earning rewards; use `spl-single-pool manage replenish-pool` to delegate it",
