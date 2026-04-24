@@ -1215,9 +1215,6 @@ impl Processor {
 
         let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
-        // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
-        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
-
         // note we deliberately do NOT validate the activation status of the pool account.
         // neither warmup/cooldown nor validator delinquency prevent a user withdrawal.
         // however, because we calculate NAV from all lamports in both pool accounts,
@@ -1252,6 +1249,9 @@ impl Processor {
             Ok(StakeStateV2::Initialized(_)) | Ok(StakeStateV2::Stake(_, _, _)) => (),
             _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
         };
+
+        // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
 
         // withdraw amount is determined off pool NAV just like deposit amount
         let stake_to_withdraw =
