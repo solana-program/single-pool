@@ -76,7 +76,7 @@ interface WithdrawParams {
 }
 
 interface DepositSolParams {
-  rpc: Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
+  rpc: Rpc<GetAccountInfoApi>;
   voteAccount: VoteAccountAddress;
   userWallet: Address;
   lamports: bigint;
