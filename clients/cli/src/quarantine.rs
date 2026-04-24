@@ -111,51 +111,55 @@ pub async fn get_stake_summaries(
 
     let mut summaries = vec![];
     for stake_account in &stake_accounts {
-        let summary = if let Some(account) = stake_account {
-            // if this assert ever triggers, multistake or another account change has landed
-            // this function should be updated to use real stake account sizes
-            // we may be fetching hundreds of accounts here so memoize the rents
-            assert!(
-                !account.data.is_empty() && account.data.len() != StakeStateV2::size_of(),
-                "StakeStateV2 is no longer canonical, or StakeStateV2::size_of() is no longer 200."
-            );
+        let summary = match stake_account {
+            Some(account) if !account.data.is_empty() => {
+                // if this assert ever triggers, multistake or another account change has landed.
+                // this function should be updated to use real stake account sizes.
+                // we may be fetching hundreds of accounts here so memoize the rents
+                assert_eq!(
+                    account.data.len(),
+                    StakeStateV2::size_of(),
+                    "StakeStateV2 is no longer canonical, or StakeStateV2::size_of() is no longer 200."
+                );
 
-            match bincode::deserialize::<StakeStateV2>(&account.data) {
-                // typical stake state. either activating or effective can be "pool stake"
-                Ok(StakeStateV2::Stake(_, Stake { delegation, .. }, _)) => {
-                    let stake = if delegation.activation_epoch <= current_epoch
-                        && delegation.deactivation_epoch >= current_epoch
-                    {
-                        delegation.stake
-                    } else {
-                        0
-                    };
+                match bincode::deserialize::<StakeStateV2>(&account.data) {
+                    // typical stake state. either activating or effective can be "pool stake"
+                    Ok(StakeStateV2::Stake(_, Stake { delegation, .. }, _)) => {
+                        let stake = if delegation.activation_epoch <= current_epoch
+                            && delegation.deactivation_epoch >= current_epoch
+                        {
+                            delegation.stake
+                        } else {
+                            0
+                        };
 
-                    StakeSummary {
-                        stake,
-                        usable_lamports: account.lamports.saturating_sub(rent_exempt_reserve),
-                        dedelegated: delegation.deactivation_epoch != u64::MAX,
-                        exists: true,
+                        StakeSummary {
+                            stake,
+                            usable_lamports: account.lamports.saturating_sub(rent_exempt_reserve),
+                            dedelegated: delegation.deactivation_epoch != u64::MAX,
+                            exists: true,
+                        }
                     }
+                    // impossible for main stake, routine for onramp
+                    Ok(StakeStateV2::Initialized(_)) => StakeSummary {
+                        stake: 0,
+                        usable_lamports: account.lamports.saturating_sub(rent_exempt_reserve),
+                        dedelegated: true,
+                        exists: true,
+                    },
+                    _ => unreachable!(),
                 }
-                // impossible for main stake, routine for onramp
-                Ok(StakeStateV2::Initialized(_)) => StakeSummary {
-                    stake: 0,
-                    usable_lamports: account.lamports.saturating_sub(rent_exempt_reserve),
-                    dedelegated: true,
-                    exists: true,
-                },
-                _ => unreachable!(),
             }
-        } else {
-            // possible if onramp never created
-            StakeSummary {
+            // impossible for main stake, possible if onramp never created.
+            // we ignore lamports in an uninitialized onramp since we will never use them for math
+            _ => StakeSummary {
                 stake: 0,
                 usable_lamports: 0,
                 dedelegated: true,
                 exists: false,
-            }
+            },
         };
+
         summaries.push(summary);
     }
 
