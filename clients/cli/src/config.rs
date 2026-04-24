@@ -1,10 +1,12 @@
 use {
     crate::cli::*,
     clap::ArgMatches,
+    solana_account::Account,
     solana_clap_v3_utils::keypair::{signer_from_path, signer_from_source},
     solana_cli_output::OutputFormat,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_commitment_config::CommitmentConfig,
+    solana_pubkey::Pubkey,
     solana_remote_wallet::remote_wallet::RemoteWalletManager,
     solana_signer::Signer,
     std::{process::exit, rc::Rc, sync::Arc},
@@ -111,5 +113,14 @@ impl Config {
 
     pub fn verbose(&self) -> bool {
         self.output_format == OutputFormat::DisplayVerbose
+    }
+
+    pub async fn get_initialized_account(&self, pubkey: Pubkey) -> Result<Option<Account>, Error> {
+        Ok(self
+            .rpc_client
+            .get_account_with_commitment(&pubkey, self.rpc_client.commitment())
+            .await?
+            .value
+            .filter(|account| !account.data.is_empty()))
     }
 }

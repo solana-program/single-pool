@@ -21,7 +21,10 @@ use {
 pub const PHANTOM_TOKENS: u64 = LAMPORTS_PER_SOL;
 
 pub async fn get_rent(config: &Config) -> Result<Rent, Error> {
-    let rent_data = config.rpc_client.get_account(&sysvar::rent::id()).await?;
+    let rent_data = config
+        .get_initialized_account(sysvar::rent::id())
+        .await?
+        .unwrap();
     let rent = bincode::deserialize::<Rent>(&rent_data.data)?;
 
     Ok(rent)
@@ -36,10 +39,13 @@ pub async fn get_minimum_pool_balance(config: &Config) -> Result<u64, Error> {
 
 pub async fn get_stake_info(
     config: &Config,
-    stake_account_address: &Pubkey,
+    stake_account_address: Pubkey,
 ) -> Result<Option<(Meta, Stake)>, Error> {
-    if let Ok(stake_account) = config.rpc_client.get_account(stake_account_address).await {
-        match bincode::deserialize::<StakeStateV2>(&stake_account.data)? {
+    if let Some(account) = config
+        .get_initialized_account(stake_account_address)
+        .await?
+    {
+        match bincode::deserialize::<StakeStateV2>(&account.data)? {
             StakeStateV2::Stake(meta, stake, _) => Ok(Some((meta, stake))),
             StakeStateV2::Initialized(_) => {
                 Err(format!("Stake account {} is undelegated", stake_account_address).into())
@@ -56,13 +62,16 @@ pub async fn get_stake_info(
 
 pub async fn get_token_info(
     config: &Config,
-    token_account_address: &Pubkey,
-    mint_address: &Pubkey,
+    token_account_address: Pubkey,
+    mint_address: Pubkey,
 ) -> Result<Option<TokenAccount>, Error> {
-    if let Ok(account) = config.rpc_client.get_account(token_account_address).await {
+    if let Some(account) = config
+        .get_initialized_account(token_account_address)
+        .await?
+    {
         match TokenAccount::unpack(&account.data) {
             Ok(token_account)
-                if account.owner == spl_token::id() && &token_account.mint == mint_address =>
+                if account.owner == spl_token::id() && token_account.mint == mint_address =>
             {
                 Ok(Some(token_account))
             }

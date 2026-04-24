@@ -3,7 +3,6 @@
 
 use {
     clap::{ArgMatches, CommandFactory, Parser},
-    solana_account::Account,
     solana_borsh::v1::try_from_slice_unchecked,
     solana_clap_v3_utils::{input_parsers::Amount, keypair::signer_from_source},
     solana_client::{
@@ -111,7 +110,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     );
 
     // check if the vote account is valid
-    match get_initialized_account(config, vote_account_address).await? {
+    match config.get_initialized_account(vote_account_address).await? {
         Some(vote_account)
             if vote_account.owner == vote_program::id()
                 && VoteStateV4::deserialize(&vote_account.data, &vote_account_address).is_ok() => {}
@@ -123,7 +122,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     // the pool must not already be initialized
     // we do not use `pool_is_initialized()` because that function is restrictive
     // so its negation would be permissive
-    let None = get_initialized_account(config, pool_address).await? else {
+    let None = config.get_initialized_account(pool_address).await? else {
         return Err(format!(
             "Pool {} for vote account {} already exists",
             pool_address, vote_account_address
@@ -246,7 +245,7 @@ async fn command_deposit(
 
     // now we validate the stake account and definitively resolve the pool address
     let (pool_address, user_stake_active) = if let Some((meta, stake)) =
-        quarantine::get_stake_info(config, &stake_account_address).await?
+        quarantine::get_stake_info(config, stake_account_address).await?
     {
         let derived_pool_address =
             find_pool_address(&spl_single_pool::id(), &stake.delegation.voter_pubkey);
@@ -298,7 +297,7 @@ async fn command_deposit(
     pool_is_initialized(config, pool_address).await?;
 
     let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
-    let pool_stake_active = quarantine::get_stake_info(config, &pool_stake_address)
+    let pool_stake_active = quarantine::get_stake_info(config, pool_stake_address)
         .await?
         .unwrap()
         .1
@@ -318,7 +317,7 @@ async fn command_deposit(
         account
     } else {
         let ata_address = get_associated_token_address(&owner.pubkey(), &pool_mint_address);
-        if quarantine::get_token_info(config, &ata_address, &pool_mint_address)
+        if quarantine::get_token_info(config, ata_address, pool_mint_address)
             .await?
             .is_none()
         {
@@ -333,7 +332,7 @@ async fn command_deposit(
     };
 
     let previous_token_amount =
-        quarantine::get_token_info(config, &token_account_address, &pool_mint_address)
+        quarantine::get_token_info(config, token_account_address, pool_mint_address)
             .await?
             .map(|token_account| token_account.amount)
             .unwrap_or(0);
@@ -367,7 +366,7 @@ async fn command_deposit(
         None
     } else {
         Some(
-            quarantine::get_token_info(config, &token_account_address, &pool_mint_address)
+            quarantine::get_token_info(config, token_account_address, pool_mint_address)
                 .await?
                 .map(|token_account| token_account.amount)
                 .unwrap_or(0)
@@ -425,7 +424,7 @@ async fn command_withdraw(
         .unwrap_or_else(|| get_associated_token_address(&owner.pubkey(), &pool_mint_address));
 
     let Some(token_account) =
-        quarantine::get_token_info(config, &token_account_address, &pool_mint_address).await?
+        quarantine::get_token_info(config, token_account_address, pool_mint_address).await?
     else {
         return Err(format!("Token account {} does not exist", token_account_address).into());
     };
@@ -514,7 +513,7 @@ async fn command_withdraw(
     let stake_amount = if config.dry_run {
         None
     } else if let Some((_, stake)) =
-        quarantine::get_stake_info(config, &stake_account_address).await?
+        quarantine::get_stake_info(config, stake_account_address).await?
     {
         Some(stake.delegation.stake)
     } else {
@@ -614,7 +613,7 @@ async fn command_update_metadata(
     // we always need the vote account
     let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
 
-    if let Ok(vote_account_data) = config.rpc_client.get_account(&vote_account_address).await {
+    if let Some(vote_account_data) = config.get_initialized_account(vote_account_address).await? {
         let vote_account =
             VoteStateV4::deserialize(&vote_account_data.data, &vote_account_address)?;
 
@@ -814,7 +813,8 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
 
     pool_is_initialized(config, pool_address).await?;
 
-    if get_initialized_account(config, onramp_address)
+    if config
+        .get_initialized_account(onramp_address)
         .await?
         .is_some()
     {
@@ -848,23 +848,11 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
     ))
 }
 
-async fn get_initialized_account(
-    config: &Config,
-    pubkey: Pubkey,
-) -> Result<Option<Account>, Error> {
-    Ok(config
-        .rpc_client
-        .get_account_with_commitment(&pubkey, config.rpc_client.commitment())
-        .await?
-        .value
-        .filter(|account| !account.data.is_empty()))
-}
-
 async fn get_vote_address_from_pool(
     config: &Config,
     pool_address: Pubkey,
 ) -> Result<Pubkey, Error> {
-    let Some(pool_account) = get_initialized_account(config, pool_address).await? else {
+    let Some(pool_account) = config.get_initialized_account(pool_address).await? else {
         return Err(format!("Pool {} has not been initialized", pool_address).into());
     };
 
