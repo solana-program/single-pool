@@ -50,39 +50,44 @@ fn pool_net_asset_value(
     let pool_rent_exempt_reserve = rent.minimum_balance(pool_stake_info.data_len());
     let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
 
-    // NEV is all lamports in both accounts less rent
-    pool_stake_info
+    // NAV is all lamports in both accounts less rent
+
+    let main_stake_value = pool_stake_info
         .lamports()
-        .saturating_add(pool_onramp_info.lamports())
-        .saturating_sub(pool_rent_exempt_reserve)
-        .saturating_sub(onramp_rent_exempt_reserve)
+        .saturating_sub(pool_rent_exempt_reserve);
+
+    let onramp_value = pool_onramp_info
+        .lamports()
+        .saturating_sub(onramp_rent_exempt_reserve);
+
+    main_stake_value.saturating_add(onramp_value)
 }
 
-/// Calculate pool tokens to mint, given outstanding token supply, pool NEV, and deposit amount
+/// Calculate pool tokens to mint, given outstanding token supply, pool NAV, and deposit amount
 fn calculate_deposit_amount(
     pre_token_supply: u64,
-    pre_pool_nev: u64,
+    pre_pool_nav: u64,
     user_deposit_amount: u64,
 ) -> Option<u64> {
-    if pre_pool_nev == 0 || pre_token_supply == 0 {
+    if pre_pool_nav == 0 || pre_token_supply == 0 {
         Some(user_deposit_amount)
     } else {
         u64::try_from(
             (user_deposit_amount as u128)
                 .checked_mul(pre_token_supply as u128)?
-                .checked_div(pre_pool_nev as u128)?,
+                .checked_div(pre_pool_nav as u128)?,
         )
         .ok()
     }
 }
 
-/// Calculate pool value to return, given outstanding token supply, pool NEV, and tokens to redeem
+/// Calculate pool value to return, given outstanding token supply, pool NAV, and tokens to redeem
 fn calculate_withdraw_amount(
     pre_token_supply: u64,
-    pre_pool_nev: u64,
+    pre_pool_nav: u64,
     user_tokens_to_burn: u64,
 ) -> Option<u64> {
-    let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_nev as u128)?;
+    let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_nav as u128)?;
     let denominator = pre_token_supply as u128;
     if numerator < denominator || denominator == 0 {
         Some(0)
@@ -1048,8 +1053,14 @@ impl Processor {
             unreachable!();
         };
 
+        // onramp must exist
+        match deserialize_stake(pool_onramp_info) {
+            Ok(StakeStateV2::Initialized(_)) | Ok(StakeStateV2::Stake(_, _, _)) => (),
+            _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
+        };
+
         // tokens for deposit are determined off the total stakeable value of both pool-owned accounts
-        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
 
         let pre_user_lamports = user_stake_info.lamports();
         let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
@@ -1114,7 +1125,7 @@ impl Processor {
 
         // deposit amount is determined off stake added because we return excess lamports
         let new_pool_tokens =
-            calculate_deposit_amount(token_supply, pre_total_nev, new_stake_added)
+            calculate_deposit_amount(token_supply, pre_total_nav, new_stake_added)
                 .ok_or(SinglePoolError::UnexpectedMathError)?;
 
         if new_pool_tokens == 0 {
@@ -1204,12 +1215,9 @@ impl Processor {
 
         let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
-        // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
-        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
-
         // note we deliberately do NOT validate the activation status of the pool account.
         // neither warmup/cooldown nor validator delinquency prevent a user withdrawal.
-        // however, because we calculate NEV from all lamports in both pool accounts,
+        // however, because we calculate NAV from all lamports in both pool accounts,
         // but can only split stake from the main account (unless inactive), we must determine whether this is possible
         let (withdrawable_value, pool_is_fully_inactive) = {
             let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
@@ -1235,9 +1243,19 @@ impl Processor {
             }
         };
 
-        // withdraw amount is determined off pool NEV just like deposit amount
+        // onramp must exist. this does not create an edge case where withdrawals may be blocked,
+        // because we also require the onramp to exist for deposits
+        match deserialize_stake(pool_onramp_info) {
+            Ok(StakeStateV2::Initialized(_)) | Ok(StakeStateV2::Stake(_, _, _)) => (),
+            _ => return Err(SinglePoolError::OnRampDoesntExist.into()),
+        };
+
+        // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
+
+        // withdraw amount is determined off pool NAV just like deposit amount
         let stake_to_withdraw =
-            calculate_withdraw_amount(token_supply, pre_total_nev, token_amount)
+            calculate_withdraw_amount(token_supply, pre_total_nav, token_amount)
                 .ok_or(SinglePoolError::UnexpectedMathError)?;
 
         // self-explanatory. we catch 0 deposit above so we only hit this if we rounded to 0
