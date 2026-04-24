@@ -431,7 +431,7 @@ async fn fail_disallowed_withdraw(stake_version: StakeProgramVersion) {
         .unwrap_err();
     check_error(e, SinglePoolError::WithdrawalTooSmall);
 
-    // pump NEV higher. token is worth more but mostly backed by liquid sol
+    // pump NAV higher. token is worth more but mostly backed by liquid sol
     transfer(
         &mut context.banks_client,
         &context.payer,

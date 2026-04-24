@@ -27,7 +27,7 @@ pub enum SinglePoolInstruction {
     ///   Initialize the mint and main stake account for a new single-validator
     ///   stake pool. The pool stake account must contain the rent-exempt
     ///   minimum plus the minimum balance of 1 sol. No tokens will be minted;
-    ///   to deposit more, use `Deposit` after `InitializeStake`.
+    ///   to deposit more, use `Deposit` after `InitializeStake` and `InitializePoolOnRamp`.
     ///
     ///   0. `[]` Validator vote account
     ///   1. `[w]` Pool account
@@ -119,7 +119,7 @@ pub enum SinglePoolInstruction {
     ///   Create token metadata for the stake-pool token in the metaplex-token
     ///   program. Step three of the permissionless three-stage initialization
     ///   flow.
-    ///   Note this instruction is not necessary for the pool to operate, to
+    ///   Note this instruction is NOT necessary for the pool to operate, to
     ///   ensure we cannot be broken by upstream.
     ///
     ///   0. `[]` Pool account
@@ -156,7 +156,7 @@ pub enum SinglePoolInstruction {
     ///
     ///   New pools created with `initialize()` will include this instruction
     ///   automatically. Existing pools must use `InitializePoolOnRamp` to upgrade to
-    ///   the latest version.
+    ///   the latest version. Note the on-ramp IS necessary for the pool to operate.
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool on-ramp account
