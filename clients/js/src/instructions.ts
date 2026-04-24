@@ -175,6 +175,7 @@ type DepositSolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
       ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
       ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SINGLE_POOL_PROGRAM_ID>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -491,6 +492,7 @@ export async function depositSolInstruction(
       { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
       { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
       { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SINGLE_POOL_PROGRAM_ID, role: AccountRole.READONLY },
     ],
     programAddress,
   };

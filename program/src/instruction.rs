@@ -187,6 +187,7 @@ pub enum SinglePoolInstruction {
     ///  12. `[]` System program
     ///  13. `[]` Token program
     ///  14. `[]` Stake program
+    ///  15. `[]` Single-validator stake pool program
     DepositSol {
         /// Amount of sol to deposit
         lamports: u64,
