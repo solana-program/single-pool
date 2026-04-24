@@ -115,9 +115,8 @@ pub async fn get_stake_summaries(
             // if this assert ever triggers, multistake or another account change has landed
             // this function should be updated to use real stake account sizes
             // we may be fetching hundreds of accounts here so memoize the rents
-            assert_eq!(
-                account.data.len(),
-                StakeStateV2::size_of(),
+            assert!(
+                !account.data.is_empty() && account.data.len() != StakeStateV2::size_of(),
                 "StakeStateV2 is no longer canonical, or StakeStateV2::size_of() is no longer 200."
             );
 
