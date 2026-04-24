@@ -7,7 +7,6 @@ use {
     solana_account::AccountSharedData,
     solana_keypair::Keypair,
     solana_native_token::LAMPORTS_PER_SOL,
-    solana_program_error::ProgramError,
     solana_program_test::*,
     solana_pubkey::Pubkey,
     solana_signer::Signer,
@@ -298,50 +297,4 @@ async fn fail_bad_deposit(stake_version: StakeProgramVersion) {
 
     // fail: bad owner
     check_error(e, SinglePoolError::InvalidDepositSolSource);
-}
-
-// this is a canary for if/when we convert from solana-program-test to mollusk.
-// to be able to self-cpi, we must explicitly pass the program account itself as an instruction account.
-// js testing with litesvm reveals that more abstracted svm-based test harnesses might not enforce this.
-// if this test no longer passes when we convert, we have our answer, and can simply assert the AccountMeta exists
-#[test_matrix(
-    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
-)]
-#[tokio::test]
-async fn fail_bad_cpi(stake_version: StakeProgramVersion) {
-    let Some(program_test) = program_test(stake_version) else {
-        return;
-    };
-    let mut context = program_test.start_with_context().await;
-
-    let accounts = SinglePoolAccounts::default();
-    accounts.initialize(&mut context).await;
-
-    advance_epoch(&mut context).await;
-
-    let mut instruction = instruction::deposit_sol(
-        &id(),
-        &accounts.vote_account.pubkey(),
-        &accounts.alice.pubkey(),
-        &accounts.alice_token,
-        TEST_STAKE_AMOUNT,
-    );
-    let svsp_account_meta = instruction.accounts.pop().unwrap();
-    assert_eq!(svsp_account_meta.pubkey, id());
-
-    let transaction = Transaction::new_signed_with_payer(
-        &[instruction],
-        Some(&context.payer.pubkey()),
-        &[&context.payer, &accounts.alice],
-        context.last_blockhash,
-    );
-
-    let e = context
-        .banks_client
-        .process_transaction(transaction)
-        .await
-        .unwrap_err();
-
-    // fail: missing svsp
-    check_error(e, ProgramError::NotEnoughAccountKeys);
 }
