@@ -1644,7 +1644,7 @@ impl Processor {
             return Err(SinglePoolError::InvalidDepositSolSource.into());
         }
 
-        let pre_total_nev = pool_net_asset_value(pool_stake_info, pool_onramp_info, &rent);
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, &rent);
         let pre_onramp_lamports = pool_onramp_info.lamports();
 
         // transfer sol to pool onramp
@@ -1663,7 +1663,7 @@ impl Processor {
         }
 
         let new_pool_tokens = {
-            let raw_tokens = calculate_deposit_amount(token_supply, pre_total_nev, deposit_amount)
+            let raw_tokens = calculate_deposit_amount(token_supply, pre_total_nav, deposit_amount)
                 .ok_or(SinglePoolError::UnexpectedMathError)?;
 
             // we round division down and reject deposits too small to generate a fee
