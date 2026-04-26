@@ -182,29 +182,32 @@ enum OnRampState {
     Deactive,
 }
 
-// initialized/move: onramp is fresh from its last replenish, we can move from pool and delegate
-// activating/no move: onramp has loose lamports, we can add to its delegation
-// activating/move: onramp has loose lamports, we can add them and pool lamports both to delegation
-// active/no move: onramp stake can be moved back into pool
-// active/move: onramp stake can be moved back into pool *and* pool lamports can be delegated in onramp
-// deactive/move: same as the initialized case, but if onramp was deactivated
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum MoveLamportsCase {
+    None,
+    SubMinumumDelegation,
+    MinimumDelegation,
+}
+
+// initialized/move: onramp is fresh from its last replenish, move lamports from pool, and delegate if minimum
+// activating/no move: onramp has loose lamports, add them to its delegation unconditionally
+// activating/move: pool has loose lamports, move and add them to onramp delegation unconditionally
+// active/no move: move onramp stake to pool, onramp ends initialized with rent exemption only
+// active/move: move onramp stake to pool, move lamports from pool, and delegate if minimum
+// deactive/move: same as the initialized/move case, but if onramp was deactivated
+// initialized/no move and deactive/no move: nothing happens. successfully!
+// ALL variants return Ok(()). replenish is a "magic" instruction that only performs stake operations which should succeed
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
     [OnRampState::Initialized, OnRampState::Activating, OnRampState::Active, OnRampState::Deactive],
-    [false, true]
+    [MoveLamportsCase::None, MoveLamportsCase::SubMinumumDelegation, MoveLamportsCase::MinimumDelegation]
 )]
 #[tokio::test]
 async fn move_value_success(
     stake_version: StakeProgramVersion,
     onramp_state: OnRampState,
-    move_lamports_to_onramp: bool,
+    move_lamports_case: MoveLamportsCase,
 ) {
-    // these cases would not attempt to move value in either direction
-    match (onramp_state, move_lamports_to_onramp) {
-        (OnRampState::Initialized, false) | (OnRampState::Deactive, false) => return,
-        _ => (),
-    };
-
     let Some(program_test) = program_test(stake_version) else {
         return;
     };
@@ -227,6 +230,15 @@ async fn move_value_success(
         &context.last_blockhash,
     )
     .await;
+
+    // if we dont move, we dont move; instruction succeeds
+    // if we move less than minimum, we move and dont delegate; instruction succeeds
+    // if we move the minimum, we move and delegate; instruction succeeds
+    let move_lamports_to_onramp = match move_lamports_case {
+        MoveLamportsCase::None => None,
+        MoveLamportsCase::SubMinumumDelegation => Some(minimum_delegation - 1),
+        MoveLamportsCase::MinimumDelegation => Some(minimum_delegation),
+    };
 
     let minimum_pool_balance = get_minimum_pool_balance(
         &mut context.banks_client,
@@ -260,28 +272,43 @@ async fn move_value_success(
     }
 
     // if we are testing the pool -> onramp leg, add lamports for it
-    if move_lamports_to_onramp {
+    if let Some(move_lamports_amount) = move_lamports_to_onramp {
         transfer(
             &mut context.banks_client,
             &context.payer,
             &context.last_blockhash,
             &accounts.stake_account,
-            minimum_delegation,
+            move_lamports_amount,
         )
         .await;
-    }
+    };
 
-    // this one case is to test reupping an activating delegation
-    if onramp_state == OnRampState::Activating && !move_lamports_to_onramp {
-        transfer(
-            &mut context.banks_client,
-            &context.payer,
-            &context.last_blockhash,
-            &accounts.onramp_account,
-            minimum_delegation,
-        )
-        .await;
-    }
+    // this one case is to test reupping an activating delegation in place
+    let existing_onramp_lamports =
+        if onramp_state == OnRampState::Activating && move_lamports_to_onramp.is_none() {
+            // NOTE we want a unique value to be sure our test cases are right and this didnt come from pool.
+            // we also prefer sub-minimal, so we know we can add sub-minimal lamports to an already sufficient activation.
+            // however stake v4 minimum is 1. this comment can be removed when stake v5 is Stable,
+            // and the value can be changed to simply `minimum_delegation - 2`
+            let existing_onramp_lamports = if minimum_delegation == 1 {
+                minimum_delegation + 2
+            } else {
+                minimum_delegation - 2
+            };
+
+            transfer(
+                &mut context.banks_client,
+                &context.payer,
+                &context.last_blockhash,
+                &accounts.onramp_account,
+                existing_onramp_lamports,
+            )
+            .await;
+
+            existing_onramp_lamports
+        } else {
+            0
+        };
 
     // this is the replenish we test
     replenish(&mut context, &accounts.vote_account.pubkey()).await;
@@ -312,7 +339,8 @@ async fn move_value_success(
 
     match (onramp_state, move_lamports_to_onramp) {
         // stake moved already before test or because of test, new lamports were added to onramp
-        (OnRampState::Deactive, true) | (OnRampState::Active, true) => {
+        (OnRampState::Deactive, Some(move_lamports_amount))
+        | (OnRampState::Active, Some(move_lamports_amount)) => {
             assert_eq!(
                 pool_status.effective,
                 minimum_pool_balance + minimum_delegation
@@ -323,20 +351,34 @@ async fn move_value_success(
             );
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, minimum_delegation);
-            assert_eq!(onramp_lamports, minimum_delegation + onramp_rent);
+            assert_eq!(
+                onramp_status.activating,
+                if move_lamports_amount >= minimum_delegation {
+                    move_lamports_amount
+                } else {
+                    0
+                }
+            );
+            assert_eq!(onramp_lamports, move_lamports_amount + onramp_rent);
         }
         // no stake moved, but lamports did
-        (OnRampState::Initialized, true) => {
+        (OnRampState::Initialized, Some(move_lamports_amount)) => {
             assert_eq!(pool_status.effective, minimum_pool_balance);
             assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, minimum_delegation);
-            assert_eq!(onramp_lamports, minimum_delegation + onramp_rent);
+            assert_eq!(
+                onramp_status.activating,
+                if move_lamports_amount >= minimum_delegation {
+                    move_lamports_amount
+                } else {
+                    0
+                }
+            );
+            assert_eq!(onramp_lamports, move_lamports_amount + onramp_rent);
         }
         // no excess lamports moved, just stake
-        (OnRampState::Active, false) => {
+        (OnRampState::Active, None) => {
             assert_eq!(
                 pool_status.effective,
                 minimum_pool_balance + minimum_delegation
@@ -350,17 +392,62 @@ async fn move_value_success(
             assert_eq!(onramp_status.activating, 0);
             assert_eq!(onramp_lamports, onramp_rent);
         }
-        // topped up an existing activation, either with pool or onramp lamports
-        (OnRampState::Activating, _) => {
+        // topped up an existing activation by moving from pool
+        (OnRampState::Activating, Some(move_lamports_amount)) => {
             assert_eq!(pool_status.effective, minimum_pool_balance);
             assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
 
             assert_eq!(onramp_status.effective, 0);
-            assert_eq!(onramp_status.activating, minimum_delegation * 2);
-            assert_eq!(onramp_lamports, minimum_delegation * 2 + onramp_rent);
+            assert_eq!(
+                onramp_status.activating,
+                move_lamports_amount + minimum_delegation
+            );
+            assert_eq!(
+                onramp_lamports,
+                move_lamports_amount + minimum_delegation + onramp_rent
+            );
         }
-        // we have no further test cases
-        _ => unreachable!(),
+        // topped up an existing activation with lamports already in onramp
+        (OnRampState::Activating, None) => {
+            assert!(existing_onramp_lamports > 0);
+
+            assert_eq!(pool_status.effective, minimum_pool_balance);
+            assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(
+                onramp_status.activating,
+                existing_onramp_lamports + minimum_delegation
+            );
+            assert_eq!(
+                onramp_lamports,
+                existing_onramp_lamports + minimum_delegation + onramp_rent
+            );
+        }
+        // nothing happened
+        (OnRampState::Initialized, None) => {
+            assert_eq!(pool_status.effective, minimum_pool_balance);
+            assert_eq!(pool_lamports, minimum_pool_balance + pool_rent);
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, 0);
+            assert_eq!(onramp_lamports, onramp_rent);
+        }
+        // still nothing happened but setting up a deactive onramp added stake to pool already
+        (OnRampState::Deactive, None) => {
+            assert_eq!(
+                pool_status.effective,
+                minimum_delegation + minimum_pool_balance
+            );
+            assert_eq!(
+                pool_lamports,
+                minimum_delegation + minimum_pool_balance + pool_rent
+            );
+
+            assert_eq!(onramp_status.effective, 0);
+            assert_eq!(onramp_status.activating, 0);
+            assert_eq!(onramp_lamports, onramp_rent);
+        }
     }
 }
 
