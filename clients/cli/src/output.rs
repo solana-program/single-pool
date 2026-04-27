@@ -3,7 +3,10 @@ use {
     console::style,
     serde::{Deserialize, Serialize},
     serde_with::{serde_as, DisplayFromStr},
-    solana_cli_output::{display::writeln_name_value, QuietDisplay, VerboseDisplay},
+    solana_cli_output::{
+        display::{build_balance_message, writeln_name_value},
+        QuietDisplay, VerboseDisplay,
+    },
     solana_pubkey::Pubkey,
     solana_signature::Signature,
     spl_single_pool::{
@@ -93,9 +96,14 @@ pub struct StakePoolOutput {
     pub pool_address: Pubkey,
     #[serde_as(as = "DisplayFromStr")]
     pub vote_account_address: Pubkey,
-    pub available_stake: u64,
-    pub excess_lamports: u64,
+    pub net_asset_value: u64,
+    pub undelegated_lamports: u64,
     pub token_supply: u64,
+    pub main_stake_dedelegated: bool,
+    pub onramp_exists: bool,
+    #[serde(skip)]
+    pub minimum_delegation: u64,
+
     #[serde_as(as = "Option<DisplayFromStr>")]
     pub signature: Option<Signature>,
 }
@@ -146,9 +154,19 @@ impl VerboseDisplay for StakePoolOutput {
                 .to_string(),
         )?;
 
-        writeln_name_value(w, "  Available stake:", &self.available_stake.to_string())?;
-        writeln_name_value(w, "  Excess lamports:", &self.excess_lamports.to_string())?;
-        writeln_name_value(w, "  Token supply:", &self.token_supply.to_string())?;
+        writeln_name_value(w, "  Net asset value:", &self.net_asset_value.to_string())?;
+        writeln_name_value(
+            w,
+            "  Undelegated lamports:",
+            &self.undelegated_lamports.to_string(),
+        )?;
+        writeln_name_value(
+            w,
+            "  Notional token supply:",
+            &self.token_supply.to_string(),
+        )?;
+
+        self.print_shared_warnings(w)?;
 
         if let Some(signature) = self.signature {
             writeln!(w)?;
@@ -169,12 +187,51 @@ impl Display for StakePoolOutput {
             "  Vote account address:",
             &self.vote_account_address.to_string(),
         )?;
-        writeln_name_value(f, "  Available stake:", &self.available_stake.to_string())?;
-        writeln_name_value(f, "  Token supply:", &self.token_supply.to_string())?;
+        writeln_name_value(f, "  Net asset value:", &self.net_asset_value.to_string())?;
+        writeln_name_value(
+            f,
+            "  Notional token supply:",
+            &self.token_supply.to_string(),
+        )?;
+
+        self.print_shared_warnings(f)?;
 
         if let Some(signature) = self.signature {
             writeln!(f)?;
             writeln_name_value(f, "Signature:", &signature.to_string())?;
+        }
+
+        Ok(())
+    }
+}
+
+impl StakePoolOutput {
+    fn print_shared_warnings(&self, w: &mut dyn Write) -> Result {
+        // these are not mutually exclusive, we just use `else if` for ux reasons.
+        // namely, dont tell the user to create an onramp if the pool is unusable,
+        // and dont tell the user to replenish if theres no onramp yet.
+        // it is a bit weird tho because they cant fix an undelegated main account without an onramp.
+        // but we *dont* want to tell an unsavvy user to blindly replenish in this case,
+        // since *we* dont know if the vote account is back in good standing without a bunch of out-of-scope nonsense
+        if self.main_stake_dedelegated {
+            writeln!(
+                w,
+                "{} This validator's vote account may be delinquent or closed!",
+                style("/!\\ POOL STAKE IS UNDELEGATED /!\\").bold(),
+            )?;
+        } else if !self.onramp_exists {
+            writeln!(
+                w,
+                "{} Onramp does not exist; use `spl-single-pool manage create-on-ramp` to create it",
+                style("/!\\").bold(),
+            )?;
+        } else if self.undelegated_lamports >= self.minimum_delegation {
+            writeln!(
+                w,
+                "{} This pool has {} not earning rewards; use `spl-single-pool manage replenish-pool` to delegate it",
+                style("/!\\").bold(),
+                build_balance_message(self.undelegated_lamports, false, true),
+            )?;
         }
 
         Ok(())
@@ -187,14 +244,17 @@ pub struct StakePoolListOutput(pub Vec<StakePoolOutput>);
 impl QuietDisplay for StakePoolListOutput {}
 impl VerboseDisplay for StakePoolListOutput {
     fn write_str(&self, w: &mut dyn Write) -> Result {
-        let mut stake = 0;
+        let mut nav = 0;
         for svsp in &self.0 {
             VerboseDisplay::write_str(svsp, w)?;
-            stake += svsp.available_stake;
+            nav += svsp.net_asset_value;
         }
 
-        writeln!(w)?;
-        writeln_name_value(w, "Total stake:", &stake.to_string())?;
+        writeln_name_value(
+            w,
+            "\nTotal value:",
+            &build_balance_message(nav, false, true),
+        )?;
 
         Ok(())
     }
@@ -202,14 +262,17 @@ impl VerboseDisplay for StakePoolListOutput {
 
 impl Display for StakePoolListOutput {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
-        let mut stake = 0;
+        let mut nav = 0;
         for svsp in &self.0 {
             svsp.fmt(f)?;
-            stake += svsp.available_stake;
+            nav += svsp.net_asset_value;
         }
 
-        writeln!(f)?;
-        writeln_name_value(f, "Total stake:", &stake.to_string())?;
+        writeln_name_value(
+            f,
+            "\nTotal value:",
+            &build_balance_message(nav, false, true),
+        )?;
 
         Ok(())
     }
