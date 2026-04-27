@@ -885,7 +885,8 @@ async fn command_deposit_sol(
 
     let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
 
-    if get_initialized_account(config, onramp_address)
+    if config
+        .get_initialized_account(onramp_address)
         .await?
         .is_none()
     {
@@ -899,7 +900,7 @@ async fn command_deposit_sol(
 
     let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
 
-    if let Some((_, stake)) = quarantine::get_stake_info(config, &pool_stake_address).await? {
+    if let Some((_, stake)) = quarantine::get_stake_info(config, pool_stake_address).await? {
         if stake.delegation.activation_epoch >= current_epoch {
             return Err(format!(
                 "Pool {} stake {} is still activating; must be fully active",
@@ -922,8 +923,7 @@ async fn command_deposit_sol(
 
     {
         let deposit_source_balance = config
-            .program_client
-            .get_account(deposit_source.pubkey())
+            .get_initialized_account(deposit_source.pubkey())
             .await?
             .map(|account| account.lamports)
             .unwrap_or(0);
@@ -948,22 +948,17 @@ async fn command_deposit_sol(
         ),
     );
 
-    let token = Token::new(
-        config.program_client.clone(),
-        &spl_token::id(),
-        &pool_mint_address,
-        None,
-        payer.clone(),
-    );
-
     let mut instructions = vec![];
 
     // use token account provided, or get/create the associated account for the client keypair
     let token_account_address = if let Some(account) = command_config.token_account_address {
         account
     } else {
-        let address = token.get_associated_token_address(&owner.pubkey());
-        if get_initialized_account(config, address).await?.is_none() {
+        let ata_address = get_associated_token_address(&owner.pubkey(), &pool_mint_address);
+        if quarantine::get_token_info(config, ata_address, pool_mint_address)
+            .await?
+            .is_none()
+        {
             instructions.push(create_associated_token_account(
                 &payer.pubkey(),
                 &owner.pubkey(),
@@ -971,13 +966,14 @@ async fn command_deposit_sol(
                 &spl_token::id(),
             ));
         }
-        address
+        ata_address
     };
 
-    let previous_token_amount = match token.get_account_info(&token_account_address).await {
-        Ok(account) => account.base.amount,
-        Err(_) => 0,
-    };
+    let previous_token_amount =
+        quarantine::get_token_info(config, token_account_address, pool_mint_address)
+            .await?
+            .map(|token_account| token_account.amount)
+            .unwrap_or(0);
 
     // use escrow account for lamports to avoid exposing wallet signer to program
     let escrow_deposit_account = Keypair::new();
@@ -1006,7 +1002,7 @@ async fn command_deposit_sol(
         &instructions,
         Some(&payer.pubkey()),
         &signers,
-        config.program_client.get_latest_blockhash().await?,
+        config.rpc_client.get_latest_blockhash().await?,
     );
 
     let signature = process_transaction(config, transaction).await?;
@@ -1015,11 +1011,10 @@ async fn command_deposit_sol(
         None
     } else {
         Some(
-            token
-                .get_account_info(&token_account_address)
+            quarantine::get_token_info(config, token_account_address, pool_mint_address)
                 .await?
-                .base
-                .amount
+                .map(|token_account| token_account.amount)
+                .unwrap_or(0)
                 - previous_token_amount,
         )
     };
