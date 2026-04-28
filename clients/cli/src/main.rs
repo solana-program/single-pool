@@ -923,8 +923,10 @@ async fn command_deposit_sol(
 
     {
         let deposit_source_balance = config
-            .get_initialized_account(deposit_source.pubkey())
+            .rpc_client
+            .get_account_with_commitment(&deposit_source.pubkey(), config.rpc_client.commitment())
             .await?
+            .value
             .map(|account| account.lamports)
             .unwrap_or(0);
 
