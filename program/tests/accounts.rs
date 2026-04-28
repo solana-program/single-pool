@@ -25,20 +25,20 @@ use {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum TestMode {
-    Initialize,
-    Deposit,
-    Withdraw,
+    InitializePool,
+    DepositStake,
+    WithdrawStake,
+    DepositSol,
 }
 
-// build a full transaction for initialize, deposit, and withdraw
-// this is used to test knocking out individual accounts, for the sake of
-// confirming the pubkeys are checked
+// build a full transaction for initialize, deposit, withdraw, and depositsol
+// this tests that dummying individual accounts triggers the appropriate errors
 async fn build_instructions(
     context: &mut ProgramTestContext,
     accounts: &SinglePoolAccounts,
     test_mode: TestMode,
 ) -> (Vec<Instruction>, usize) {
-    let initialize_instructions = if test_mode == TestMode::Initialize {
+    let initialize_instructions = if test_mode == TestMode::InitializePool {
         let slot = context.genesis_config().epoch_schedule.first_normal_slot + 1;
         context.warp_to_slot(slot).unwrap();
 
@@ -86,7 +86,7 @@ async fn build_instructions(
         vec![]
     };
 
-    let deposit_instructions = instruction::deposit(
+    let deposit_stake_instructions = instruction::deposit(
         &id(),
         &accounts.pool,
         &accounts.alice_stake.pubkey(),
@@ -95,9 +95,9 @@ async fn build_instructions(
         &accounts.alice.pubkey(),
     );
 
-    let withdraw_instructions = if test_mode == TestMode::Withdraw {
+    let withdraw_stake_instructions = if test_mode == TestMode::WithdrawStake {
         let transaction = Transaction::new_signed_with_payer(
-            &deposit_instructions,
+            &deposit_stake_instructions,
             Some(&accounts.alice.pubkey()),
             &[&accounts.alice],
             context.last_blockhash,
@@ -131,12 +131,23 @@ async fn build_instructions(
         vec![]
     };
 
+    // self-transfer is unidiomatic but this way we can test the full helper without messing with signers
+    let deposit_sol_instructions = instruction::deposit_liquid(
+        &id(),
+        &accounts.vote_account.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        TEST_STAKE_AMOUNT,
+    );
+
     // ints hardcoded to guard against instructions moving with code changes
     // if these asserts fail, update them to match the new multi-instruction builders
     let (instructions, index, enum_tag) = match test_mode {
-        TestMode::Initialize => (initialize_instructions, 4, 0),
-        TestMode::Deposit => (deposit_instructions, 2, 2),
-        TestMode::Withdraw => (withdraw_instructions, 1, 3),
+        TestMode::InitializePool => (initialize_instructions, 4, 0),
+        TestMode::DepositStake => (deposit_stake_instructions, 2, 2),
+        TestMode::WithdrawStake => (withdraw_stake_instructions, 1, 3),
+        TestMode::DepositSol => (deposit_sol_instructions, 1, 7),
     };
 
     assert_eq!(instructions[index].program_id, id());
@@ -148,7 +159,7 @@ async fn build_instructions(
 // test that account addresses are checked properly
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [TestMode::Initialize, TestMode::Deposit, TestMode::Withdraw]
+    [TestMode::InitializePool, TestMode::DepositStake, TestMode::WithdrawStake, TestMode::DepositSol]
 )]
 #[tokio::test]
 async fn fail_account_checks(stake_version: StakeProgramVersion, test_mode: TestMode) {
@@ -187,7 +198,9 @@ async fn fail_account_checks(stake_version: StakeProgramVersion, test_mode: Test
             .unwrap_err();
 
         // these specific accounts we can also make sure we hit the explicit check, before we use it
-        if instruction_pubkey == accounts.pool {
+        if instruction_pubkey == accounts.vote_account.pubkey() {
+            check_error(e, ProgramError::IncorrectProgramId)
+        } else if instruction_pubkey == accounts.pool {
             check_error(e, SinglePoolError::InvalidPoolAccount)
         } else if instruction_pubkey == accounts.stake_account {
             check_error(e, SinglePoolError::InvalidPoolStakeAccount)
@@ -267,9 +280,13 @@ fn make_basic_instruction(
         SinglePoolInstruction::InitializePoolOnRamp => {
             instruction::initialize_pool_onramp(&id(), &accounts.pool)
         }
-        SinglePoolInstruction::DepositSol { .. } => {
-            unimplemented!()
-        }
+        SinglePoolInstruction::DepositSol { .. } => instruction::deposit_sol(
+            &id(),
+            &accounts.vote_account.pubkey(),
+            &Pubkey::default(),
+            &Pubkey::default(),
+            0,
+        ),
     }
 }
 
@@ -319,7 +336,7 @@ fn consistent_account_order() {
             },
         ),
         make_basic_instruction(&accounts, SinglePoolInstruction::InitializePoolOnRamp),
-        // TODO SinglePoolInstruction::DepositSol
+        make_basic_instruction(&accounts, SinglePoolInstruction::DepositSol { lamports: 0 }),
     ];
 
     for instruction in instructions {

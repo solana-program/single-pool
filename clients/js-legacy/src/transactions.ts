@@ -27,6 +27,14 @@ interface WithdrawParams {
   userTokenAuthority?: PublicKey;
 }
 
+interface DepositSolParams {
+  connection: Connection;
+  voteAccount: PublicKey;
+  userWallet: PublicKey;
+  lamports: number | bigint;
+  userTokenAccount?: PublicKey;
+}
+
 export class SinglePoolProgram {
   static programId: PublicKey = new PublicKey(PoolProgramModern.programAddress);
   static space: number = Number(PoolProgramModern.space);
@@ -102,6 +110,13 @@ export class SinglePoolProgram {
       pool.toBase58() as PoolAddress,
       payer.toBase58() as Address,
     );
+
+    return modernTransactionToLegacy(modernTransaction);
+  }
+
+  static async depositSol(params: DepositSolParams) {
+    const modernParams = paramsToModern(params);
+    const modernTransaction = await PoolProgramModern.depositSol(modernParams);
 
     return modernTransactionToLegacy(modernTransaction);
   }

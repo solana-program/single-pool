@@ -92,6 +92,9 @@ impl Command {
                 command_withdraw(config, command_config, matches, wallet_manager).await
             }
             Command::Display(command_config) => command_display(config, command_config).await,
+            Command::DepositSol(command_config) => {
+                command_deposit_sol(config, command_config, matches, wallet_manager).await
+            }
         }
     }
 }
@@ -846,6 +849,187 @@ async fn command_create_onramp(config: &Config, command_config: CreateOnRampCli)
         config,
         "InitializePoolOnRamp".to_string(),
         SignatureOutput { signature },
+    ))
+}
+
+// deposit liquid sol
+async fn command_deposit_sol(
+    config: &Config,
+    command_config: DepositSolCli,
+    matches: &ArgMatches,
+    wallet_manager: &mut Option<Rc<RemoteWalletManager>>,
+) -> CommandResult {
+    let payer = config.fee_payer()?;
+    let owner = config.default_signer()?;
+
+    let deposit_source = command_config
+        .from
+        .and_then(|source| {
+            signer_from_source(matches, &source, "from", wallet_manager)
+                .ok()
+                .map(Arc::from)
+        })
+        .unwrap_or(owner.clone());
+
+    let deposit_amount = command_config.lamports;
+
+    let pool_address = pool_address_from_args(
+        command_config.pool_address,
+        command_config.vote_account_address,
+    );
+
+    let pool_stake_address = find_pool_stake_address(&spl_single_pool::id(), &pool_address);
+    let onramp_address = find_pool_onramp_address(&spl_single_pool::id(), &pool_address);
+    let pool_mint_address = find_pool_mint_address(&spl_single_pool::id(), &pool_address);
+
+    pool_is_initialized(config, pool_address).await?;
+
+    let vote_account_address = get_vote_address_from_pool(config, pool_address).await?;
+
+    if config
+        .get_initialized_account(onramp_address)
+        .await?
+        .is_none()
+    {
+        return Err(format!(
+            "Pool {} onramp {} does not exist; run `spl-single-pool manage create-on-ramp ...` \
+            to create it",
+            pool_address, onramp_address
+        )
+        .into());
+    }
+
+    let current_epoch = config.rpc_client.get_epoch_info().await?.epoch;
+
+    if let Some((_, stake)) = quarantine::get_stake_info(config, pool_stake_address).await? {
+        if stake.delegation.activation_epoch >= current_epoch {
+            return Err(format!(
+                "Pool {} stake {} is still activating; must be fully active",
+                pool_address, pool_stake_address
+            )
+            .into());
+        }
+
+        if stake.delegation.deactivation_epoch < u64::MAX {
+            return Err(format!(
+                "Pool {} stake {} is deactivating or deactivated",
+                pool_address, pool_stake_address
+            )
+            .into());
+        }
+    } else {
+        // pool existence already validated and pool exists => stake exists
+        unreachable!();
+    };
+
+    {
+        let deposit_source_balance = config
+            .rpc_client
+            .get_account_with_commitment(&deposit_source.pubkey(), config.rpc_client.commitment())
+            .await?
+            .value
+            .map(|account| account.lamports)
+            .unwrap_or(0);
+
+        if deposit_source_balance < deposit_amount {
+            return Err(format!(
+                "Insufficient lamports in {} for deposit: has {}, needs {}",
+                deposit_source.pubkey(),
+                deposit_source_balance,
+                deposit_amount,
+            )
+            .into());
+        }
+    }
+
+    println_display(
+        config,
+        format!(
+            "Depositing liquid sol from account {} into pool {}\n",
+            deposit_source.pubkey(),
+            pool_address
+        ),
+    );
+
+    let mut instructions = vec![];
+
+    // use token account provided, or get/create the associated account for the client keypair
+    let token_account_address = if let Some(account) = command_config.token_account_address {
+        account
+    } else {
+        let ata_address = get_associated_token_address(&owner.pubkey(), &pool_mint_address);
+        if quarantine::get_token_info(config, ata_address, pool_mint_address)
+            .await?
+            .is_none()
+        {
+            instructions.push(create_associated_token_account(
+                &payer.pubkey(),
+                &owner.pubkey(),
+                &pool_mint_address,
+                &spl_token::id(),
+            ));
+        }
+        ata_address
+    };
+
+    let previous_token_amount =
+        quarantine::get_token_info(config, token_account_address, pool_mint_address)
+            .await?
+            .map(|token_account| token_account.amount)
+            .unwrap_or(0);
+
+    // use escrow account for lamports to avoid exposing wallet signer to program
+    let escrow_deposit_account = Keypair::new();
+
+    instructions.extend(spl_single_pool::instruction::deposit_liquid(
+        &spl_single_pool::id(),
+        &vote_account_address,
+        &deposit_source.pubkey(),
+        &escrow_deposit_account.pubkey(),
+        &token_account_address,
+        deposit_amount,
+    ));
+
+    let mut signers = vec![];
+    for signer in [
+        payer.clone(),
+        deposit_source,
+        Arc::new(escrow_deposit_account),
+    ] {
+        if !signers.contains(&signer) {
+            signers.push(signer);
+        }
+    }
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&payer.pubkey()),
+        &signers,
+        config.rpc_client.get_latest_blockhash().await?,
+    );
+
+    let signature = process_transaction(config, transaction).await?;
+
+    let token_amount = if config.dry_run {
+        None
+    } else {
+        Some(
+            quarantine::get_token_info(config, token_account_address, pool_mint_address)
+                .await?
+                .map(|token_account| token_account.amount)
+                .unwrap_or(0)
+                - previous_token_amount,
+        )
+    };
+
+    Ok(format_output(
+        config,
+        "DepositSol".to_string(),
+        DepositOutput {
+            pool_address,
+            token_amount,
+            signature,
+        },
     ))
 }
 
