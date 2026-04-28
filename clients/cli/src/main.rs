@@ -131,6 +131,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
     };
 
     let minimum_pool_balance = quarantine::get_minimum_pool_balance(config).await?;
+    let minimum_delegation = config.rpc_client.get_stake_minimum_delegation().await?;
 
     let mut instructions = spl_single_pool::instruction::initialize(
         &spl_single_pool::id(),
@@ -170,7 +171,7 @@ async fn command_initialize(config: &Config, command_config: InitializeCli) -> C
             token_supply: quarantine::PHANTOM_TOKENS,
             main_stake_dedelegated: false,
             onramp_exists: true,
-            minimum_delegation: 0, // only used to warn to replenish
+            minimum_delegation,
             signature,
         },
     ))
