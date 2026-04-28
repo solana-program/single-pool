@@ -39,7 +39,7 @@
     "eslint": "^8.57.0",
     "litesvm": "0.7.0",
     "tsup": "^8.5.1",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@solana/addresses": "6.8.0",
