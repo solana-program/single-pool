@@ -38,14 +38,24 @@ cargo build-sbf --manifest-path program/Cargo.toml
 make build-sbf-program
 ```
 
-The BPF program deployed on all clusters is built with [solana-verify](https://solana.com/developers/guides/advanced/verified-builds). It may be verified independently by comparing the output of:
+The BPF program deployed on all clusters is built with [solana-verify](https://solana.com/developers/guides/advanced/verified-builds) and can be verified independently. First, find the program hash from the deployed build on Mainnet-Beta:
 
 ```console
 solana-verify get-program-hash -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 ```
 
-with:
+As of v5.1.0, the Github release tag will be embedded in the deployed program binary. If you do not know the currently deployed Single Pool version, you may perform:
+
+```console
+query-security-txt -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
+```
+
+And observe the "Source release" field. Note the above command will not work until v5.1.0 is live.
+
+Once this is done, or if you already know the proper release tag, you may check it out and determine the progam hash via:
 
 ```console
 solana-verify build --library-name spl_single_pool
 ```
+
+The hash from Mainnet-Beta and the hash you compute locally should be identical.
