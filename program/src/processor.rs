@@ -1584,6 +1584,7 @@ impl Processor {
         let system_program_info = next_account_info(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
+        let svsp_program_info = next_account_info(account_info_iter)?;
 
         let rent = Rent::get()?;
         let stake_history = &StakeHistorySysvar(clock.epoch);
@@ -1609,6 +1610,14 @@ impl Processor {
         check_system_program(system_program_info.key)?;
         check_token_program(token_program_info.key)?;
         check_stake_program(stake_program_info.key)?;
+        if svsp_program_info.key != program_id {
+            msg!(
+                "Expected SVSP program {}, received {}",
+                program_id,
+                svsp_program_info.key,
+            );
+            return Err(ProgramError::IncorrectProgramId);
+        }
 
         if deposit_amount == 0 {
             return Err(SinglePoolError::DepositTooSmall.into());
