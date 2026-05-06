@@ -44,13 +44,13 @@ The BPF program deployed on all clusters is built with [solana-verify](https://s
 solana-verify get-program-hash -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 ```
 
-As of v5.1.0, the Github release tag will be embedded in the deployed program binary. If you do not know the currently deployed Single Pool version, you may perform:
+As of v6.0.0, the Github release tag will be embedded in the deployed program binary. If you do not know the currently deployed Single Pool version, you may perform:
 
 ```console
 query-security-txt -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 ```
 
-And observe the "Source release" field. Note the above command will not work until v5.1.0 is live.
+And observe the "Source release" field. Note the above command will not work until v6.0.0 is live.
 
 Once this is done, or if you already know the proper release tag, you may check it out and determine the progam hash via:
 
