@@ -53,7 +53,7 @@ tokio = "1.52"
 
 [dev-dependencies]
 solana-test-validator = "3.1.11"
-serial_test = "3.4.0"
+serial_test = "3.5.0"
 test-case = "3.3"
 tempfile = "3.27.0"
 
