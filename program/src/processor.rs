@@ -1783,7 +1783,7 @@ mod tests {
             distr::{Distribution, Uniform},
             rngs::StdRng,
             seq::IteratorRandom,
-            Rng, SeedableRng,
+            RngExt, SeedableRng,
         },
         std::collections::BTreeMap,
         test_case::test_case,
