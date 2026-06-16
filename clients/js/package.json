@@ -37,7 +37,7 @@
   "dependencies": {
     "@solana/addresses": "6.10.0",
     "@solana/functional": "6.9.0",
-    "@solana/instructions": "6.9.0",
+    "@solana/instructions": "6.10.0",
     "@solana/instruction-plans": "6.9.0",
     "@solana/rpc-api": "6.10.0",
     "@solana/rpc-spec": "6.9.0",
