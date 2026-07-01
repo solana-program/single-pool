@@ -5,6 +5,7 @@
     "baseUrl": "src",
     "declaration": true,
     "esModuleInterop": true,
+    "ignoreDeprecations": "6.0",
     "inlineSourceMap": false,
     "lib": ["esnext"],
     "listEmittedFiles": false,
