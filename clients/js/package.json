@@ -35,7 +35,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@solana/addresses": "6.10.0",
+    "@solana/addresses": "7.0.0",
     "@solana/functional": "6.10.0",
     "@solana/instructions": "7.0.0",
     "@solana/instruction-plans": "6.10.0",
