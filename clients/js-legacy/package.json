@@ -42,7 +42,7 @@
     "typescript": "^6.0.3"
   },
   "dependencies": {
-    "@solana/addresses": "6.10.0",
+    "@solana/addresses": "7.0.0",
     "@solana/prettier-config-solana": "^0.0.7",
     "@solana/rpc-api": "7.0.0",
     "@solana/rpc-spec": "6.10.0",
