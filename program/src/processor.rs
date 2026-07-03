@@ -1220,7 +1220,7 @@ impl Processor {
         // neither warmup/cooldown nor validator delinquency prevent a user withdrawal.
         // however, because we calculate NAV from all lamports in both pool accounts,
         // but can only split stake from the main account (unless inactive), we must determine whether this is possible
-        let (withdrawable_value, pool_is_fully_inactive) = {
+        let (pool_account_stake_value, pool_is_fully_inactive) = {
             let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
             let pool_stake_status = pool_stake_state
                 .delegation
@@ -1244,6 +1244,14 @@ impl Processor {
             }
         };
 
+        let withdrawable_value = pool_account_stake_value.saturating_sub(minimum_delegation);
+
+        // the main pool account must *always* meet minimum delegation, even if it is inactive.
+        // this error is currently impossible to hit and exists to protect pools if minimum delegation rises above 1sol
+        if withdrawable_value == 0 {
+            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
+        }
+
         // onramp must exist. this does not create an edge case where withdrawals may be blocked,
         // because we also require the onramp to exist for deposits
         match deserialize_stake(pool_onramp_info) {
@@ -1262,12 +1270,6 @@ impl Processor {
         // self-explanatory. we catch 0 deposit above so we only hit this if we rounded to 0
         if stake_to_withdraw == 0 {
             return Err(SinglePoolError::WithdrawalTooSmall.into());
-        }
-
-        // the pool must *always* meet minimum delegation, even if it is inactive.
-        // this error is currently impossible to hit and exists to protect pools if minimum delegation rises above 1sol
-        if withdrawable_value.saturating_sub(stake_to_withdraw) < minimum_delegation {
-            return Err(SinglePoolError::WithdrawalViolatesPoolRequirements.into());
         }
 
         // this is impossible but we guard explicitly because it would put the pool in an unrecoverable state
