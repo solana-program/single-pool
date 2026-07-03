@@ -679,7 +679,7 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         #[allow(deprecated)]
         let pools = config
             .rpc_client
-            .get_program_accounts_with_config(
+            .get_program_ui_accounts_with_config(
                 &spl_single_pool::id(),
                 RpcProgramAccountsConfig {
                     filters: Some(vec![RpcFilterType::Memcmp(Memcmp::new_raw_bytes(
@@ -694,7 +694,8 @@ async fn command_display(config: &Config, command_config: DisplayCli) -> Command
         let mut pool_and_vote_addresses = vec![];
         for pool in pools.into_iter() {
             let vote_account_address =
-                try_from_slice_unchecked::<SinglePool>(&pool.1.data)?.vote_account_address;
+                try_from_slice_unchecked::<SinglePool>(&pool.1.data.decode().unwrap())?
+                    .vote_account_address;
             pool_and_vote_addresses.push((pool.0, vote_account_address));
         }
 
