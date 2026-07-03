@@ -69,15 +69,16 @@ fn calculate_deposit_amount(
     pre_pool_nav: u64,
     user_deposit_amount: u64,
 ) -> Option<u64> {
-    if pre_pool_nav == 0 || pre_token_supply == 0 {
-        Some(user_deposit_amount)
-    } else {
+    if pre_pool_nav > 0 && pre_token_supply > 0 {
         u64::try_from(
             (user_deposit_amount as u128)
                 .checked_mul(pre_token_supply as u128)?
                 .checked_div(pre_pool_nav as u128)?,
         )
         .ok()
+    } else {
+        // this is unreachable for real pools but exists to satisfy unit tests
+        Some(user_deposit_amount)
     }
 }
 
@@ -89,10 +90,10 @@ fn calculate_withdraw_amount(
 ) -> Option<u64> {
     let numerator = (user_tokens_to_burn as u128).checked_mul(pre_pool_nav as u128)?;
     let denominator = pre_token_supply as u128;
-    if numerator < denominator || denominator == 0 {
-        Some(0)
-    } else {
+    if numerator >= denominator && denominator > 0 {
         u64::try_from(numerator.checked_div(denominator)?).ok()
+    } else {
+        Some(0)
     }
 }
 
