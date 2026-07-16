@@ -463,7 +463,7 @@ async fn fail_disallowed_withdraw(stake_version: StakeProgramVersion) {
         .process_transaction(transaction)
         .await
         .unwrap_err();
-    check_error(e, SinglePoolError::WithdrawalViolatesPoolRequirements);
+    check_error(e, SinglePoolError::WithdrawalTooLarge);
 
     // slash the pool percentage that one token represents
     let mut mint_account = get_account(&mut context.banks_client, &accounts.mint).await;
