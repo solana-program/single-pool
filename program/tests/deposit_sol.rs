@@ -114,7 +114,7 @@ async fn success(
     let (_, onramp_stake_after, onramp_lamports_after) =
         get_stake_account(&mut context.banks_client, &accounts.onramp_account).await;
 
-    // pool duly recieved said deposit
+    // pool duly received said deposit
     assert_eq!(
         deposit_amount,
         onramp_lamports_after - onramp_lamports_before,
