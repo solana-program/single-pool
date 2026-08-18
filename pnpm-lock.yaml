@@ -20,8 +20,8 @@ importers:
         specifier: 7.0.0
         version: 7.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.3)
       '@solana/instructions':
-        specifier: 7.0.0
-        version: 7.0.0(typescript@6.0.3)
+        specifier: 7.1.0
+        version: 7.1.0(typescript@6.0.3)
       '@solana/rpc-api':
         specifier: 7.0.0
         version: 7.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.3)
@@ -684,6 +684,15 @@ packages:
       typescript:
         optional: true
 
+  '@solana/codecs-core@7.1.0':
+    resolution: {integrity: sha512-pl1gCCvviKekrijEDieZ1ps3LjC6ova2pZ/ZBXEJJa46nF7M0hwdZe/KzbMxKQ8WtT/WqW8Uyh6JQt8IJcMgRw==}
+    engines: {node: '>=20.18.0'}
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   '@solana/codecs-data-structures@7.0.0':
     resolution: {integrity: sha512-P0Ys1mB4lYlz3MMTCaJSysE3OYrq8WvsveU1ta8U/yG1qChXFGCOxPVh06swjaRxwPrEakb9VUESS5vNtp1rRA==}
     engines: {node: '>=20.18.0'}
@@ -737,6 +746,16 @@ packages:
       typescript:
         optional: true
 
+  '@solana/errors@7.1.0':
+    resolution: {integrity: sha512-sJ0mM6SHN7fa6auHARRAGjjDpkFzhx6jmgHZAjliC/xADMfI2IYrTnAwguRV9dVBOsEHicylIXszvsyRb6BmEw==}
+    engines: {node: '>=20.18.0'}
+    hasBin: true
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   '@solana/fixed-points@7.0.0':
     resolution: {integrity: sha512-Y3gcyHTponi5kXpWVEJIhuZ7yT84N+8He4dbjXWqwMBJnzKM+4tqFCbzy6y+6+Jxt44RT1lDmbpxmZopFRXU8Q==}
     engines: {node: '>=20.18.0'}
@@ -766,6 +785,15 @@ packages:
 
   '@solana/instructions@7.0.0':
     resolution: {integrity: sha512-ZN0gKAtCOKDuIaStcvLZDf5H20fkk7jr4dZE0Rk7z0kslf6mrRam9Y23N6AzeHp/b5ZeVKyfaTf4M35mOktLNg==}
+    engines: {node: '>=20.18.0'}
+    peerDependencies:
+      typescript: '>=5.4.0'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
+  '@solana/instructions@7.1.0':
+    resolution: {integrity: sha512-KnXUtSIbKCUjlposzfikAO3qSVliOSoMBzglQYSn3e0x0PpJ2MsVH6tzzI6v124YVhs0OSs5wFwYjENTedPgcg==}
     engines: {node: '>=20.18.0'}
     peerDependencies:
       typescript: '>=5.4.0'
@@ -1514,8 +1542,8 @@ packages:
     resolution: {integrity: sha512-kVCxPF3vQM/N0B1PmoqVUqgHP+EeVjmZSQn+1oCRPxd2P21P2F19lIgbR3HBosbB1PUhOAoctJnfEn2GbN2eZA==}
     engines: {node: '>=18'}
 
-  get-tsconfig@4.14.2:
-    resolution: {integrity: sha512-XpwZALwwl/BaKTAyC6+c5T8y6kCg2jk+XGqOVrKIQmW49pNypYLMRjCUXqa28tQgJlhS2RlzP7sc+Rx7W6qsfw==}
+  get-tsconfig@4.14.3:
+    resolution: {integrity: sha512-++QEw4DIY7WGoukz+/+A/8dGYPT9l9yIadnmSgZ8Rjr3YVSVDipQSO9CdnJo9ePqFqUUqh+wk9uIaoiAwsiPkA==}
 
   glob-parent@5.1.2:
     resolution: {integrity: sha512-AOIgSQCepiJYwP3ARnGx+5VnTu2HBYdzbGP45eLw1vr3zB3vZLeyed1sC9hnbcOc9/SrMyM5RPQrkGz4aS9Zow==}
@@ -2738,6 +2766,12 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
+  '@solana/codecs-core@7.1.0(typescript@6.0.3)':
+    dependencies:
+      '@solana/errors': 7.1.0(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
+
   '@solana/codecs-data-structures@7.0.0(typescript@6.0.3)':
     dependencies:
       '@solana/codecs-core': 7.0.0(typescript@6.0.3)
@@ -2781,6 +2815,13 @@ snapshots:
     optionalDependencies:
       typescript: 6.0.3
 
+  '@solana/errors@7.1.0(typescript@6.0.3)':
+    dependencies:
+      chalk: 5.6.2
+      commander: 15.0.0
+    optionalDependencies:
+      typescript: 6.0.3
+
   '@solana/fixed-points@7.0.0(typescript@6.0.3)':
     dependencies:
       '@solana/codecs-core': 7.0.0(typescript@6.0.3)
@@ -2809,6 +2850,13 @@ snapshots:
     dependencies:
       '@solana/codecs-core': 7.0.0(typescript@6.0.3)
       '@solana/errors': 7.0.0(typescript@6.0.3)
+    optionalDependencies:
+      typescript: 6.0.3
+
+  '@solana/instructions@7.1.0(typescript@6.0.3)':
+    dependencies:
+      '@solana/codecs-core': 7.1.0(typescript@6.0.3)
+      '@solana/errors': 7.1.0(typescript@6.0.3)
     optionalDependencies:
       typescript: 6.0.3
 
@@ -3690,7 +3738,7 @@ snapshots:
       '@sec-ant/readable-stream': 0.4.1
       is-stream: 4.0.1
 
-  get-tsconfig@4.14.2:
+  get-tsconfig@4.14.3:
     dependencies:
       resolve-pkg-maps: 1.0.0
     optional: true
@@ -4364,7 +4412,7 @@ snapshots:
   tsx@4.19.2:
     dependencies:
       esbuild: 0.23.1
-      get-tsconfig: 4.14.2
+      get-tsconfig: 4.14.3
     optionalDependencies:
       fsevents: 2.3.3
     optional: true
