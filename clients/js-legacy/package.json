@@ -21,10 +21,10 @@
     "clean": "rm -rf dist/*",
     "build": "rm -rf dist/* && tsup && tsc -p ./tsconfig.declarations.json",
     "build:program": "cargo build-sbf --manifest-path=../../program/Cargo.toml",
-    "format": "prettier --check .",
-    "format:fix": "prettier --write .",
-    "lint": "eslint --max-warnings 0 .",
-    "lint:fix": "eslint . --fix",
+    "format": "oxfmt --check .",
+    "format:fix": "oxfmt --write .",
+    "lint": "oxlint --max-warnings 0",
+    "lint:fix": "oxlint --fix",
     "test": "ava --serial"
   },
   "files": [
@@ -34,23 +34,19 @@
   "devDependencies": {
     "@ava/typescript": "^7.0.0",
     "@types/node": "^26.2.0",
-    "@typescript-eslint/eslint-plugin": "^8.67.0",
     "ava": "^8.0.1",
-    "eslint": "^8.57.0",
     "litesvm": "0.8.0",
+    "oxfmt": "^0.60.0",
+    "oxlint": "^1.75.0",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3"
   },
   "dependencies": {
     "@solana/addresses": "7.0.0",
-    "@solana/prettier-config-solana": "^0.0.7",
     "@solana/rpc-api": "7.0.0",
     "@solana/rpc-spec": "7.0.0",
     "@solana/spl-single-pool": "workspace:*",
-    "@solana/web3.js": "^1.98.4",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-prettier": "^5.5.6",
-    "prettier": "^3.9.6"
+    "@solana/web3.js": "^1.98.4"
   },
   "ava": {
     "nodeArguments": [
