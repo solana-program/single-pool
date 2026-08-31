@@ -29,8 +29,8 @@ importers:
         specifier: 8.1.0
         version: 8.1.0(typescript@6.0.3)
       '@solana/transaction-messages':
-        specifier: 8.0.0
-        version: 8.0.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.3)
+        specifier: 8.1.0
+        version: 8.1.0(fastestsmallesttextencoderdecoder@1.0.22)(typescript@6.0.3)
     devDependencies:
       '@types/node':
         specifier: ^26.2.0
