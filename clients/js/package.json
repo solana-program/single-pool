@@ -37,6 +37,6 @@
     "@solana/instruction-plans": "8.2.0",
     "@solana/rpc-api": "8.1.0",
     "@solana/rpc-spec": "8.1.0",
-    "@solana/transaction-messages": "8.1.0"
+    "@solana/transaction-messages": "8.2.0"
   }
 }
