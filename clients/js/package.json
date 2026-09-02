@@ -32,7 +32,7 @@
   },
   "dependencies": {
     "@solana/addresses": "8.1.0",
-    "@solana/functional": "8.1.0",
+    "@solana/functional": "8.2.0",
     "@solana/instructions": "8.2.0",
     "@solana/instruction-plans": "8.2.0",
     "@solana/rpc-api": "8.1.0",
