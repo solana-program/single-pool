@@ -44,7 +44,7 @@
   "dependencies": {
     "@solana/addresses": "8.2.0",
     "@solana/rpc-api": "8.2.0",
-    "@solana/rpc-spec": "8.1.0",
+    "@solana/rpc-spec": "8.2.0",
     "@solana/spl-single-pool": "workspace:*",
     "@solana/web3.js": "^1.98.4"
   },
