@@ -81,6 +81,13 @@ pub enum SinglePoolInstruction {
     ///   representing fractional ownership of the pool stake. Inputs are
     ///   converted to the current ratio.
     ///
+    ///   NOTE: The user must set their stake account's stake and withdraw
+    ///   authorities to the pool's stake authority before calling. As a result,
+    ///   the deposit instruction must be included in the same transaction as
+    ///   the stake account authority update. Otherwise, an attacker can deposit
+    ///   the user's stake account and mint the new tokens to the attacker,
+    ///   effectively stealing the new pool tokens.
+    ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
     ///   2. `[]` Pool on-ramp account
@@ -97,6 +104,12 @@ pub enum SinglePoolInstruction {
     DepositStake,
 
     ///   Redeem tokens issued by this pool for stake at the current ratio.
+    ///
+    ///   NOTE: The user's token account must `approve` funds to the pool's mint
+    ///   authority before calling. As a result, the withdraw instruction must
+    ///   be included in the same transaction as the `approve` instruction.
+    ///   Otherwise, an attacker can withdraw a stake account using the user's
+    ///   tokens, effectively stealing the victim's pool tokens.
     ///
     ///   0. `[]` Pool account
     ///   1. `[w]` Pool stake account
