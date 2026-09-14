@@ -1718,9 +1718,9 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.16.4"
+version = "0.16.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4fe5f465a4f6fee88fad41b85d990f84c835335e85b5d9e6e63e0d06d28cba7c"
+checksum = "e96a4956774c13c126a8b5af4daa79384f4d826534c95a02d76afb39e2ab64e3"
 dependencies = [
  "encode_unicode",
  "libc",
@@ -3634,7 +3634,7 @@ version = "0.18.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "25470f23803092da7d239834776d653104d551bc4d7eacaf31e6837854b8e9eb"
 dependencies = [
- "console 0.16.4",
+ "console 0.16.6",
  "portable-atomic",
  "unicode-width 0.2.2",
  "unit-prefix",
@@ -6970,7 +6970,7 @@ dependencies = [
  "base64 0.22.1",
  "chrono",
  "clap 2.34.0",
- "console 0.16.4",
+ "console 0.16.6",
  "humantime",
  "indicatif",
  "pretty-hex",
@@ -8619,7 +8619,7 @@ version = "3.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8e96a38f8eaf753ec63073a4db4a8ed316c2223455c7729d3f14afe2d5957217"
 dependencies = [
- "console 0.16.4",
+ "console 0.16.6",
  "dialoguer",
  "hidapi",
  "log",
@@ -10473,7 +10473,7 @@ dependencies = [
  "bincode",
  "borsh",
  "clap 3.2.25",
- "console 0.16.4",
+ "console 0.16.6",
  "serde",
  "serde_derive",
  "serde_json",
