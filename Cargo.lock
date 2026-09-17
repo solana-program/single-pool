@@ -520,7 +520,7 @@ dependencies = [
  "pin-project-lite",
  "quinn-udp",
  "rustc-hash 2.1.2",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "socket2 0.6.3",
  "thiserror 2.0.20",
  "tokio",
@@ -541,7 +541,7 @@ dependencies = [
  "rand 0.9.4",
  "ring",
  "rustc-hash 2.1.2",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "rustls-platform-verifier",
  "slab",
@@ -3341,7 +3341,7 @@ dependencies = [
  "http 1.4.0",
  "hyper 1.9.0",
  "hyper-util",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -5215,7 +5215,7 @@ dependencies = [
  "quinn-proto",
  "quinn-udp",
  "rustc-hash 2.1.2",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "socket2 0.6.3",
  "thiserror 2.0.20",
  "tokio",
@@ -5235,7 +5235,7 @@ dependencies = [
  "rand 0.9.4",
  "ring",
  "rustc-hash 2.1.2",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "slab",
  "thiserror 2.0.20",
@@ -5613,7 +5613,7 @@ dependencies = [
  "percent-encoding 2.3.2",
  "pin-project-lite",
  "quinn",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "serde",
  "serde_json",
@@ -5832,14 +5832,14 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.37"
+version = "0.23.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "758025cb5fccfd3bc2fd74708fd4682be41d99e5dff73c377c0646c6012c73a4"
+checksum = "0d41d731c7d2f962d1ccc364cec258de3c0e93b38c2fb3ba97ac74513048d634"
 dependencies = [
  "once_cell",
  "ring",
  "rustls-pki-types",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.15",
  "subtle",
  "zeroize",
 ]
@@ -5886,10 +5886,10 @@ dependencies = [
  "jni",
  "log",
  "once_cell",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-native-certs",
  "rustls-platform-verifier-android",
- "rustls-webpki 0.103.13",
+ "rustls-webpki 0.103.15",
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
@@ -5914,9 +5914,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.13"
+version = "0.103.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "61c429a8649f110dddef65e2a5ad240f747e85f7758a6bccc7e5777bd33f756e"
+checksum = "f3c3cf1d8b1e7d4927e2d154c3fcb02979afb9939629c62cd9048d4f07b60ac2"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -7241,7 +7241,7 @@ dependencies = [
  "rayon",
  "rolling-file",
  "rts-alloc",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "serde",
  "serde_bytes",
  "shaq",
@@ -8577,7 +8577,7 @@ dependencies = [
  "futures 0.3.32",
  "itertools 0.12.1",
  "log",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "solana-connection-cache",
  "solana-keypair",
  "solana-measure",
@@ -9397,7 +9397,7 @@ dependencies = [
  "pem",
  "percentage",
  "rand 0.8.5",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "smallvec",
  "socket2 0.6.3",
  "solana-keypair",
@@ -9707,7 +9707,7 @@ version = "3.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2f9e3a99391506f6e61d7ec163e916e280366fa495162fb33568d7e0b12ac001"
 dependencies = [
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "solana-keypair",
  "solana-pubkey 3.0.0",
  "solana-signer",
@@ -9758,7 +9758,7 @@ dependencies = [
  "async-trait",
  "log",
  "lru",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "solana-clock",
  "solana-connection-cache",
  "solana-keypair",
@@ -9931,7 +9931,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rayon",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "solana-clock",
  "solana-cluster-type",
  "solana-entry",
@@ -11219,7 +11219,7 @@ version = "0.26.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1729aa945f29d91ba541258c8df89027d5792d85a8841fb65e8bf0f4ede4ef61"
 dependencies = [
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "tokio",
 ]
 
@@ -11258,7 +11258,7 @@ checksum = "d25a406cddcc431a75d3d9afc6a7c0f7428d4891dd973e4d54c56b46127bf857"
 dependencies = [
  "futures-util",
  "log",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "tokio",
  "tokio-rustls 0.26.4",
@@ -11541,7 +11541,7 @@ dependencies = [
  "httparse",
  "log",
  "rand 0.9.4",
- "rustls 0.23.37",
+ "rustls 0.23.45",
  "rustls-pki-types",
  "sha1",
  "thiserror 2.0.20",
