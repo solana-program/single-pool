@@ -1,4 +1,4 @@
-import { address, getAddressCodec, getProgramDerivedAddress, Address } from '@solana/addresses';
+import { address, getAddressCodec, getProgramDerivedAddress, Address } from '@solana/kit';
 
 import { MPL_METADATA_PROGRAM_ID } from './internal.js';
 

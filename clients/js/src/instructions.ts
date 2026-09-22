@@ -1,5 +1,6 @@
-import { getAddressCodec, Address } from '@solana/addresses';
 import {
+  getAddressCodec,
+  Address,
   ReadonlySignerAccount,
   ReadonlyAccount,
   InstructionWithAccounts,
@@ -8,7 +9,9 @@ import {
   WritableSignerAccount,
   Instruction,
   AccountRole,
-} from '@solana/instructions';
+  getU32Encoder,
+  getU64Encoder,
+} from '@solana/kit';
 
 import {
   PoolMintAuthorityAddress,
@@ -29,18 +32,15 @@ import {
   findPoolStakeAuthorityAddress,
   SINGLE_POOL_PROGRAM_ID,
 } from './addresses.js';
-import { MPL_METADATA_PROGRAM_ID } from './internal.js';
+import { TOKEN_PROGRAM_ADDRESS } from '@solana-program/token';
+import { SYSTEM_PROGRAM_ADDRESS } from '@solana-program/system';
+import { STAKE_PROGRAM_ADDRESS } from '@solana-program/stake';
 import {
-  SYSTEM_PROGRAM_ID,
-  SYSVAR_RENT_ID,
-  SYSVAR_CLOCK_ID,
-  STAKE_PROGRAM_ID,
-  SYSVAR_STAKE_HISTORY_ID,
-  STAKE_CONFIG_ID,
-  TOKEN_PROGRAM_ID,
-  u32,
-  u64,
-} from './quarantine.js';
+  SYSVAR_RENT_ADDRESS,
+  SYSVAR_CLOCK_ADDRESS,
+  SYSVAR_STAKE_HISTORY_ADDRESS,
+} from '@solana/sysvars';
+import { MPL_METADATA_PROGRAM_ID, STAKE_CONFIG_ID } from './internal.js';
 
 type InitializePoolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
   InstructionWithAccounts<
@@ -51,13 +51,13 @@ type InitializePoolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       WritableAccount<PoolMintAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
       ReadonlyAccount<PoolMintAuthorityAddress>,
-      ReadonlyAccount<typeof SYSVAR_RENT_ID>,
-      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
-      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
+      ReadonlyAccount<typeof SYSVAR_RENT_ADDRESS>,
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ADDRESS>,
+      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ADDRESS>,
       ReadonlyAccount<typeof STAKE_CONFIG_ID>,
-      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
-      ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof TOKEN_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -70,10 +70,10 @@ type ReplenishPoolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       WritableAccount<PoolStakeAddress>,
       WritableAccount<PoolOnRampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
-      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
-      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ADDRESS>,
+      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ADDRESS>,
       ReadonlyAccount<typeof STAKE_CONFIG_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -90,10 +90,10 @@ type DepositStakeInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       WritableAccount<Address>, // user stake
       WritableAccount<Address>, // user token
       WritableAccount<Address>, // user lamport
-      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
-      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
-      ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ADDRESS>,
+      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ADDRESS>,
+      ReadonlyAccount<typeof TOKEN_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -109,9 +109,9 @@ type WithdrawStakeInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<PoolMintAuthorityAddress>,
       WritableAccount<Address>, // user stake
       WritableAccount<Address>, // user token
-      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
-      ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ADDRESS>,
+      ReadonlyAccount<typeof TOKEN_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -126,7 +126,7 @@ type CreateTokenMetadataInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID>
       WritableSignerAccount<Address>, // mpl payer
       WritableAccount<Address>, // mpl account
       ReadonlyAccount<typeof MPL_METADATA_PROGRAM_ID>,
-      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -150,9 +150,9 @@ type InitializeOnRampInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<PoolAddress>,
       WritableAccount<PoolOnRampAddress>,
       ReadonlyAccount<PoolStakeAuthorityAddress>,
-      ReadonlyAccount<typeof SYSVAR_RENT_ID>,
-      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSVAR_RENT_ADDRESS>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
     ]
   > &
   InstructionWithData<Uint8Array>;
@@ -169,12 +169,12 @@ type DepositSolInstruction = Instruction<typeof SINGLE_POOL_PROGRAM_ID> &
       ReadonlyAccount<PoolMintAuthorityAddress>,
       WritableSignerAccount<Address>, // user lamport
       WritableAccount<Address>, // user token
-      ReadonlyAccount<typeof SYSVAR_CLOCK_ID>,
-      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ID>,
+      ReadonlyAccount<typeof SYSVAR_CLOCK_ADDRESS>,
+      ReadonlyAccount<typeof SYSVAR_STAKE_HISTORY_ADDRESS>,
       ReadonlyAccount<typeof STAKE_CONFIG_ID>,
-      ReadonlyAccount<typeof SYSTEM_PROGRAM_ID>,
-      ReadonlyAccount<typeof TOKEN_PROGRAM_ID>,
-      ReadonlyAccount<typeof STAKE_PROGRAM_ID>,
+      ReadonlyAccount<typeof SYSTEM_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof TOKEN_PROGRAM_ADDRESS>,
+      ReadonlyAccount<typeof STAKE_PROGRAM_ADDRESS>,
       ReadonlyAccount<typeof SINGLE_POOL_PROGRAM_ID>,
     ]
   > &
@@ -225,13 +225,13 @@ export async function initializePoolInstruction(
       { address: mint, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
       { address: mintAuthority, role: AccountRole.READONLY },
-      { address: SYSVAR_RENT_ID, role: AccountRole.READONLY },
-      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
-      { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_RENT_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSVAR_CLOCK_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSVAR_STAKE_HISTORY_ADDRESS, role: AccountRole.READONLY },
       { address: STAKE_CONFIG_ID, role: AccountRole.READONLY },
-      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -258,10 +258,10 @@ export async function replenishPoolInstruction(
       { address: stake, role: AccountRole.WRITABLE },
       { address: onramp, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
-      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
-      { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_CLOCK_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSVAR_STAKE_HISTORY_ADDRESS, role: AccountRole.READONLY },
       { address: STAKE_CONFIG_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -296,10 +296,10 @@ export async function depositStakeInstruction(
       { address: userStakeAccount, role: AccountRole.WRITABLE },
       { address: userTokenAccount, role: AccountRole.WRITABLE },
       { address: userLamportAccount, role: AccountRole.WRITABLE },
-      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
-      { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
-      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_CLOCK_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSVAR_STAKE_HISTORY_ADDRESS, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -325,7 +325,7 @@ export async function withdrawStakeInstruction(
   const data = new Uint8Array([
     SinglePoolInstructionType.WithdrawStake,
     ...encode(userStakeAuthority),
-    ...u64(tokenAmount),
+    ...getU64Encoder().encode(tokenAmount),
   ]);
 
   return {
@@ -339,9 +339,9 @@ export async function withdrawStakeInstruction(
       { address: mintAuthority, role: AccountRole.READONLY },
       { address: userStakeAccount, role: AccountRole.WRITABLE },
       { address: userTokenAccount, role: AccountRole.WRITABLE },
-      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
-      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_CLOCK_ADDRESS, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -371,7 +371,7 @@ export async function createTokenMetadataInstruction(
       { address: payer, role: AccountRole.WRITABLE_SIGNER },
       { address: mplMetadata, role: AccountRole.WRITABLE },
       { address: MPL_METADATA_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -409,11 +409,11 @@ export async function updateTokenMetadataInstruction(
   const text = new TextEncoder();
   const data = new Uint8Array([
     SinglePoolInstructionType.UpdateTokenMetadata,
-    ...u32(tokenName.length),
+    ...getU32Encoder().encode(tokenName.length),
     ...text.encode(tokenName),
-    ...u32(tokenSymbol.length),
+    ...getU32Encoder().encode(tokenSymbol.length),
     ...text.encode(tokenSymbol),
-    ...u32(tokenUri.length),
+    ...getU32Encoder().encode(tokenUri.length),
     ...text.encode(tokenUri),
   ]);
 
@@ -448,9 +448,9 @@ export async function initializeOnRampInstruction(
       { address: pool, role: AccountRole.READONLY },
       { address: onramp, role: AccountRole.WRITABLE },
       { address: stakeAuthority, role: AccountRole.READONLY },
-      { address: SYSVAR_RENT_ID, role: AccountRole.READONLY },
-      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_RENT_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     ],
     programAddress,
   };
@@ -472,7 +472,10 @@ export async function depositSolInstruction(
     findPoolMintAuthorityAddress(programAddress, pool),
   ]);
 
-  const data = new Uint8Array([SinglePoolInstructionType.DepositSol, ...u64(lamports)]);
+  const data = new Uint8Array([
+    SinglePoolInstructionType.DepositSol,
+    ...getU64Encoder().encode(lamports),
+  ]);
 
   return {
     data,
@@ -486,12 +489,12 @@ export async function depositSolInstruction(
       { address: mintAuthority, role: AccountRole.READONLY },
       { address: userLamportAccount, role: AccountRole.WRITABLE_SIGNER },
       { address: userTokenAccount, role: AccountRole.WRITABLE },
-      { address: SYSVAR_CLOCK_ID, role: AccountRole.READONLY },
-      { address: SYSVAR_STAKE_HISTORY_ID, role: AccountRole.READONLY },
+      { address: SYSVAR_CLOCK_ADDRESS, role: AccountRole.READONLY },
+      { address: SYSVAR_STAKE_HISTORY_ADDRESS, role: AccountRole.READONLY },
       { address: STAKE_CONFIG_ID, role: AccountRole.READONLY },
-      { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: TOKEN_PROGRAM_ID, role: AccountRole.READONLY },
-      { address: STAKE_PROGRAM_ID, role: AccountRole.READONLY },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: STAKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
       { address: SINGLE_POOL_PROGRAM_ID, role: AccountRole.READONLY },
     ],
     programAddress,
