@@ -1,4 +1,4 @@
-import { getAddressCodec } from '@solana/addresses';
+import { getAddressCodec } from '@solana/kit';
 
 import { PoolAddress, VoteAccountAddress } from './addresses.js';
 

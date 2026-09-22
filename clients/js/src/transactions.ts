@@ -1,25 +1,22 @@
-import { Address } from '@solana/addresses';
-import { pipe } from '@solana/functional';
 import {
+  Address,
+  pipe,
   InstructionPlan,
   assertIsSingleTransactionPlan,
   createTransactionPlanner,
   parallelInstructionPlan,
   sequentialInstructionPlan,
-} from '@solana/instruction-plans';
-import {
   GetAccountInfoApi,
   GetMinimumBalanceForRentExemptionApi,
   GetStakeMinimumDelegationApi,
-} from '@solana/rpc-api';
-import { Rpc } from '@solana/rpc-spec';
-import {
+  Rpc,
   appendTransactionMessageInstruction,
   createTransactionMessage,
   setTransactionMessageFeePayer,
   TransactionVersion,
   TransactionMessage,
-} from '@solana/transaction-messages';
+  createNoopSigner,
+} from '@solana/kit';
 
 import {
   findPoolAddress,
@@ -43,15 +40,19 @@ import {
   depositSolInstruction,
 } from './instructions.js';
 import {
-  STAKE_PROGRAM_ID,
-  STAKE_ACCOUNT_SIZE,
-  MINT_SIZE,
-  StakeInstruction,
-  SystemInstruction,
-  TokenInstruction,
-  StakeAuthorizationType,
-  getAssociatedTokenAddress,
-} from './quarantine.js';
+  getApproveInstruction,
+  getCreateAssociatedTokenInstruction,
+  findAssociatedTokenPda,
+  getMintSize,
+  TOKEN_PROGRAM_ADDRESS,
+} from '@solana-program/token';
+import { getCreateAccountInstruction, getTransferSolInstruction } from '@solana-program/system';
+import {
+  getAuthorizeInstruction,
+  StakeAuthorize,
+  STAKE_PROGRAM_ADDRESS,
+} from '@solana-program/stake';
+import { STAKE_ACCOUNT_SIZE } from './internal.js';
 
 interface DepositParams {
   rpc: Rpc<GetAccountInfoApi & GetMinimumBalanceForRentExemptionApi & GetStakeMinimumDelegationApi>;
@@ -121,7 +122,7 @@ async function getInitializeInstructionPlan(
     findPoolOnRampAddress(SINGLE_POOL_PROGRAM_ID, pool),
     rpc.getMinimumBalanceForRentExemption(SINGLE_POOL_ACCOUNT_SIZE).send(),
     rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
-    rpc.getMinimumBalanceForRentExemption(MINT_SIZE).send(),
+    rpc.getMinimumBalanceForRentExemption(BigInt(getMintSize())).send(),
     rpc.getStakeMinimumDelegation().send(),
     initializePoolInstruction(voteAccount),
     initializeOnRampInstruction(pool),
@@ -129,17 +130,18 @@ async function getInitializeInstructionPlan(
   const lamportsPerSol = 1_000_000_000n;
   const minimumPoolBalance =
     minimumDelegationObj.value > lamportsPerSol ? minimumDelegationObj.value : lamportsPerSol;
+  const payerSigner = createNoopSigner(payer);
 
   return sequentialInstructionPlan([
     parallelInstructionPlan([
-      SystemInstruction.transfer({ from: payer, to: pool, lamports: poolRent }),
-      SystemInstruction.transfer({
-        from: payer,
-        to: stake,
-        lamports: stakeRent + minimumPoolBalance,
+      getTransferSolInstruction({ source: payerSigner, destination: pool, amount: poolRent }),
+      getTransferSolInstruction({
+        source: payerSigner,
+        destination: stake,
+        amount: stakeRent + minimumPoolBalance,
       }),
-      SystemInstruction.transfer({ from: payer, to: onramp, lamports: stakeRent }),
-      SystemInstruction.transfer({ from: payer, to: mint, lamports: mintRent }),
+      getTransferSolInstruction({ source: payerSigner, destination: onramp, amount: stakeRent }),
+      getTransferSolInstruction({ source: payerSigner, destination: mint, amount: mintRent }),
     ]),
     initializePool,
     initializeOnRamp,
@@ -188,7 +190,11 @@ export async function depositTransaction(params: DepositParams) {
     findPoolStakeAuthorityAddress(SINGLE_POOL_PROGRAM_ID, pool),
   ]);
 
-  const userAssociatedTokenAccount = await getAssociatedTokenAddress(mint, userWallet);
+  const [userAssociatedTokenAccount] = await findAssociatedTokenPda({
+    owner: userWallet,
+    mint,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
   const userTokenAccount = params.userTokenAccount || userAssociatedTokenAccount;
   const userLamportAccount = params.userLamportAccount || userWallet;
   const userWithdrawAuthority = params.userWithdrawAuthority || userWallet;
@@ -198,9 +204,9 @@ export async function depositTransaction(params: DepositParams) {
     (await rpc.getAccountInfo(userAssociatedTokenAccount).send()) == null
   ) {
     transaction = appendTransactionMessageInstruction(
-      TokenInstruction.createAssociatedTokenAccount({
-        payer: userWallet,
-        associatedAccount: userAssociatedTokenAccount,
+      getCreateAssociatedTokenInstruction({
+        payer: createNoopSigner(userWallet),
+        ata: userAssociatedTokenAccount,
         owner: userWallet,
         mint,
       }),
@@ -209,21 +215,21 @@ export async function depositTransaction(params: DepositParams) {
   }
 
   transaction = appendTransactionMessageInstruction(
-    StakeInstruction.authorize({
-      stakeAccount: userStakeAccount,
-      authorized: userWithdrawAuthority,
-      newAuthorized: poolStakeAuthority,
-      authorizationType: StakeAuthorizationType.Staker,
+    getAuthorizeInstruction({
+      stake: userStakeAccount,
+      authority: createNoopSigner(userWithdrawAuthority),
+      arg0: poolStakeAuthority,
+      arg1: StakeAuthorize.Staker,
     }),
     transaction,
   );
 
   transaction = appendTransactionMessageInstruction(
-    StakeInstruction.authorize({
-      stakeAccount: userStakeAccount,
-      authorized: userWithdrawAuthority,
-      newAuthorized: poolStakeAuthority,
-      authorizationType: StakeAuthorizationType.Withdrawer,
+    getAuthorizeInstruction({
+      stake: userStakeAccount,
+      authority: createNoopSigner(userWithdrawAuthority),
+      arg0: poolStakeAuthority,
+      arg1: StakeAuthorize.Withdrawer,
     }),
     transaction,
   );
@@ -246,30 +252,33 @@ export async function withdrawTransaction(params: WithdrawParams) {
   const userStakeAuthority = params.userStakeAuthority || userWallet;
   const userTokenAccount =
     params.userTokenAccount ||
-    (await getAssociatedTokenAddress(
-      await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
-      userWallet,
-    ));
+    (
+      await findAssociatedTokenPda({
+        owner: userWallet,
+        mint: await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool),
+        tokenProgram: TOKEN_PROGRAM_ADDRESS,
+      })
+    )[0];
   const userTokenAuthority = params.userTokenAuthority || userWallet;
 
   if (createStakeAccount) {
     transaction = appendTransactionMessageInstruction(
-      SystemInstruction.createAccount({
-        from: userWallet,
+      getCreateAccountInstruction({
+        payer: createNoopSigner(userWallet),
+        newAccount: createNoopSigner(userStakeAccount),
         lamports: await rpc.getMinimumBalanceForRentExemption(STAKE_ACCOUNT_SIZE).send(),
-        newAccount: userStakeAccount,
-        programAddress: STAKE_PROGRAM_ID,
         space: STAKE_ACCOUNT_SIZE,
+        programAddress: STAKE_PROGRAM_ADDRESS,
       }),
       transaction,
     );
   }
 
   transaction = appendTransactionMessageInstruction(
-    TokenInstruction.approve({
-      account: userTokenAccount,
+    getApproveInstruction({
+      source: userTokenAccount,
       delegate: poolMintAuthority,
-      owner: userTokenAuthority,
+      owner: createNoopSigner(userTokenAuthority),
       amount: tokenAmount,
     }),
     transaction,
@@ -331,10 +340,10 @@ export async function initializeOnRampTransaction(
   ]);
 
   transaction = appendTransactionMessageInstruction(
-    SystemInstruction.transfer({
-      from: payer,
-      to: onramp,
-      lamports: stakeRent,
+    getTransferSolInstruction({
+      source: createNoopSigner(payer),
+      destination: onramp,
+      amount: stakeRent,
     }),
     transaction,
   );
@@ -355,7 +364,11 @@ export async function depositSolTransaction(params: DepositSolParams) {
   const pool = await findPoolAddress(SINGLE_POOL_PROGRAM_ID, voteAccount);
   const mint = await findPoolMintAddress(SINGLE_POOL_PROGRAM_ID, pool);
 
-  const userAssociatedTokenAccount = await getAssociatedTokenAddress(mint, userWallet);
+  const [userAssociatedTokenAccount] = await findAssociatedTokenPda({
+    owner: userWallet,
+    mint,
+    tokenProgram: TOKEN_PROGRAM_ADDRESS,
+  });
   const userTokenAccount = params.userTokenAccount || userAssociatedTokenAccount;
 
   if (
@@ -363,9 +376,9 @@ export async function depositSolTransaction(params: DepositSolParams) {
     (await rpc.getAccountInfo(userAssociatedTokenAccount).send()) == null
   ) {
     transaction = appendTransactionMessageInstruction(
-      TokenInstruction.createAssociatedTokenAccount({
-        payer: userWallet,
-        associatedAccount: userAssociatedTokenAccount,
+      getCreateAssociatedTokenInstruction({
+        payer: createNoopSigner(userWallet),
+        ata: userAssociatedTokenAccount,
         owner: userWallet,
         mint,
       }),
