@@ -26,7 +26,6 @@ use {
     },
     std::{
         net::TcpListener,
-        os::unix::process::CommandExt,
         process::{Child, Command, Stdio},
         sync::Arc,
         time::{Duration, Instant},
@@ -34,6 +33,9 @@ use {
     tempfile::{NamedTempFile, TempDir},
     tokio::time::sleep,
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
 
 const SVSP_CLI: &str = "../../target/debug/spl-single-pool";
 
@@ -111,6 +113,7 @@ async fn start_validator(mint: &Pubkey) -> TestValidator {
         .arg("--quiet")
         .stdout(Stdio::null())
         .stderr(Stdio::null());
+    #[cfg(target_os = "linux")]
     unsafe {
         command.pre_exec(|| {
             if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
@@ -127,7 +130,7 @@ async fn start_validator(mint: &Pubkey) -> TestValidator {
         format!("http://127.0.0.1:{rpc_port}"),
         CommitmentConfig::confirmed(),
     );
-    let deadline = Instant::now() + Duration::from_secs(60);
+    let deadline = Instant::now() + Duration::from_secs(10);
     while rpc_client
         .get_slot()
         .await
@@ -136,7 +139,7 @@ async fn start_validator(mint: &Pubkey) -> TestValidator {
     {
         assert!(
             Instant::now() < deadline,
-            "solana-test-validator did not become ready within 60s \
+            "solana-test-validator did not become ready within 10s \
              (did you build the program? `cargo build-sbf --manifest-path ../../program/Cargo.toml`)"
         );
         sleep(Duration::from_millis(250)).await;
