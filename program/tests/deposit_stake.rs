@@ -4,6 +4,7 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_account::ReadableAccount,
     solana_clock::Clock,
     solana_keypair::Keypair,
     solana_program_test::*,
@@ -14,6 +15,7 @@ use {
         state::{Authorized, Lockup, StakeActivationStatus, StakeStateV2},
     },
     solana_system_interface::instruction as system_instruction,
+    solana_sysvar_id::SysvarId,
     solana_transaction::Transaction,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{error::SinglePoolError, id, instruction},
@@ -522,18 +524,20 @@ async fn all_activation_states(
     let deactive = StakeActivationStatus::default();
 
     let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
-    let stake_history = context
+    let stake_history_account = context
         .banks_client
-        .get_sysvar::<StakeHistory>()
+        .get_account(StakeHistory::id())
         .await
+        .unwrap()
         .unwrap();
+    let stake_history: StakeHistory = bincode::deserialize(stake_history_account.data()).unwrap();
 
     let pool_triple = get_stake_account(&mut context.banks_client, &accounts.stake_account)
         .await
         .1
         .unwrap()
         .delegation
-        .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0));
+        .stake_activating_and_deactivating_v2(clock.epoch, &stake_history, Some(0));
 
     if activate {
         assert_eq!(pool_triple, active);
@@ -545,9 +549,11 @@ async fn all_activation_states(
         .await
         .1
         .map(|stake| {
-            stake
-                .delegation
-                .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0))
+            stake.delegation.stake_activating_and_deactivating_v2(
+                clock.epoch,
+                &stake_history,
+                Some(0),
+            )
         });
 
     match user_stake_state {

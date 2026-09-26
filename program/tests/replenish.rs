@@ -4,12 +4,14 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_account::ReadableAccount,
     solana_clock::Clock,
     solana_program_test::*,
     solana_signer::Signer,
     solana_stake_interface::{
         instruction as stake_instruction, stake_history::StakeHistory, state::StakeStateV2,
     },
+    solana_sysvar_id::SysvarId,
     solana_transaction::Transaction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,
@@ -314,26 +316,30 @@ async fn move_value_success(
     replenish(&mut context, &accounts.vote_account.pubkey()).await;
 
     let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
-    let stake_history = context
+    let stake_history_account = context
         .banks_client
-        .get_sysvar::<StakeHistory>()
+        .get_account(StakeHistory::id())
         .await
+        .unwrap()
         .unwrap();
+    let stake_history: StakeHistory = bincode::deserialize(stake_history_account.data()).unwrap();
 
     let (_, pool_stake, pool_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.stake_account).await;
     let pool_status = pool_stake
         .unwrap()
         .delegation
-        .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0));
+        .stake_activating_and_deactivating_v2(clock.epoch, &stake_history, Some(0));
 
     let (_, onramp_stake, onramp_lamports) =
         get_stake_account(&mut context.banks_client, &accounts.onramp_account).await;
     let onramp_status = onramp_stake
         .map(|stake| {
-            stake
-                .delegation
-                .stake_activating_and_deactivating(clock.epoch, &stake_history, Some(0))
+            stake.delegation.stake_activating_and_deactivating_v2(
+                clock.epoch,
+                &stake_history,
+                Some(0),
+            )
         })
         .unwrap_or_default();
 
