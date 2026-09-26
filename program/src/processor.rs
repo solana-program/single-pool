@@ -1,5 +1,7 @@
 //! program state processor
 
+#[allow(deprecated)]
+use solana_sysvar::SysvarSerialize;
 use {
     crate::{
         error::SinglePoolError,
@@ -22,6 +24,7 @@ use {
     solana_borsh::v1::try_from_slice_unchecked,
     solana_clock::Clock,
     solana_cpi::{invoke, invoke_signed},
+    solana_get_sysvar::GetSysvar,
     solana_msg::msg,
     solana_native_token::LAMPORTS_PER_SOL,
     solana_program_entrypoint::ProgramResult,
@@ -35,7 +38,6 @@ use {
         sysvar::stake_history::StakeHistorySysvar,
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_sysvar::{Sysvar, SysvarSerialize},
     solana_vote_interface::program as vote_program,
     spl_token_interface::{self as spl_token, state::Mint},
 };
@@ -613,6 +615,7 @@ impl Processor {
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
         let rent_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let rent = &Rent::from_account_info(rent_info)?;
         let clock_info = next_account_info(account_info_iter)?;
         let stake_history_info = next_account_info(account_info_iter)?;
@@ -791,6 +794,7 @@ impl Processor {
         let pool_onramp_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let clock = &Clock::from_account_info(clock_info)?;
         let stake_history_info = next_account_info(account_info_iter)?;
         let stake_config_info = next_account_info(account_info_iter)?;
@@ -823,7 +827,7 @@ impl Processor {
         let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
         let pool_stake_status = pool_stake_state
             .delegation
-            .stake_activating_and_deactivating(
+            .stake_activating_and_deactivating_v2(
                 clock.epoch,
                 stake_history,
                 PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
@@ -836,7 +840,7 @@ impl Processor {
             match deserialize_stake(pool_onramp_info) {
                 Ok(StakeStateV2::Initialized(_)) => (None, u64::MAX),
                 Ok(StakeStateV2::Stake(_, stake, _)) => (
-                    Some(stake.delegation.stake_activating_and_deactivating(
+                    Some(stake.delegation.stake_activating_and_deactivating_v2(
                         clock.epoch,
                         stake_history,
                         PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
@@ -988,6 +992,7 @@ impl Processor {
         let user_token_account_info = next_account_info(account_info_iter)?;
         let user_lamport_account_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let clock = &Clock::from_account_info(clock_info)?;
         let stake_history_info = next_account_info(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
@@ -1026,7 +1031,7 @@ impl Processor {
             let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
             let pool_stake_status = pool_stake_state
                 .delegation
-                .stake_activating_and_deactivating(
+                .stake_activating_and_deactivating_v2(
                     clock.epoch,
                     stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
@@ -1067,7 +1072,7 @@ impl Processor {
         let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
             Ok(StakeStateV2::Stake(meta, stake, _)) => (
                 meta,
-                stake.delegation.stake_activating_and_deactivating(
+                stake.delegation.stake_activating_and_deactivating_v2(
                     clock.epoch,
                     stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
@@ -1177,6 +1182,7 @@ impl Processor {
         let user_stake_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let clock = &Clock::from_account_info(clock_info)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
@@ -1224,7 +1230,7 @@ impl Processor {
             let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
             let pool_stake_status = pool_stake_state
                 .delegation
-                .stake_activating_and_deactivating(
+                .stake_activating_and_deactivating_v2(
                     clock.epoch,
                     stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
@@ -1499,6 +1505,7 @@ impl Processor {
         let pool_onramp_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let rent_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let rent = &Rent::from_account_info(rent_info)?;
         let system_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
@@ -1581,6 +1588,7 @@ impl Processor {
         let user_lamport_account_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
         let clock_info = next_account_info(account_info_iter)?;
+        #[allow(deprecated)]
         let clock = &Clock::from_account_info(clock_info)?;
         let stake_history_info = next_account_info(account_info_iter)?;
         let stake_config_info = next_account_info(account_info_iter)?;
@@ -1631,7 +1639,7 @@ impl Processor {
             let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
             let pool_stake_status = pool_stake_state
                 .delegation
-                .stake_activating_and_deactivating(
+                .stake_activating_and_deactivating_v2(
                     clock.epoch,
                     stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
