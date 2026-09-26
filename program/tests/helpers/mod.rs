@@ -7,6 +7,7 @@ use {
     solana_clock::Clock,
     solana_hash::Hash,
     solana_keypair::Keypair,
+    solana_native_token::LAMPORTS_PER_SOL,
     solana_program_error::ProgramError,
     solana_program_test::*,
     solana_pubkey::Pubkey,
@@ -20,8 +21,9 @@ use {
     solana_transaction_error::TransactionError,
     solana_vote_interface::{
         instruction as vote_instruction,
-        state::{VoteInit, VoteStateV4},
+        state::{VoteInitV2, VoteStateV4},
     },
+    solana_vote_program::vote_state::create_bls_pubkey_and_proof_of_possession,
     spl_associated_token_account_interface::address::get_associated_token_address,
     spl_single_pool::{
         find_pool_address, find_pool_mint_address, find_pool_mint_authority_address,
@@ -401,7 +403,6 @@ pub async fn create_vote(
     vote_account: &Keypair,
 ) {
     let rent = banks_client.get_rent().await.unwrap();
-    let rent_voter = rent.minimum_balance(VoteStateV4::size_of());
 
     let mut instructions = vec![system_instruction::create_account(
         &payer.pubkey(),
@@ -410,16 +411,22 @@ pub async fn create_vote(
         0,
         &system_program::id(),
     )];
-    instructions.append(&mut vote_instruction::create_account_with_config(
+
+    let (bls_pubkey, bls_pop) = create_bls_pubkey_and_proof_of_possession(&vote_account.pubkey());
+    instructions.append(&mut vote_instruction::create_account_with_config_v2(
         &payer.pubkey(),
         &vote_account.pubkey(),
-        &VoteInit {
+        &VoteInitV2 {
             node_pubkey: validator.pubkey(),
             authorized_voter: *voter,
             authorized_withdrawer: *withdrawer,
-            ..VoteInit::default()
+            authorized_voter_bls_pubkey: bls_pubkey,
+            authorized_voter_bls_proof_of_possession: bls_pop,
+            ..VoteInitV2::default()
         },
-        rent_voter,
+        &vote_account.pubkey(),
+        &vote_account.pubkey(),
+        LAMPORTS_PER_SOL * 100,
         vote_instruction::CreateVoteAccountConfig {
             space: VoteStateV4::size_of() as u64,
             ..Default::default()
