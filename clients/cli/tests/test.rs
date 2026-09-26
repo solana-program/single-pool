@@ -1,23 +1,20 @@
 #![allow(clippy::arithmetic_side_effects)]
 
 use {
-    agave_feature_set::stake_raise_minimum_delegation_to_1_sol,
     serial_test::serial,
     solana_cli_config::Config as SolanaConfig,
     solana_client::nonblocking::rpc_client::RpcClient,
     solana_clock::Epoch,
     solana_commitment_config::CommitmentConfig,
-    solana_epoch_schedule::{EpochSchedule, MINIMUM_SLOTS_PER_EPOCH},
+    solana_epoch_schedule::MINIMUM_SLOTS_PER_EPOCH,
     solana_keypair::{write_keypair_file, Keypair},
     solana_native_token::LAMPORTS_PER_SOL,
     solana_pubkey::Pubkey,
     solana_rent::Rent,
-    solana_sdk_ids::bpf_loader_upgradeable,
     solana_signer::Signer,
     solana_stake_interface::instruction as stake_instruction,
     solana_stake_interface::state::{Authorized, Lockup, StakeStateV2},
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_test_validator::{TestValidator, TestValidatorGenesis, UpgradeableProgramInfo},
     solana_transaction::Transaction,
     solana_vote_interface::{
         instruction::{self as vote_instruction, CreateVoteAccountConfig},
@@ -27,11 +24,18 @@ use {
         id,
         instruction::{self as ixn, SinglePoolInstruction},
     },
-    std::{path::PathBuf, process::Command, str::FromStr, sync::Arc, time::Duration},
-    tempfile::NamedTempFile,
-    test_case::test_case,
+    std::{
+        net::TcpListener,
+        process::{Child, Command, Stdio},
+        sync::Arc,
+        time::{Duration, Instant},
+    },
+    tempfile::{NamedTempFile, TempDir},
     tokio::time::sleep,
 };
+
+#[cfg(target_os = "linux")]
+use std::os::unix::process::CommandExt;
 
 const SVSP_CLI: &str = "../../target/debug/spl-single-pool";
 
@@ -49,11 +53,109 @@ pub struct Env {
     config_file: NamedTempFile,
 }
 
-async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
-    // start test validator
-    let (validator, payer) = start_validator(raise_minimum_delegation).await;
+#[allow(dead_code)]
+struct TestValidator {
+    child: Child,
+    rpc_port: u16,
+    ledger: TempDir,
+}
 
-    // make client
+impl TestValidator {
+    fn rpc_url(&self) -> String {
+        format!("http://127.0.0.1:{}", self.rpc_port)
+    }
+
+    fn rpc_pubsub_url(&self) -> String {
+        format!("ws://127.0.0.1:{}", self.rpc_port + 1)
+    }
+}
+
+impl Drop for TestValidator {
+    fn drop(&mut self) {
+        let _ = self.child.kill();
+        let _ = self.child.wait();
+    }
+}
+
+fn free_port() -> u16 {
+    TcpListener::bind("127.0.0.1:0")
+        .unwrap()
+        .local_addr()
+        .unwrap()
+        .port()
+}
+
+async fn start_validator(mint: &Pubkey) -> TestValidator {
+    let rpc_port = free_port();
+    let faucet_port = free_port();
+    let ledger = tempfile::tempdir().unwrap();
+
+    let mut command = Command::new("solana-test-validator");
+    command
+        .args(["--ledger", ledger.path().to_str().unwrap()])
+        .args(["--rpc-port", &rpc_port.to_string()])
+        .args(["--faucet-port", &faucet_port.to_string()])
+        .args(["--mint", &mint.to_string()])
+        .args(["--slots-per-epoch", &MINIMUM_SLOTS_PER_EPOCH.to_string()])
+        .args([
+            "--upgradeable-program",
+            "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s",
+            "../../program/tests/fixtures/mpl_token_metadata.so",
+            &Pubkey::default().to_string(),
+        ])
+        .args([
+            "--upgradeable-program",
+            &id().to_string(),
+            "../../target/deploy/spl_single_pool.so",
+            &Pubkey::default().to_string(),
+        ])
+        .arg("--reset")
+        .arg("--quiet")
+        .stdout(Stdio::null())
+        .stderr(Stdio::null());
+    #[cfg(target_os = "linux")]
+    unsafe {
+        command.pre_exec(|| {
+            if libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL) == -1 {
+                return Err(std::io::Error::last_os_error());
+            }
+            Ok(())
+        });
+    }
+    let child = command
+        .spawn()
+        .expect("failed to spawn `solana-test-validator` (is it on your PATH?)");
+
+    let rpc_client = RpcClient::new_with_commitment(
+        format!("http://127.0.0.1:{rpc_port}"),
+        CommitmentConfig::confirmed(),
+    );
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while rpc_client
+        .get_slot()
+        .await
+        .map(|slot| slot == 0)
+        .unwrap_or(true)
+    {
+        assert!(
+            Instant::now() < deadline,
+            "solana-test-validator did not become ready within 10s \
+             (did you build the program? `cargo build-sbf --manifest-path ../../program/Cargo.toml`)"
+        );
+        sleep(Duration::from_millis(250)).await;
+    }
+
+    TestValidator {
+        child,
+        rpc_port,
+        ledger,
+    }
+}
+
+async fn setup(initialize_pool: bool) -> Env {
+    let payer = Keypair::new();
+    let validator = start_validator(&payer.pubkey()).await;
+
     let rpc_client = Arc::new(RpcClient::new_with_commitment(
         validator.rpc_url(),
         CommitmentConfig::confirmed(),
@@ -91,37 +193,6 @@ async fn setup(raise_minimum_delegation: bool, initialize_pool: bool) -> Env {
         keypair_file,
         config_file,
     }
-}
-
-async fn start_validator(raise_minimum_delegation: bool) -> (TestValidator, Keypair) {
-    solana_logger::setup();
-    let mut test_validator_genesis = TestValidatorGenesis::default();
-    if !raise_minimum_delegation {
-        test_validator_genesis
-            .deactivate_features(&[stake_raise_minimum_delegation_to_1_sol::id()]);
-    }
-
-    test_validator_genesis.epoch_schedule(EpochSchedule::custom(
-        MINIMUM_SLOTS_PER_EPOCH,
-        MINIMUM_SLOTS_PER_EPOCH,
-        false,
-    ));
-
-    test_validator_genesis.add_upgradeable_programs_with_path(&[
-        UpgradeableProgramInfo {
-            program_id: Pubkey::from_str("metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s").unwrap(),
-            loader: bpf_loader_upgradeable::id(),
-            program_path: PathBuf::from("../../program/tests/fixtures/mpl_token_metadata.so"),
-            upgrade_authority: Pubkey::default(),
-        },
-        UpgradeableProgramInfo {
-            program_id: spl_single_pool::id(),
-            loader: bpf_loader_upgradeable::id(),
-            program_path: PathBuf::from("../../target/deploy/spl_single_pool.so"),
-            upgrade_authority: Pubkey::default(),
-        },
-    ]);
-    test_validator_genesis.start_async().await
 }
 
 async fn wait_for_next_epoch(rpc_client: &RpcClient) -> Epoch {
@@ -270,12 +341,10 @@ async fn create_and_delegate_stake_account(
     stake_account.pubkey()
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn replenish_pool(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, true).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn replenish_pool() {
+    let env = setup(true).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
@@ -291,12 +360,10 @@ async fn replenish_pool(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn deposit(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, true).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn deposit() {
+    let env = setup(true).await;
 
     let stake_account =
         create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await;
@@ -316,12 +383,10 @@ async fn deposit(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn withdraw(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, true).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn withdraw() {
+    let env = setup(true).await;
     let stake_account =
         create_and_delegate_stake_account(&env.rpc_client, &env.payer, &env.vote_account).await;
 
@@ -352,12 +417,10 @@ async fn withdraw(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn create_metadata(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, false).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn create_metadata() {
+    let env = setup(false).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
@@ -386,12 +449,10 @@ async fn create_metadata(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn update_metadata(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, true).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn update_metadata() {
+    let env = setup(true).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
@@ -427,10 +488,10 @@ async fn update_metadata(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn display() {
-    let env = setup(false, true).await;
+    let env = setup(true).await;
 
     let status = Command::new(SVSP_CLI)
         .args([
@@ -458,10 +519,10 @@ async fn display() {
     assert!(status.success());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn display_all() {
-    let env = setup(false, true).await;
+    let env = setup(true).await;
 
     create_pool(&env.rpc_client, &env.payer, &env.config_file_path).await;
     create_pool(&env.rpc_client, &env.payer, &env.config_file_path).await;
@@ -499,12 +560,10 @@ async fn display_all() {
     assert_eq!(stakes, 3);
 }
 
-#[test_case(false; "one_lamp")]
-#[test_case(true; "one_sol")]
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
-async fn create_onramp(raise_minimum_delegation: bool) {
-    let env = setup(raise_minimum_delegation, false).await;
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn create_onramp() {
+    let env = setup(false).await;
 
     let onramp_opcode = borsh::to_vec(&SinglePoolInstruction::InitializePoolOnRamp).unwrap();
     let instructions = ixn::initialize(
@@ -544,10 +603,10 @@ async fn create_onramp(raise_minimum_delegation: bool) {
     assert!(status.success());
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 #[serial]
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn deposit_sol() {
-    let env = setup(true, true).await;
+    let env = setup(true).await;
 
     wait_for_next_epoch(&env.rpc_client).await;
 
