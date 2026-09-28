@@ -114,6 +114,10 @@ async function startWithContext(authorizedWithdrawer?: PublicKey): Promise<LiteC
     MPL_METADATA_PROGRAM_ID,
     path.resolve(process.cwd(), 'tests', 'fixtures', 'mpl_token_metadata.so'),
   );
+  svm.addProgramFromFile(
+    StakeProgram.programId,
+    path.resolve(process.cwd(), 'tests', 'fixtures', 'solana_stake_program.so'),
+  );
 
   svm.setAccount(new PublicKey(voteAccount.pubkey), {
     lamports: voteAccount.account.lamports,
