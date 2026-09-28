@@ -35,12 +35,33 @@ use {
     solana_stake_interface::{
         self as stake,
         state::{Meta, Stake, StakeActivationStatus, StakeStateV2},
-        sysvar::stake_history::StakeHistorySysvar,
+        sysvar::stake_history::{self, StakeHistorySysvar},
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
+    solana_sysvar as sysvar,
     solana_vote_interface::program as vote_program,
     spl_token_interface::{self as spl_token, state::Mint},
 };
+
+/// Used to skip past Rent, Clock, StakeHistory, or StakeConfig, which are no longer required.
+fn skip_deprecated_accounts<'a, 'b, I: Iterator<Item = &'a AccountInfo<'b>>>(
+    iter: &mut I,
+) -> Result<I::Item, ProgramError> {
+    const EXCLUDE_LIST: [Pubkey; 4] = [
+        sysvar::rent::id(),
+        sysvar::clock::id(),
+        stake_history::id(),
+        #[allow(deprecated)]
+        stake::config::id(),
+    ];
+
+    loop {
+        let account_info = iter.next().ok_or(ProgramError::NotEnoughAccountKeys)?;
+        if !EXCLUDE_LIST.contains(account_info.key) {
+            return Ok(account_info);
+        }
+    }
+}
 
 /// Determine the canonical value of the pool from its staked and stake-able lamports
 fn pool_net_asset_value(
@@ -412,8 +433,6 @@ impl Processor {
         authority: AccountInfo<'a>,
         bump_seed: u8,
         destination_account: AccountInfo<'a>,
-        clock: AccountInfo<'a>,
-        stake_history: AccountInfo<'a>,
     ) -> Result<(), ProgramError> {
         let authority_seeds = &[
             POOL_STAKE_AUTHORITY_PREFIX,
@@ -425,13 +444,7 @@ impl Processor {
         invoke_signed(
             &stake::instruction::merge(destination_account.key, source_account.key, authority.key)
                 [0],
-            &[
-                destination_account,
-                source_account,
-                clock,
-                stake_history,
-                authority,
-            ],
+            &[destination_account, source_account, authority],
             signers,
         )
     }
@@ -468,7 +481,6 @@ impl Processor {
         stake_authority: AccountInfo<'a>,
         bump_seed: u8,
         new_stake_authority: &Pubkey,
-        clock: AccountInfo<'a>,
     ) -> Result<(), ProgramError> {
         let authority_seeds = &[
             POOL_STAKE_AUTHORITY_PREFIX,
@@ -487,11 +499,7 @@ impl Processor {
 
         invoke_signed(
             &authorize_instruction,
-            &[
-                stake_account.clone(),
-                clock.clone(),
-                stake_authority.clone(),
-            ],
+            &[stake_account.clone(), stake_authority.clone()],
             signers,
         )?;
 
@@ -504,7 +512,7 @@ impl Processor {
         );
         invoke_signed(
             &authorize_instruction,
-            &[stake_account, clock, stake_authority],
+            &[stake_account, stake_authority],
             signers,
         )
     }
@@ -516,8 +524,6 @@ impl Processor {
         stake_authority: AccountInfo<'a>,
         bump_seed: u8,
         destination_account: AccountInfo<'a>,
-        clock: AccountInfo<'a>,
-        stake_history: AccountInfo<'a>,
         lamports: u64,
     ) -> Result<(), ProgramError> {
         let authority_seeds = &[
@@ -537,13 +543,7 @@ impl Processor {
 
         invoke_signed(
             &withdraw_instruction,
-            &[
-                stake_account,
-                destination_account,
-                clock,
-                stake_history,
-                stake_authority,
-            ],
+            &[stake_account, destination_account, stake_authority],
             signers,
         )
     }
@@ -758,7 +758,6 @@ impl Processor {
             &stake::instruction::initialize_checked(pool_stake_info.key, &authorized),
             &[
                 pool_stake_info.clone(),
-                rent_info.clone(),
                 pool_stake_authority_info.clone(),
                 pool_stake_authority_info.clone(),
             ],
@@ -775,9 +774,6 @@ impl Processor {
             &[
                 pool_stake_info.clone(),
                 vote_account_info.clone(),
-                clock_info.clone(),
-                stake_history_info.clone(),
-                stake_config_info.clone(),
                 pool_stake_authority_info.clone(),
             ],
             stake_authority_signers,
@@ -872,9 +868,6 @@ impl Processor {
                 &[
                     pool_stake_info.clone(),
                     vote_account_info.clone(),
-                    clock_info.clone(),
-                    stake_history_info.clone(),
-                    stake_config_info.clone(),
                     pool_stake_authority_info.clone(),
                 ],
                 stake_authority_signers,
@@ -967,9 +960,6 @@ impl Processor {
                     &[
                         pool_onramp_info.clone(),
                         vote_account_info.clone(),
-                        clock_info.clone(),
-                        stake_history_info.clone(),
-                        stake_config_info.clone(),
                         pool_stake_authority_info.clone(),
                     ],
                     stake_authority_signers,
@@ -1109,8 +1099,6 @@ impl Processor {
             pool_stake_authority_info.clone(),
             stake_authority_bump_seed,
             pool_stake_info.clone(),
-            clock_info.clone(),
-            stake_history_info.clone(),
         )?;
 
         // determine new stake lamports added by merge
@@ -1157,8 +1145,6 @@ impl Processor {
                 pool_stake_authority_info.clone(),
                 stake_authority_bump_seed,
                 user_lamport_account_info.clone(),
-                clock_info.clone(),
-                stake_history_info.clone(),
                 user_excess_lamports,
             )?;
         }
@@ -1323,7 +1309,6 @@ impl Processor {
             pool_stake_authority_info.clone(),
             stake_authority_bump_seed,
             user_stake_authority,
-            clock_info.clone(),
         )?;
 
         Ok(())
@@ -1562,7 +1547,6 @@ impl Processor {
             &stake::instruction::initialize_checked(pool_onramp_info.key, &authorized),
             &[
                 pool_onramp_info.clone(),
-                rent_info.clone(),
                 pool_stake_authority_info.clone(),
                 pool_stake_authority_info.clone(),
             ],
@@ -1726,9 +1710,6 @@ impl Processor {
                 pool_stake_info.clone(),
                 pool_onramp_info.clone(),
                 pool_stake_authority_info.clone(),
-                clock_info.clone(),
-                stake_history_info.clone(),
-                stake_config_info.clone(),
                 stake_program_info.clone(),
             ],
         )?;
