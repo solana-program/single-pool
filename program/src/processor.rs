@@ -43,21 +43,20 @@ use {
     spl_token_interface::{self as spl_token, state::Mint},
 };
 
-/// Used to skip past Rent, Clock, StakeHistory, or StakeConfig, which are no longer required.
+const DEPRECATED_ACCOUNTS: [Pubkey; 4] = [
+    sysvar::rent::id(),
+    sysvar::clock::id(),
+    stake_history::id(),
+    #[allow(deprecated)]
+    stake::config::id(),
+];
+
 fn skip_deprecated_accounts<'a, 'b, I: Iterator<Item = &'a AccountInfo<'b>>>(
     iter: &mut I,
 ) -> Result<I::Item, ProgramError> {
-    const EXCLUDE_LIST: [Pubkey; 4] = [
-        sysvar::rent::id(),
-        sysvar::clock::id(),
-        stake_history::id(),
-        #[allow(deprecated)]
-        stake::config::id(),
-    ];
-
     loop {
         let account_info = iter.next().ok_or(ProgramError::NotEnoughAccountKeys)?;
-        if !EXCLUDE_LIST.contains(account_info.key) {
+        if !DEPRECATED_ACCOUNTS.contains(account_info.key) {
             return Ok(account_info);
         }
     }
@@ -789,14 +788,10 @@ impl Processor {
         let pool_stake_info = next_account_info(account_info_iter)?;
         let pool_onramp_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
-        let clock_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let clock = &Clock::from_account_info(clock_info)?;
-        let stake_history_info = next_account_info(account_info_iter)?;
-        let stake_config_info = next_account_info(account_info_iter)?;
-        let stake_program_info = next_account_info(account_info_iter)?;
+        let stake_program_info = skip_deprecated_accounts(account_info_iter)?;
 
         let rent = Rent::get()?;
+        let clock = Clock::get()?;
         let stake_history = &StakeHistorySysvar(clock.epoch);
 
         check_vote_account(vote_account_info)?;
@@ -1702,8 +1697,13 @@ impl Processor {
         )?;
 
         // replenish to delegate the deposit. this safely returns Ok if onramp doesnt meet minimum delegation
+        let mut replenish = svsp_instruction::replenish_pool(program_id, vote_account_info.key);
+        replenish
+            .accounts
+            .retain(|meta| !DEPRECATED_ACCOUNTS.contains(&meta.pubkey));
+
         invoke(
-            &svsp_instruction::replenish_pool(program_id, vote_account_info.key),
+            &replenish,
             &[
                 vote_account_info.clone(),
                 pool_info.clone(),
