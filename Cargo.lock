@@ -5899,7 +5899,7 @@ dependencies = [
  "solana-pubkey 4.3.0",
  "solana-rent 4.1.0",
  "solana-sdk-ids",
- "solana-system-interface 3.0.0",
+ "solana-system-interface 3.3.0",
 ]
 
 [[package]]
@@ -7462,9 +7462,9 @@ dependencies = [
 
 [[package]]
 name = "solana-system-interface"
-version = "3.0.0"
+version = "3.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14591d6508042ebefb110305d3ba761615927146a26917ade45dc332d8e1ecde"
+checksum = "2e2d5311d0584af231c6c2b0503ba1c3aa50118ead4f503ab215ccbdd1ffac57"
 dependencies = [
  "num-traits",
  "serde",
@@ -7892,7 +7892,7 @@ dependencies = [
  "solana-serde-varint",
  "solana-serialize-utils",
  "solana-short-vec",
- "solana-system-interface 3.0.0",
+ "solana-system-interface 3.3.0",
 ]
 
 [[package]]
@@ -8181,7 +8181,7 @@ dependencies = [
  "solana-security-txt",
  "solana-signer",
  "solana-stake-interface",
- "solana-system-interface 3.0.0",
+ "solana-system-interface 3.3.0",
  "solana-sysvar",
  "solana-transaction",
  "solana-transaction-error",
@@ -8230,7 +8230,7 @@ dependencies = [
  "solana-signature",
  "solana-signer",
  "solana-stake-interface",
- "solana-system-interface 3.0.0",
+ "solana-system-interface 3.3.0",
  "solana-sysvar",
  "solana-transaction",
  "solana-transaction-status",
