@@ -51,12 +51,8 @@ const DEPRECATED_ACCOUNTS: [Pubkey; 4] = [
 fn skip_deprecated_accounts<'a, 'b, I: Iterator<Item = &'a AccountInfo<'b>>>(
     iter: &mut I,
 ) -> Result<I::Item, ProgramError> {
-    loop {
-        let account_info = iter.next().ok_or(ProgramError::NotEnoughAccountKeys)?;
-        if !DEPRECATED_ACCOUNTS.contains(account_info.key) {
-            return Ok(account_info);
-        }
-    }
+    iter.find(|info| !DEPRECATED_ACCOUNTS.contains(info.key))
+        .ok_or(ProgramError::NotEnoughAccountKeys)
 }
 
 /// Determine the canonical value of the pool from its staked and stake-able lamports
