@@ -5,15 +5,16 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_clock::sysvar as clock_sysvar,
     solana_instruction::Instruction,
     solana_program_error::ProgramError,
     solana_program_test::*,
     solana_pubkey::pubkey,
     solana_pubkey::Pubkey,
+    solana_rent::sysvar as rent_sysvar,
     solana_signer::Signer,
     solana_stake_interface::{self as stake, program as stake_program, sysvar::stake_history},
     solana_system_interface::program as system_program,
-    solana_sysvar as sysvar,
     solana_transaction::Transaction,
     spl_single_pool::{
         error::SinglePoolError,
@@ -374,8 +375,8 @@ async fn success_new_interface(stake_version: StakeProgramVersion, test_mode: Te
     let (mut instructions, _) = build_instructions(&mut context, &accounts, test_mode).await;
 
     let deprecated = [
-        sysvar::rent::id(),
-        sysvar::clock::id(),
+        rent_sysvar::id(),
+        clock_sysvar::id(),
         stake_history::id(),
         #[allow(deprecated)]
         stake::config::id(),

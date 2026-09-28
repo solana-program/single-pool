@@ -20,7 +20,7 @@ use {
     borsh::BorshDeserialize,
     solana_account_info::{next_account_info, AccountInfo},
     solana_borsh::v1::try_from_slice_unchecked,
-    solana_clock::Clock,
+    solana_clock::{sysvar as clock_sysvar, Clock},
     solana_cpi::{invoke, invoke_signed},
     solana_get_sysvar::GetSysvar,
     solana_msg::msg,
@@ -29,21 +29,20 @@ use {
     solana_program_error::ProgramError,
     solana_program_pack::Pack,
     solana_pubkey::Pubkey,
-    solana_rent::Rent,
+    solana_rent::{sysvar as rent_sysvar, Rent},
     solana_stake_interface::{
         self as stake,
         state::{Meta, Stake, StakeActivationStatus, StakeStateV2},
         sysvar::stake_history::{self, StakeHistorySysvar},
     },
     solana_system_interface::{instruction as system_instruction, program as system_program},
-    solana_sysvar as sysvar,
     solana_vote_interface::program as vote_program,
     spl_token_interface::{self as spl_token, state::Mint},
 };
 
 const DEPRECATED_ACCOUNTS: [Pubkey; 4] = [
-    sysvar::rent::id(),
-    sysvar::clock::id(),
+    rent_sysvar::id(),
+    clock_sysvar::id(),
     stake_history::id(),
     #[allow(deprecated)]
     stake::config::id(),

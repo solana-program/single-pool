@@ -8296,7 +8296,6 @@ dependencies = [
  "solana-signer",
  "solana-stake-interface 5.1.0",
  "solana-system-interface 3.3.0",
- "solana-sysvar 4.3.0",
  "solana-sysvar-id",
  "solana-transaction",
  "solana-transaction-error",
