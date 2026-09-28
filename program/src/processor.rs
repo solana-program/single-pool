@@ -1,7 +1,5 @@
 //! program state processor
 
-#[allow(deprecated)]
-use solana_sysvar::SysvarSerialize;
 use {
     crate::{
         error::SinglePoolError,
@@ -613,15 +611,11 @@ impl Processor {
         let pool_mint_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
-        let rent_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let rent = &Rent::from_account_info(rent_info)?;
-        let clock_info = next_account_info(account_info_iter)?;
-        let stake_history_info = next_account_info(account_info_iter)?;
-        let stake_config_info = next_account_info(account_info_iter)?;
-        let system_program_info = next_account_info(account_info_iter)?;
+        let system_program_info = skip_deprecated_accounts(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
+
+        let rent = Rent::get()?;
 
         check_vote_account(vote_account_info)?;
         let pool_bump_seed = check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
@@ -976,15 +970,12 @@ impl Processor {
         let user_stake_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
         let user_lamport_account_info = next_account_info(account_info_iter)?;
-        let clock_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let clock = &Clock::from_account_info(clock_info)?;
-        let stake_history_info = next_account_info(account_info_iter)?;
-        let token_program_info = next_account_info(account_info_iter)?;
+        let token_program_info = skip_deprecated_accounts(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
-        let rent = &Rent::get()?;
-        let stake_history = &StakeHistorySysvar(clock.epoch);
+        let rent = Rent::get()?;
+        let clock = Clock::get()?;
+        let stake_history = StakeHistorySysvar(clock.epoch);
 
         SinglePool::from_account_info(pool_info, program_id)?;
 
@@ -1018,7 +1009,7 @@ impl Processor {
                 .delegation
                 .stake_activating_and_deactivating_v2(
                     clock.epoch,
-                    stake_history,
+                    &stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                 );
 
@@ -1051,7 +1042,7 @@ impl Processor {
         };
 
         // tokens for deposit are determined off the total stakeable value of both pool-owned accounts
-        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, &rent);
 
         let pre_user_lamports = user_stake_info.lamports();
         let (user_stake_meta, user_stake_status) = match deserialize_stake(user_stake_info) {
@@ -1059,7 +1050,7 @@ impl Processor {
                 meta,
                 stake.delegation.stake_activating_and_deactivating_v2(
                     clock.epoch,
-                    stake_history,
+                    &stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                 ),
             ),
@@ -1070,7 +1061,7 @@ impl Processor {
         // user must have set authority to pool and have no lockup for merge to succeed
         if user_stake_meta.authorized
             != stake::state::Authorized::auto(pool_stake_authority_info.key)
-            || user_stake_meta.lockup.is_in_force(clock, None)
+            || user_stake_meta.lockup.is_in_force(&clock, None)
         {
             return Err(SinglePoolError::WrongStakeState.into());
         }
@@ -1162,14 +1153,12 @@ impl Processor {
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
         let user_stake_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
-        let clock_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let clock = &Clock::from_account_info(clock_info)?;
-        let token_program_info = next_account_info(account_info_iter)?;
+        let token_program_info = skip_deprecated_accounts(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
 
-        let rent = &Rent::get()?;
-        let stake_history = &StakeHistorySysvar(clock.epoch);
+        let rent = Rent::get()?;
+        let clock = Clock::get()?;
+        let stake_history = StakeHistorySysvar(clock.epoch);
 
         SinglePool::from_account_info(pool_info, program_id)?;
 
@@ -1213,7 +1202,7 @@ impl Processor {
                 .delegation
                 .stake_activating_and_deactivating_v2(
                     clock.epoch,
-                    stake_history,
+                    &stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                 );
 
@@ -1247,7 +1236,7 @@ impl Processor {
         };
 
         // tokens for withdraw are determined off the total stakeable value of both pool-owned accounts
-        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, rent);
+        let pre_total_nav = pool_net_asset_value(pool_stake_info, pool_onramp_info, &rent);
 
         // withdraw amount is determined off pool NAV just like deposit amount
         let stake_to_withdraw =
@@ -1484,11 +1473,10 @@ impl Processor {
         let pool_info = next_account_info(account_info_iter)?;
         let pool_onramp_info = next_account_info(account_info_iter)?;
         let pool_stake_authority_info = next_account_info(account_info_iter)?;
-        let rent_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let rent = &Rent::from_account_info(rent_info)?;
-        let system_program_info = next_account_info(account_info_iter)?;
+        let system_program_info = skip_deprecated_accounts(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
+
+        let rent = Rent::get()?;
 
         SinglePool::from_account_info(pool_info, program_id)?;
 
@@ -1566,18 +1554,14 @@ impl Processor {
         let pool_mint_authority_info = next_account_info(account_info_iter)?;
         let user_lamport_account_info = next_account_info(account_info_iter)?;
         let user_token_account_info = next_account_info(account_info_iter)?;
-        let clock_info = next_account_info(account_info_iter)?;
-        #[allow(deprecated)]
-        let clock = &Clock::from_account_info(clock_info)?;
-        let stake_history_info = next_account_info(account_info_iter)?;
-        let stake_config_info = next_account_info(account_info_iter)?;
-        let system_program_info = next_account_info(account_info_iter)?;
+        let system_program_info = skip_deprecated_accounts(account_info_iter)?;
         let token_program_info = next_account_info(account_info_iter)?;
         let stake_program_info = next_account_info(account_info_iter)?;
         let svsp_program_info = next_account_info(account_info_iter)?;
 
         let rent = Rent::get()?;
-        let stake_history = &StakeHistorySysvar(clock.epoch);
+        let clock = Clock::get()?;
+        let stake_history = StakeHistorySysvar(clock.epoch);
 
         check_vote_account(vote_account_info)?;
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
@@ -1620,7 +1604,7 @@ impl Processor {
                 .delegation
                 .stake_activating_and_deactivating_v2(
                     clock.epoch,
-                    stake_history,
+                    &stake_history,
                     PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                 );
 
