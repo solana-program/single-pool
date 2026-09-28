@@ -64,7 +64,7 @@ impl StakeProgramVersion {
     pub fn basename(self) -> Option<&'static str> {
         match self {
             Self::Stable => Some("solana_stake_program-v5.0.0"),
-            Self::Beta => None,
+            Self::Beta => Some("solana_stake_program-v5.1.0"),
             Self::Edge => None,
         }
     }
