@@ -792,7 +792,7 @@ impl Processor {
 
         let rent = Rent::get()?;
         let clock = Clock::get()?;
-        let stake_history = &StakeHistorySysvar(clock.epoch);
+        let stake_history = StakeHistorySysvar(clock.epoch);
 
         check_vote_account(vote_account_info)?;
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
@@ -820,7 +820,7 @@ impl Processor {
             .delegation
             .stake_activating_and_deactivating_v2(
                 clock.epoch,
-                stake_history,
+                &stake_history,
                 PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
             );
         let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
@@ -833,7 +833,7 @@ impl Processor {
                 Ok(StakeStateV2::Stake(_, stake, _)) => (
                     Some(stake.delegation.stake_activating_and_deactivating_v2(
                         clock.epoch,
-                        stake_history,
+                        &stake_history,
                         PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
                     )),
                     stake.delegation.deactivation_epoch,
