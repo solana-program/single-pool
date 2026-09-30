@@ -8282,7 +8282,7 @@ dependencies = [
  "solana-get-sysvar",
  "solana-hash 4.7.0",
  "solana-instruction 4.0.0",
- "solana-instruction-error 2.5.0",
+ "solana-instruction-error 3.1.0",
  "solana-keypair",
  "solana-msg",
  "solana-native-token",
