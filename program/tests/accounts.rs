@@ -5,13 +5,15 @@ mod helpers;
 
 use {
     helpers::*,
+    solana_clock::sysvar as clock_sysvar,
     solana_instruction::Instruction,
     solana_program_error::ProgramError,
     solana_program_test::*,
     solana_pubkey::pubkey,
     solana_pubkey::Pubkey,
+    solana_rent::sysvar as rent_sysvar,
     solana_signer::Signer,
-    solana_stake_interface::program as stake_program,
+    solana_stake_interface::{self as stake, program as stake_program, sysvar::stake_history},
     solana_system_interface::program as system_program,
     solana_transaction::Transaction,
     spl_single_pool::{
@@ -354,4 +356,48 @@ fn consistent_account_order() {
 
         assert!(is_sorted(&indexes));
     }
+}
+
+// test that deprecated accounts are safe to omit.
+// when we update the svsp interface to drop them, this test can be deleted
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [TestMode::InitializePool, TestMode::DepositStake, TestMode::WithdrawStake, TestMode::DepositSol]
+)]
+#[tokio::test]
+async fn success_new_interface(stake_version: StakeProgramVersion, test_mode: TestMode) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let accounts = SinglePoolAccounts::default();
+    let (mut instructions, _) = build_instructions(&mut context, &accounts, test_mode).await;
+
+    let deprecated = [
+        rent_sysvar::id(),
+        clock_sysvar::id(),
+        stake_history::id(),
+        #[allow(deprecated)]
+        stake::config::id(),
+    ];
+
+    for instruction in instructions.iter_mut().filter(|ix| ix.program_id == id()) {
+        instruction
+            .accounts
+            .retain(|meta| !deprecated.contains(&meta.pubkey));
+    }
+
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&accounts.alice.pubkey()),
+        &[&accounts.alice],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
 }

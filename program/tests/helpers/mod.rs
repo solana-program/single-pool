@@ -63,8 +63,8 @@ impl StakeProgramVersion {
     // `solana_stake_program-v1.2.3` is the verified build that is on or will go to chain
     pub fn basename(self) -> Option<&'static str> {
         match self {
-            Self::Stable => Some("solana_stake_program-v4.0.0"),
-            Self::Beta => Some("solana_stake_program-v5.0.0"),
+            Self::Stable => Some("solana_stake_program-v5.0.0"),
+            Self::Beta => Some("solana_stake_program-v5.1.0"),
             Self::Edge => None,
         }
     }

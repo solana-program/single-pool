@@ -299,17 +299,6 @@ async fn fail_withdraw_to_onramp() {
 )]
 #[tokio::test]
 async fn success_withdraw_from_inactive(stake_version: StakeProgramVersion) {
-    // this test would fail on bpf stake v1-4 because of a bug in Split
-    // when this assert fails, it means v5 is stable. delete this entire block
-    if stake_version == StakeProgramVersion::Stable {
-        assert!(stake_version
-            .basename()
-            .unwrap()
-            .starts_with("solana_stake_program-v4"));
-
-        return;
-    }
-
     let Some(program_test) = program_test(stake_version) else {
         return;
     };

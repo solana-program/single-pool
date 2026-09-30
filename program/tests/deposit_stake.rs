@@ -143,9 +143,6 @@ async fn success(
     // but when activating, rent and extra lamports are added to stake
     let expected_deposit = if activate {
         alice_stake_before_deposit
-    } else if stake_version == StakeProgramVersion::Stable {
-        // remove branch after v5 is stable
-        alice_stake_before_deposit + rent_exempt_reserve
     } else {
         alice_stake_before_deposit + rent_exempt_reserve + alice_extra_lamports
     };
