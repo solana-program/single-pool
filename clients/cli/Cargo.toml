@@ -40,7 +40,7 @@ solana-signer = "3.0"
 solana-system-interface = "3.0"
 solana-sysvar = "4.3"
 solana-stake-interface = "5.1.0"
-solana-transaction = "4.0"
+solana-transaction = "5.1"
 solana-transaction-status = "4.3.0"
 solana-vote-interface = { version = "7.1.0", features = ["bincode"] }
 spl-associated-token-account-interface = "2.0.0"
