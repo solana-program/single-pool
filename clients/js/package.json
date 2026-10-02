@@ -34,7 +34,7 @@
     "@solana-program/stake": "=0.9.0",
     "@solana-program/system": "0.15.0",
     "@solana-program/token": "0.17.0",
-    "@solana/kit": "8.3.0",
+    "@solana/kit": "8.4.0",
     "@solana/sysvars": "8.3.0"
   }
 }
