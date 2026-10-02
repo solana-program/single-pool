@@ -4965,6 +4965,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-account"
+version = "5.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4c62b9649a80763f4eb66cd744c2f1a21ea381e4ee86d9916a506e089ba503b7"
+dependencies = [
+ "solana-account-info",
+ "solana-clock 4.0.0",
+ "solana-instruction-error 3.1.0",
+ "solana-pubkey 4.4.0",
+]
+
+[[package]]
 name = "solana-account-decoder"
 version = "4.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8270,7 +8282,7 @@ dependencies = [
  "num-traits",
  "num_enum",
  "rand 0.10.3",
- "solana-account 4.7.0",
+ "solana-account 5.1.0",
  "solana-account-info",
  "solana-borsh",
  "solana-clock 4.0.0",
@@ -8319,7 +8331,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
- "solana-account 4.7.0",
+ "solana-account 5.1.0",
  "solana-account-decoder",
  "solana-borsh",
  "solana-clap-v3-utils",
