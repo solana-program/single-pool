@@ -407,14 +407,17 @@ export async function updateTokenMetadataInstruction(
   const mplMetadata = await findMplMetadataAddress(mint);
 
   const text = new TextEncoder();
+  const nameBytes = text.encode(tokenName);
+  const symbolBytes = text.encode(tokenSymbol);
+  const uriBytes = text.encode(tokenUri);
   const data = new Uint8Array([
     SinglePoolInstructionType.UpdateTokenMetadata,
-    ...getU32Encoder().encode(tokenName.length),
-    ...text.encode(tokenName),
-    ...getU32Encoder().encode(tokenSymbol.length),
-    ...text.encode(tokenSymbol),
-    ...getU32Encoder().encode(tokenUri.length),
-    ...text.encode(tokenUri),
+    ...getU32Encoder().encode(nameBytes.length),
+    ...nameBytes,
+    ...getU32Encoder().encode(symbolBytes.length),
+    ...symbolBytes,
+    ...getU32Encoder().encode(uriBytes.length),
+    ...uriBytes,
   ]);
 
   return {

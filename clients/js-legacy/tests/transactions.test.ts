@@ -432,6 +432,42 @@ test('update metadata', async (t) => {
   );
 });
 
+test('update metadata with non-ascii name', async (t) => {
+  const authorizedWithdrawer = new Keypair();
+
+  const context = await startWithContext(authorizedWithdrawer.publicKey);
+  const svm = context.svm;
+  const payer = context.payer;
+  const connection = new LiteConnection(svm, payer);
+
+  const voteAccountAddress = new PublicKey(voteAccount.pubkey);
+  const poolAddress = await findPoolAddress(SinglePoolProgram.programId, voteAccountAddress);
+  const poolMintAddress = await findPoolMintAddress(SinglePoolProgram.programId, poolAddress);
+  const poolMetadataAddress = findMplMetadataAddress(poolMintAddress);
+
+  let transaction = await SinglePoolProgram.initialize(
+    connection,
+    voteAccountAddress,
+    payer.publicKey,
+  );
+  await processTransaction(context, transaction);
+
+  const newName = 'Café Staking ☀';
+  const newSymbol = 'stkÉ';
+  transaction = await SinglePoolProgram.updateTokenMetadata(
+    voteAccountAddress,
+    authorizedWithdrawer.publicKey,
+    newName,
+    newSymbol,
+  );
+  await processTransaction(context, transaction, [authorizedWithdrawer]);
+
+  const metadataAccount = svm.getAccount(poolMetadataAddress);
+  const metadata = new TextDecoder().decode(metadataAccount.data);
+  t.true(metadata.indexOf(newName) > -1, 'metadata name has been updated');
+  t.true(metadata.indexOf(newSymbol) > -1, 'metadata symbol has been updated');
+});
+
 test('get vote account address', async (t) => {
   const context = await startWithContext();
   const svm = context.svm;
