@@ -468,6 +468,40 @@ test('update metadata with non-ascii name', async (t) => {
   t.true(metadata.indexOf(newSymbol) > -1, 'metadata symbol has been updated');
 });
 
+test('update metadata rejects strings over the byte limit', async (t) => {
+  const voteAccountAddress = new PublicKey(voteAccount.pubkey);
+  const authorizedWithdrawer = new Keypair();
+
+  await t.throwsAsync(
+    SinglePoolProgram.updateTokenMetadata(
+      voteAccountAddress,
+      authorizedWithdrawer.publicKey,
+      'あ'.repeat(11),
+      '',
+    ),
+    { any: true },
+  );
+  await t.throwsAsync(
+    SinglePoolProgram.updateTokenMetadata(
+      voteAccountAddress,
+      authorizedWithdrawer.publicKey,
+      '',
+      'あ'.repeat(4),
+    ),
+    { any: true },
+  );
+  await t.throwsAsync(
+    SinglePoolProgram.updateTokenMetadata(
+      voteAccountAddress,
+      authorizedWithdrawer.publicKey,
+      '',
+      '',
+      'あ'.repeat(67),
+    ),
+    { any: true },
+  );
+});
+
 test('get vote account address', async (t) => {
   const context = await startWithContext();
   const svm = context.svm;
