@@ -387,16 +387,21 @@ export async function updateTokenMetadataInstruction(
   const programAddress = SINGLE_POOL_PROGRAM_ID;
   tokenUri = tokenUri || '';
 
-  if (tokenName.length > 32) {
-    throw 'maximum token name length is 32 characters';
+  const text = new TextEncoder();
+  const nameBytes = text.encode(tokenName);
+  const symbolBytes = text.encode(tokenSymbol);
+  const uriBytes = text.encode(tokenUri);
+
+  if (nameBytes.length > 32) {
+    throw 'maximum token name length is 32 bytes';
   }
 
-  if (tokenSymbol.length > 10) {
-    throw 'maximum token symbol length is 10 characters';
+  if (symbolBytes.length > 10) {
+    throw 'maximum token symbol length is 10 bytes';
   }
 
-  if (tokenUri.length > 200) {
-    throw 'maximum token uri length is 200 characters';
+  if (uriBytes.length > 200) {
+    throw 'maximum token uri length is 200 bytes';
   }
 
   const pool = await findPoolAddress(programAddress, voteAccount);
@@ -406,10 +411,6 @@ export async function updateTokenMetadataInstruction(
   ]);
   const mplMetadata = await findMplMetadataAddress(mint);
 
-  const text = new TextEncoder();
-  const nameBytes = text.encode(tokenName);
-  const symbolBytes = text.encode(tokenSymbol);
-  const uriBytes = text.encode(tokenUri);
   const data = new Uint8Array([
     SinglePoolInstructionType.UpdateTokenMetadata,
     ...getU32Encoder().encode(nameBytes.length),
