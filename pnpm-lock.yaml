@@ -64,8 +64,8 @@ importers:
         specifier: ^26.6.6
         version: 26.6.6
       ava:
-        specifier: ^8.2.0
-        version: 8.2.0(@ava/typescript@7.0.0)(rollup@4.65.0)
+        specifier: ^8.3.0
+        version: 8.3.0(@ava/typescript@7.0.0)(rollup@4.65.0)
       litesvm:
         specifier: 0.8.0
         version: 0.8.0(bufferutil@4.1.0)(typescript@6.0.3)(utf-8-validate@6.0.6)
@@ -1345,8 +1345,8 @@ packages:
   async-sema@3.1.1:
     resolution: {integrity: sha512-tLRNUXati5MFePdAk8dw7Qt7DpxPB60ofAgn8WRhW6a2rcimZnYBP9oxHiv0OHy+Wz7kPMG+t4LGdt31+4EmGg==}
 
-  ava@8.2.0:
-    resolution: {integrity: sha512-9THsZEBUhwvA3e1oVqyJx9o4cBaLSkxScfP0oPlA9I7TDga51UDLMQJRy6bMDqMl3eubFCqxlj12h5IHEsLO7g==}
+  ava@8.3.0:
+    resolution: {integrity: sha512-Tr/p0fmC+oCJo5+m1oJdpmBxC1OO57xtVKlJfbN0gkz31yofpk08jl4Hzx654RdKq1FPc0XYiHF4ZzdqR+87gg==}
     engines: {node: ^22.20 || ^24.12 || >=26}
     hasBin: true
     peerDependencies:
@@ -2022,8 +2022,8 @@ packages:
   safe-buffer@5.2.1:
     resolution: {integrity: sha512-rp3So07KcdmmKbGvgaNxQSJr7bGVSVk5S9Eq1F+ppbRo70+YeaDxkw5Dd8NPN+GD6bjnYm2VuPuCXmpuYvmCXQ==}
 
-  semver@7.8.5:
-    resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+  semver@7.8.6:
+    resolution: {integrity: sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -2475,7 +2475,7 @@ snapshots:
       https-proxy-agent: 7.0.6
       node-fetch: 2.7.0
       nopt: 8.1.0
-      semver: 7.8.5
+      semver: 7.8.6
       tar: 7.5.22
     transitivePeerDependencies:
       - encoding
@@ -3342,7 +3342,7 @@ snapshots:
 
   async-sema@3.1.1: {}
 
-  ava@8.2.0(@ava/typescript@7.0.0)(rollup@4.65.0):
+  ava@8.3.0(@ava/typescript@7.0.0)(rollup@4.65.0):
     dependencies:
       '@vercel/nft': 1.11.0(rollup@4.65.0)
       acorn: 8.19.0
@@ -3497,7 +3497,7 @@ snapshots:
       js-string-escape: 1.0.1
       lodash: 4.18.1
       md5-hex: 3.0.1
-      semver: 7.8.5
+      semver: 7.8.6
       well-known-symbols: 2.0.0
 
   confbox@0.1.8: {}
@@ -4059,7 +4059,7 @@ snapshots:
 
   safe-buffer@5.2.1: {}
 
-  semver@7.8.5: {}
+  semver@7.8.6: {}
 
   serialize-error@7.0.1:
     dependencies:
