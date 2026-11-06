@@ -16,7 +16,10 @@ export function rpc(
       return {
         async send() {
           const pubkey = new PublicKey(address);
-          return await connection.getAccountInfo(pubkey);
+          const account = await connection.getAccountInfo(pubkey);
+          return {
+            value: account && { ...account, data: [account.data.toString('base64'), 'base64'] },
+          };
         },
       };
     },
