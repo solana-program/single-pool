@@ -12,7 +12,7 @@ The Single-Validator Stake Pool is an onchain program that enables liquid stakin
 
 The program also allows permissionless harvesting of Jito tips and other MEV rewards, turning liquid sol paid into the stake account into active stake earning rewards, functionally distributing these earnings to all LST holders just like protocol staking rewards.
 
-Users can only deposit and withdraw active stake, but liquid sol deposit is coming in a future update.
+Users can deposit active stake or liquid sol, and withdraw active stake.
 
 ## Security Audits
 
@@ -44,13 +44,13 @@ The BPF program deployed on all clusters is built with [solana-verify](https://s
 solana-verify get-program-hash -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 ```
 
-As of v6.0.0, the Github release tag will be embedded in the deployed program binary. If you do not know the currently deployed Single Pool version, you may perform:
+As of v6.0.0, the Github release tag is embedded in the deployed program binary. If you do not know the currently deployed Single Pool version, you may perform:
 
 ```console
 query-security-txt -um SVSPxpvHdN29nkVg9rPapPNDddN5DipNLRUFhyjFThE
 ```
 
-And observe the "Source release" field. Note the above command will not work until v6.0.0 is live.
+And observe the "Source release" field.
 
 Once this is done, or if you already know the proper release tag, you may check it out and determine the progam hash via:
 
