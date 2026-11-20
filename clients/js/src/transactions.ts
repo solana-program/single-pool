@@ -201,7 +201,8 @@ export async function depositTransaction(params: DepositParams) {
 
   if (
     userTokenAccount == userAssociatedTokenAccount &&
-    (await rpc.getAccountInfo(userAssociatedTokenAccount).send()) == null
+    (await rpc.getAccountInfo(userAssociatedTokenAccount, { encoding: 'base64' }).send()).value ==
+      null
   ) {
     transaction = appendTransactionMessageInstruction(
       getCreateAssociatedTokenInstruction({
@@ -373,7 +374,8 @@ export async function depositSolTransaction(params: DepositSolParams) {
 
   if (
     userTokenAccount == userAssociatedTokenAccount &&
-    (await rpc.getAccountInfo(userAssociatedTokenAccount).send()) == null
+    (await rpc.getAccountInfo(userAssociatedTokenAccount, { encoding: 'base64' }).send()).value ==
+      null
   ) {
     transaction = appendTransactionMessageInstruction(
       getCreateAssociatedTokenInstruction({
