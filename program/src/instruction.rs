@@ -67,6 +67,12 @@ pub enum SinglePoolInstruction {
     ///   exist. If the pool does not have the account, `InitializePoolOnRamp` must
     ///   be called to create it.
     ///
+    ///   If the validator vote account has been closed, this instruction instead
+    ///   winds the pool down: it moves all on-ramp stake and lamports into the main
+    ///   pool account and then deactivates it, so all pool value can be withdrawn.
+    ///   This may take several epochs of calls. If a vote account is recreated at
+    ///   the same address, the pool is reactivated as normal.
+    ///
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
     ///   2. `[w]` Pool stake account

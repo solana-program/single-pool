@@ -6,16 +6,80 @@ use {
     helpers::*,
     solana_account::ReadableAccount,
     solana_clock::Clock,
+    solana_keypair::Keypair,
+    solana_native_token::LAMPORTS_PER_SOL,
     solana_program_test::*,
+    solana_pubkey::Pubkey,
     solana_signer::Signer,
     solana_stake_interface::{
-        instruction as stake_instruction, stake_history::StakeHistory, state::StakeStateV2,
+        instruction as stake_instruction,
+        stake_history::StakeHistory,
+        state::{StakeActivationStatus, StakeStateV2},
     },
     solana_sysvar_id::SysvarId,
     solana_transaction::Transaction,
+    solana_vote_interface::instruction as vote_instruction,
     spl_single_pool::{error::SinglePoolError, id, instruction},
     test_case::test_matrix,
 };
+
+// stake status and lamports for a stake account. `None` status means `Initialized`
+async fn get_stake_status(
+    context: &mut ProgramTestContext,
+    pubkey: &Pubkey,
+) -> (Option<StakeActivationStatus>, u64) {
+    let clock = context.banks_client.get_sysvar::<Clock>().await.unwrap();
+    let stake_history_account = context
+        .banks_client
+        .get_account(StakeHistory::id())
+        .await
+        .unwrap()
+        .unwrap();
+    let stake_history: StakeHistory = bincode::deserialize(stake_history_account.data()).unwrap();
+
+    let (_, stake, lamports) = get_stake_account(&mut context.banks_client, pubkey).await;
+    let status = stake.map(|stake| {
+        stake
+            .delegation
+            .stake_activating_and_deactivating_v2(clock.epoch, &stake_history, Some(0))
+    });
+
+    (status, lamports)
+}
+
+async fn close_vote_account(context: &mut ProgramTestContext, accounts: &SinglePoolAccounts) {
+    let vote_address = accounts.vote_account.pubkey();
+    let vote_lamports = get_account(&mut context.banks_client, &vote_address)
+        .await
+        .lamports;
+
+    let transaction = Transaction::new_signed_with_payer(
+        &[vote_instruction::withdraw(
+            &vote_address,
+            &accounts.withdrawer.pubkey(),
+            vote_lamports,
+            &context.payer.pubkey(),
+        )],
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &accounts.withdrawer],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    assert!(context
+        .banks_client
+        .get_account(vote_address)
+        .await
+        .unwrap()
+        .is_none());
+
+    refresh_blockhash(context).await;
+}
 
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
@@ -628,4 +692,226 @@ async fn fail_onramp_doesnt_exist(stake_version: StakeProgramVersion, activate: 
         .process_transaction(transaction)
         .await
         .unwrap();
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+enum ClosedOnRampState {
+    Empty,
+    Initialized,
+    Activating,
+    Active,
+}
+
+// if the vote account is closed, replenish cannot delegate anything. instead, it must move all on-ramp
+// value into the main pool account and deactivate it, so that the entire pool NAV can be withdrawn.
+// `pool_excess` adds undelegated lamports (eg mev rewards) to the main account.
+// `pool_inactive` starts the wind-down with an already inactive main account, which requires
+// deactivating the on-ramp before its lamports can be moved.
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
+    [ClosedOnRampState::Empty, ClosedOnRampState::Initialized, ClosedOnRampState::Activating, ClosedOnRampState::Active],
+    [false, true],
+    [false, true]
+)]
+#[tokio::test]
+async fn closed_vote_account_wind_down(
+    stake_version: StakeProgramVersion,
+    onramp_state: ClosedOnRampState,
+    pool_excess: bool,
+    pool_inactive: bool,
+) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let rent = context.banks_client.get_rent().await.unwrap();
+    let stake_rent = rent.minimum_balance(StakeStateV2::size_of());
+
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
+        .await;
+
+    if onramp_state >= ClosedOnRampState::Initialized {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.onramp_account,
+            TEST_STAKE_AMOUNT,
+        )
+        .await;
+    }
+
+    if onramp_state >= ClosedOnRampState::Activating {
+        replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    }
+
+    if onramp_state >= ClosedOnRampState::Active {
+        advance_epoch(&mut context).await;
+    }
+
+    if pool_excess {
+        transfer(
+            &mut context.banks_client,
+            &context.payer,
+            &context.last_blockhash,
+            &accounts.stake_account,
+            LAMPORTS_PER_SOL,
+        )
+        .await;
+    }
+
+    if pool_inactive {
+        force_deactivate_stake_account(&mut context, &accounts.stake_account).await;
+    }
+
+    close_vote_account(&mut context, &accounts).await;
+
+    let (_, pre_pool_lamports) = get_stake_status(&mut context, &accounts.stake_account).await;
+    let (_, pre_onramp_lamports) = get_stake_status(&mut context, &accounts.onramp_account).await;
+    let pre_nav = pre_pool_lamports + pre_onramp_lamports - stake_rent * 2;
+
+    let alice_tokens = get_token_balance(&mut context.banks_client, &accounts.alice_token).await;
+    let notional_supply =
+        get_token_supply(&mut context.banks_client, &accounts.mint).await + LAMPORTS_PER_SOL;
+
+    // replenish on a closed vote account always succeeds, and winds down within a few epochs
+    for _ in 0..4 {
+        replenish(&mut context, &accounts.vote_account.pubkey()).await;
+        advance_epoch(&mut context).await;
+    }
+
+    // it is still a successful no-op after the wind-down completes
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+
+    // all value is in the main pool account, which is fully inactive
+    let (pool_status, pool_lamports) =
+        get_stake_status(&mut context, &accounts.stake_account).await;
+    assert_eq!(pool_status, Some(StakeActivationStatus::default()));
+    assert_eq!(pool_lamports, pre_nav + stake_rent);
+
+    let (onramp_status, onramp_lamports) =
+        get_stake_status(&mut context, &accounts.onramp_account).await;
+    assert!(matches!(
+        onramp_status,
+        None | Some(StakeActivationStatus {
+            effective: 0,
+            activating: 0,
+            deactivating: 0,
+        })
+    ));
+    assert_eq!(onramp_lamports, stake_rent);
+
+    // alice can withdraw her entire share of the pool NAV, including on-ramp value
+    let instructions = instruction::withdraw(
+        &id(),
+        &accounts.pool,
+        &accounts.alice_stake.pubkey(),
+        &accounts.alice.pubkey(),
+        &accounts.alice_token,
+        &accounts.alice.pubkey(),
+        alice_tokens,
+    );
+    let transaction = Transaction::new_signed_with_payer(
+        &instructions,
+        Some(&context.payer.pubkey()),
+        &[&context.payer, &accounts.alice],
+        context.last_blockhash,
+    );
+
+    context
+        .banks_client
+        .process_transaction(transaction)
+        .await
+        .unwrap();
+
+    let expected_withdraw =
+        (alice_tokens as u128 * pre_nav as u128 / notional_supply as u128) as u64;
+
+    let (alice_status, alice_lamports) =
+        get_stake_status(&mut context, &accounts.alice_stake.pubkey()).await;
+    assert_eq!(alice_status, Some(StakeActivationStatus::default()));
+    assert_eq!(alice_lamports, expected_withdraw + stake_rent);
+    assert_eq!(
+        get_token_balance(&mut context.banks_client, &accounts.alice_token).await,
+        0
+    );
+}
+
+// replenish fails safe if the vote account is closed while stranded on-ramp value has not yet been moved,
+// and a pool whose vote account is recreated at the same address resumes normal operation
+#[test_matrix(
+    [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
+)]
+#[tokio::test]
+async fn closed_vote_account_recreated(stake_version: StakeProgramVersion) {
+    let Some(program_test) = program_test(stake_version) else {
+        return;
+    };
+    let mut context = program_test.start_with_context().await;
+
+    let rent = context.banks_client.get_rent().await.unwrap();
+    let stake_rent = rent.minimum_balance(StakeStateV2::size_of());
+
+    let accounts = SinglePoolAccounts::default();
+    accounts
+        .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
+        .await;
+
+    // activating on-ramp, then the vote account is closed in the same epoch
+    transfer(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &accounts.onramp_account,
+        TEST_STAKE_AMOUNT,
+    )
+    .await;
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    close_vote_account(&mut context, &accounts).await;
+
+    // the activating on-ramp cannot be moved yet, so the main account is left active
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    let (pool_status, _) = get_stake_status(&mut context, &accounts.stake_account).await;
+    let pool_status = pool_status.unwrap();
+    assert!(pool_status.effective > 0 && pool_status.deactivating == 0);
+
+    // once the on-ramp is active, its stake is moved and the main account deactivated in one call
+    advance_epoch(&mut context).await;
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+
+    let (_, onramp_lamports) = get_stake_status(&mut context, &accounts.onramp_account).await;
+    assert_eq!(onramp_lamports, stake_rent);
+    let (pool_status, _) = get_stake_status(&mut context, &accounts.stake_account).await;
+    let pool_status = pool_status.unwrap();
+    assert_eq!(pool_status.deactivating, pool_status.effective);
+    assert!(pool_status.effective > TEST_STAKE_AMOUNT * 2);
+
+    advance_epoch(&mut context).await;
+
+    // recreate a vote account at the same address with a new validator identity
+    create_vote(
+        &mut context.banks_client,
+        &context.payer,
+        &context.last_blockhash,
+        &Keypair::new(),
+        &accounts.voter.pubkey(),
+        &accounts.withdrawer.pubkey(),
+        &accounts.vote_account,
+    )
+    .await;
+    refresh_blockhash(&mut context).await;
+
+    // normal replenish redelegates the pool, and it is fully active the next epoch
+    replenish(&mut context, &accounts.vote_account.pubkey()).await;
+    advance_epoch(&mut context).await;
+
+    let (pool_status, pool_lamports) =
+        get_stake_status(&mut context, &accounts.stake_account).await;
+    let pool_status = pool_status.unwrap();
+    assert_eq!(pool_status.activating, 0);
+    assert_eq!(pool_status.deactivating, 0);
+    assert_eq!(pool_status.effective, pool_lamports - stake_rent);
 }

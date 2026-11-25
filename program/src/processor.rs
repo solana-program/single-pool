@@ -783,7 +783,12 @@ impl Processor {
         let clock = Clock::get()?;
         let stake_history = StakeHistorySysvar(clock.epoch);
 
-        check_vote_account(vote_account_info)?;
+        // a vote account can only stop being owned by the vote program by being closed. the address
+        // is still bound to the pool by `check_pool_address`, so this cannot be spoofed for a live pool
+        let vote_account_is_closed = vote_account_info.owner != &vote_program::id();
+        if !vote_account_is_closed {
+            check_vote_account(vote_account_info)?;
+        }
         check_pool_address(program_id, vote_account_info.key, pool_info.key)?;
 
         SinglePool::from_account_info(pool_info, program_id)?;
@@ -796,6 +801,24 @@ impl Processor {
             pool_stake_authority_info.key,
         )?;
         check_stake_program(stake_program_info.key)?;
+
+        if vote_account_is_closed {
+            let stake_authority_seeds = &[
+                POOL_STAKE_AUTHORITY_PREFIX,
+                pool_info.key.as_ref(),
+                &[stake_authority_bump_seed],
+            ];
+
+            return Self::wind_down_pool(
+                pool_stake_info,
+                pool_onramp_info,
+                pool_stake_authority_info,
+                &[&stake_authority_seeds[..]],
+                &rent,
+                &clock,
+                &stake_history,
+            );
+        }
 
         let minimum_delegation = stake::tools::get_minimum_delegation()?;
 
@@ -949,6 +972,147 @@ impl Processor {
                     stake_authority_signers,
                 )?;
             }
+        }
+
+        Ok(())
+    }
+
+    /// `ReplenishPool` when the vote account has been closed. Nothing can be delegated anymore, so
+    /// instead of growing the pool we consolidate all on-ramp value into the main pool account and
+    /// deactivate it. Once the main account is fully inactive, `WithdrawStake` splits on lamports,
+    /// so every lamport of pool NAV becomes redeemable. This takes up to a few epochs and, like
+    /// normal replenish, each call does whatever is possible now and otherwise succeeds as a no-op.
+    ///
+    /// If a vote account is later recreated at the same address, the normal replenish path
+    /// redelegates the deactivated pool and the pool resumes normal operation.
+    fn wind_down_pool<'a>(
+        pool_stake_info: &AccountInfo<'a>,
+        pool_onramp_info: &AccountInfo<'a>,
+        pool_stake_authority_info: &AccountInfo<'a>,
+        stake_authority_signers: &[&[&[u8]]],
+        rent: &Rent,
+        clock: &Clock,
+        stake_history: &StakeHistorySysvar,
+    ) -> ProgramResult {
+        let onramp_rent_exempt_reserve = rent.minimum_balance(pool_onramp_info.data_len());
+
+        let (_, pool_stake_state) = get_stake_state(pool_stake_info)?;
+        let pool_stake_status = pool_stake_state
+            .delegation
+            .stake_activating_and_deactivating_v2(
+                clock.epoch,
+                stake_history,
+                PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+            );
+        let pool_is_fully_active = is_stake_fully_active(&pool_stake_status);
+        let pool_is_fully_inactive = pool_stake_status == StakeActivationStatus::default();
+
+        // on-ramp status, re-read after each stake operation. `None` means `Initialized`
+        let get_onramp_state =
+            || -> Result<Option<(Stake, StakeActivationStatus)>, ProgramError> {
+                match deserialize_stake(pool_onramp_info) {
+                    Ok(StakeStateV2::Initialized(_)) => Ok(None),
+                    Ok(StakeStateV2::Stake(_, stake, _)) => {
+                        let status = stake.delegation.stake_activating_and_deactivating_v2(
+                            clock.epoch,
+                            stake_history,
+                            PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
+                        );
+                        Ok(Some((stake, status)))
+                    }
+                    _ => Err(SinglePoolError::OnRampDoesntExist.into()),
+                }
+            };
+
+        // if both accounts are fully active, move all on-ramp stake to the main account.
+        // MoveStake does not need the vote account, only that both delegate to the same one
+        if pool_is_fully_active {
+            if let Some((_, onramp_status)) = get_onramp_state()? {
+                if is_stake_fully_active(&onramp_status) {
+                    invoke_signed(
+                        &stake::instruction::move_stake(
+                            pool_onramp_info.key,
+                            pool_stake_info.key,
+                            pool_stake_authority_info.key,
+                            onramp_status.effective,
+                        ),
+                        &[
+                            pool_onramp_info.clone(),
+                            pool_stake_info.clone(),
+                            pool_stake_authority_info.clone(),
+                        ],
+                        stake_authority_signers,
+                    )?;
+                }
+            }
+        }
+
+        // move any undelegated on-ramp lamports to the main account. both accounts must be
+        // fully active or fully inactive. a transient on-ramp is handled on a later call
+        let onramp_movable_lamports = match get_onramp_state()? {
+            None => pool_onramp_info
+                .lamports()
+                .saturating_sub(onramp_rent_exempt_reserve),
+            Some((_, status)) if status == StakeActivationStatus::default() => pool_onramp_info
+                .lamports()
+                .saturating_sub(onramp_rent_exempt_reserve),
+            Some((stake, status)) if is_stake_fully_active(&status) => pool_onramp_info
+                .lamports()
+                .saturating_sub(stake.delegation.stake)
+                .saturating_sub(onramp_rent_exempt_reserve),
+            Some(_) => 0,
+        };
+
+        if onramp_movable_lamports > 0 && (pool_is_fully_active || pool_is_fully_inactive) {
+            invoke_signed(
+                &stake::instruction::move_lamports(
+                    pool_onramp_info.key,
+                    pool_stake_info.key,
+                    pool_stake_authority_info.key,
+                    onramp_movable_lamports,
+                ),
+                &[
+                    pool_onramp_info.clone(),
+                    pool_stake_info.clone(),
+                    pool_stake_authority_info.clone(),
+                ],
+                stake_authority_signers,
+            )?;
+        }
+
+        // if the main account is not fully active, on-ramp stake can never be moved into it.
+        // deactivate the on-ramp instead, so its lamports can be moved once both are inactive
+        if !pool_is_fully_active {
+            if let Some((stake, _)) = get_onramp_state()? {
+                if stake.delegation.deactivation_epoch == u64::MAX {
+                    invoke_signed(
+                        &stake::instruction::deactivate_stake(
+                            pool_onramp_info.key,
+                            pool_stake_authority_info.key,
+                        ),
+                        &[pool_onramp_info.clone(), pool_stake_authority_info.clone()],
+                        stake_authority_signers,
+                    )?;
+                }
+            }
+        }
+
+        // once the on-ramp holds nothing but rent, deactivate the main account. we wait otherwise,
+        // because a deactivating main account cannot receive stake or lamports from the on-ramp
+        let onramp_is_empty = pool_onramp_info
+            .lamports()
+            .saturating_sub(onramp_rent_exempt_reserve)
+            == 0;
+
+        if pool_is_fully_active && onramp_is_empty {
+            invoke_signed(
+                &stake::instruction::deactivate_stake(
+                    pool_stake_info.key,
+                    pool_stake_authority_info.key,
+                ),
+                &[pool_stake_info.clone(), pool_stake_authority_info.clone()],
+                stake_authority_signers,
+            )?;
         }
 
         Ok(())
