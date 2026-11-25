@@ -694,10 +694,11 @@ async fn fail_onramp_doesnt_exist(stake_version: StakeProgramVersion, activate: 
         .unwrap();
 }
 
+// ordered: the test builds each state on the setup steps of the ones before it, via `>=`
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
-enum ClosedOnRampState {
+enum OnRampStateAtVoteClose {
     Empty,
-    Initialized,
+    Undelegated,
     Activating,
     Active,
 }
@@ -709,14 +710,14 @@ enum ClosedOnRampState {
 // deactivating the on-ramp before its lamports can be moved.
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge],
-    [ClosedOnRampState::Empty, ClosedOnRampState::Initialized, ClosedOnRampState::Activating, ClosedOnRampState::Active],
+    [OnRampStateAtVoteClose::Empty, OnRampStateAtVoteClose::Undelegated, OnRampStateAtVoteClose::Activating, OnRampStateAtVoteClose::Active],
     [false, true],
     [false, true]
 )]
 #[tokio::test]
 async fn closed_vote_account_wind_down(
     stake_version: StakeProgramVersion,
-    onramp_state: ClosedOnRampState,
+    onramp_state: OnRampStateAtVoteClose,
     pool_excess: bool,
     pool_inactive: bool,
 ) {
@@ -733,7 +734,7 @@ async fn closed_vote_account_wind_down(
         .initialize_for_withdraw(&mut context, TEST_STAKE_AMOUNT, None, true)
         .await;
 
-    if onramp_state >= ClosedOnRampState::Initialized {
+    if onramp_state >= OnRampStateAtVoteClose::Undelegated {
         transfer(
             &mut context.banks_client,
             &context.payer,
@@ -744,11 +745,11 @@ async fn closed_vote_account_wind_down(
         .await;
     }
 
-    if onramp_state >= ClosedOnRampState::Activating {
+    if onramp_state >= OnRampStateAtVoteClose::Activating {
         replenish(&mut context, &accounts.vote_account.pubkey()).await;
     }
 
-    if onramp_state >= ClosedOnRampState::Active {
+    if onramp_state >= OnRampStateAtVoteClose::Active {
         advance_epoch(&mut context).await;
     }
 
@@ -777,8 +778,10 @@ async fn closed_vote_account_wind_down(
     let notional_supply =
         get_token_supply(&mut context.banks_client, &accounts.mint).await + LAMPORTS_PER_SOL;
 
-    // replenish on a closed vote account always succeeds, and winds down within a few epochs
-    for _ in 0..4 {
+    // replenish on a closed vote account always succeeds. the slowest case is an activating on-ramp:
+    // one call waits for it to activate, the next moves its stake and deactivates the main account,
+    // then the main account cools down for an epoch
+    for _ in 0..3 {
         replenish(&mut context, &accounts.vote_account.pubkey()).await;
         advance_epoch(&mut context).await;
     }
@@ -840,8 +843,9 @@ async fn closed_vote_account_wind_down(
     );
 }
 
-// replenish fails safe if the vote account is closed while stranded on-ramp value has not yet been moved,
-// and a pool whose vote account is recreated at the same address resumes normal operation
+// vote account is closed while the on-ramp is still activating: replenish waits for it to activate,
+// then moves its stake and deactivates the main account. a pool whose vote account is then recreated
+// at the same address resumes normal operation
 #[test_matrix(
     [StakeProgramVersion::Stable, StakeProgramVersion::Beta, StakeProgramVersion::Edge]
 )]
@@ -877,6 +881,7 @@ async fn closed_vote_account_recreated(stake_version: StakeProgramVersion) {
     let (pool_status, _) = get_stake_status(&mut context, &accounts.stake_account).await;
     let pool_status = pool_status.unwrap();
     assert!(pool_status.effective > 0 && pool_status.deactivating == 0);
+    let pre_pool_stake = pool_status.effective;
 
     // once the on-ramp is active, its stake is moved and the main account deactivated in one call
     advance_epoch(&mut context).await;
@@ -887,7 +892,7 @@ async fn closed_vote_account_recreated(stake_version: StakeProgramVersion) {
     let (pool_status, _) = get_stake_status(&mut context, &accounts.stake_account).await;
     let pool_status = pool_status.unwrap();
     assert_eq!(pool_status.deactivating, pool_status.effective);
-    assert!(pool_status.effective > TEST_STAKE_AMOUNT * 2);
+    assert_eq!(pool_status.effective, pre_pool_stake + TEST_STAKE_AMOUNT);
 
     advance_epoch(&mut context).await;
 

@@ -783,8 +783,9 @@ impl Processor {
         let clock = Clock::get()?;
         let stake_history = StakeHistorySysvar(clock.epoch);
 
-        // a vote account can only stop being owned by the vote program by being closed. the address
-        // is still bound to the pool by `check_pool_address`, so this cannot be spoofed for a live pool
+        // a vote account can only stop being owned by the vote program by being closed. the address is
+        // bound to the pool by `check_pool_address` below, so a wind-down cannot be triggered while the
+        // real vote account exists
         let vote_account_is_closed = vote_account_info.owner != &vote_program::id();
         if !vote_account_is_closed {
             check_vote_account(vote_account_info)?;
@@ -979,9 +980,11 @@ impl Processor {
 
     /// `ReplenishPool` when the vote account has been closed. Nothing can be delegated anymore, so
     /// instead of growing the pool we consolidate all on-ramp value into the main pool account and
-    /// deactivate it. Once the main account is fully inactive, `WithdrawStake` splits on lamports,
-    /// so every lamport of pool NAV becomes redeemable. This takes up to a few epochs and, like
-    /// normal replenish, each call does whatever is possible now and otherwise succeeds as a no-op.
+    /// deactivate it. If the main account is not fully active, the on-ramp is deactivated first, so
+    /// its lamports can be moved once both are inactive. Once the main account is fully inactive,
+    /// `WithdrawStake` splits on lamports, so every user's share of pool NAV becomes redeemable.
+    /// This takes up to a few epochs and, like normal replenish, each call does whatever is
+    /// possible now and otherwise succeeds as a no-op.
     ///
     /// If a vote account is later recreated at the same address, the normal replenish path
     /// redelegates the deactivated pool and the pool resumes normal operation.
@@ -1004,8 +1007,10 @@ impl Processor {
                 stake_history,
                 PERPETUAL_NEW_WARMUP_COOLDOWN_RATE_EPOCH,
             );
-        let pool_is_fully_active = is_stake_fully_active(&pool_stake_status);
-        let pool_is_fully_inactive = pool_stake_status == StakeActivationStatus::default();
+        // read once: nothing below changes the main account's activation status until the final
+        // deactivate. `MoveStake` and `MoveLamports` only add to it
+        let pool_stake_is_fully_active = is_stake_fully_active(&pool_stake_status);
+        let pool_stake_is_fully_inactive = pool_stake_status == StakeActivationStatus::default();
 
         // on-ramp status, re-read after each stake operation. `None` means `Initialized`
         let get_onramp_state =
@@ -1026,7 +1031,7 @@ impl Processor {
 
         // if both accounts are fully active, move all on-ramp stake to the main account.
         // MoveStake does not need the vote account, only that both delegate to the same one
-        if pool_is_fully_active {
+        if pool_stake_is_fully_active {
             if let Some((_, onramp_status)) = get_onramp_state()? {
                 if is_stake_fully_active(&onramp_status) {
                     invoke_signed(
@@ -1047,23 +1052,34 @@ impl Processor {
             }
         }
 
-        // move any undelegated on-ramp lamports to the main account. both accounts must be
-        // fully active or fully inactive. a transient on-ramp is handled on a later call
+        // a closure rather than a value, so each call reflects any stake operation above
+        let current_onramp_non_rent_lamports = || {
+            pool_onramp_info
+                .lamports()
+                .saturating_sub(onramp_rent_exempt_reserve)
+        };
+
+        // move any undelegated on-ramp lamports to the main account with `MoveLamports`.
+        // each account must be either fully active or fully inactive, and only lamports that are
+        // neither delegated nor rent can move. a transient on-ramp is handled on a later call
         let onramp_movable_lamports = match get_onramp_state()? {
-            None => pool_onramp_info
-                .lamports()
-                .saturating_sub(onramp_rent_exempt_reserve),
-            Some((_, status)) if status == StakeActivationStatus::default() => pool_onramp_info
-                .lamports()
-                .saturating_sub(onramp_rent_exempt_reserve),
-            Some((stake, status)) if is_stake_fully_active(&status) => pool_onramp_info
-                .lamports()
-                .saturating_sub(stake.delegation.stake)
-                .saturating_sub(onramp_rent_exempt_reserve),
+            // never delegated, or emptied by `MoveStake` above: all of it
+            None => current_onramp_non_rent_lamports(),
+            // fully deactivated: all of it
+            Some((_, status)) if status == StakeActivationStatus::default() => {
+                current_onramp_non_rent_lamports()
+            }
+            // fully active: only lamports beyond the delegation
+            Some((stake, status)) if is_stake_fully_active(&status) => {
+                current_onramp_non_rent_lamports().saturating_sub(stake.delegation.stake)
+            }
+            // activating or deactivating: nothing yet
             Some(_) => 0,
         };
 
-        if onramp_movable_lamports > 0 && (pool_is_fully_active || pool_is_fully_inactive) {
+        if onramp_movable_lamports > 0
+            && (pool_stake_is_fully_active || pool_stake_is_fully_inactive)
+        {
             invoke_signed(
                 &stake::instruction::move_lamports(
                     pool_onramp_info.key,
@@ -1082,8 +1098,9 @@ impl Processor {
 
         // if the main account is not fully active, on-ramp stake can never be moved into it.
         // deactivate the on-ramp instead, so its lamports can be moved once both are inactive
-        if !pool_is_fully_active {
+        if !pool_stake_is_fully_active {
             if let Some((stake, _)) = get_onramp_state()? {
+                // `u64::MAX` means the on-ramp has not been deactivated yet
                 if stake.delegation.deactivation_epoch == u64::MAX {
                     invoke_signed(
                         &stake::instruction::deactivate_stake(
@@ -1099,12 +1116,7 @@ impl Processor {
 
         // once the on-ramp holds nothing but rent, deactivate the main account. we wait otherwise,
         // because a deactivating main account cannot receive stake or lamports from the on-ramp
-        let onramp_is_empty = pool_onramp_info
-            .lamports()
-            .saturating_sub(onramp_rent_exempt_reserve)
-            == 0;
-
-        if pool_is_fully_active && onramp_is_empty {
+        if pool_stake_is_fully_active && current_onramp_non_rent_lamports() == 0 {
             invoke_signed(
                 &stake::instruction::deactivate_stake(
                     pool_stake_info.key,

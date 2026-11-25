@@ -69,9 +69,10 @@ pub enum SinglePoolInstruction {
     ///
     ///   If the validator vote account has been closed, this instruction instead
     ///   winds the pool down: it moves all on-ramp stake and lamports into the main
-    ///   pool account and then deactivates it, so all pool value can be withdrawn.
-    ///   This may take several epochs of calls. If a vote account is recreated at
-    ///   the same address, the pool is reactivated as normal.
+    ///   pool account and then deactivates the main account, so all pool value can be
+    ///   withdrawn. This may take several epochs of calls. If a vote account is
+    ///   recreated at the same address, the next `ReplenishPool` redelegates the pool
+    ///   and it resumes normal operation.
     ///
     ///   0. `[]` Validator vote account
     ///   1. `[]` Pool account
