@@ -1,4 +1,4 @@
-import { getAddressCodec } from '@solana/kit';
+import { getAddressCodec, getBase64Encoder } from '@solana/kit';
 
 import { PoolAddress, VoteAccountAddress } from './addresses.js';
 
@@ -11,9 +11,12 @@ export async function getVoteAccountAddressForPool(
   poolAddress: PoolAddress,
   abortSignal?: AbortSignal,
 ): Promise<VoteAccountAddress> {
-  const poolAccount = await rpc.getAccountInfo(poolAddress).send(abortSignal);
-  if (!(poolAccount && poolAccount.data[0] === 1)) {
+  const { value: poolAccount } = await rpc
+    .getAccountInfo(poolAddress, { encoding: 'base64' })
+    .send({ abortSignal });
+  const poolData = poolAccount && getBase64Encoder().encode(poolAccount.data[0]);
+  if (!(poolData && poolData[0] === 1)) {
     throw 'invalid pool address';
   }
-  return getAddressCodec().decode(poolAccount.data.slice(1)) as VoteAccountAddress;
+  return getAddressCodec().decode(poolData.slice(1)) as VoteAccountAddress;
 }
